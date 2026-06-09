@@ -1,0 +1,20 @@
+{
+  "brand": "Bearded Genius",
+  "instagram": "https://www.instagram.com/bearded_genius/",
+  "whatsapp": "+234 909 943 6487",
+  "liveAssets": {
+    "logo": "/assets/bearded-genius/logo/profile-logo.jpg",
+    "brandPoster": "/assets/bearded-genius/images/brand/rooted-in-culture.jpg",
+    "editorial": [
+      "/assets/bearded-genius/images/editorial/culture-lives-on.jpg",
+      "/assets/bearded-genius/images/editorial/custom-threads.jpg"
+    ],
+    "products": [
+      "/assets/bearded-genius/images/products/afri-jorts.jpg",
+      "/assets/bearded-genius/images/products/shop-now-set.jpg",
+      "/assets/bearded-genius/images/products/button-up.jpg"
+    ]
+  },
+  "rawArchive": "/assets/bearded-genius/reference/raw-instagram/",
+  "note": "Raw archive may include collaboration/event references. Live UI uses only Bearded Genius copy and curated BG assets."
+}

@@ -1,0 +1,10 @@
+Create a premium, minimal ecommerce and culture website for Lagos Sneaker Club, a sneaker retail and culture space in Ikoyi, Lagos. The brand sells sneakers, supports consignment/stocking for African fashion and lifestyle brands, hosts sneaker/community events, and lets customers reserve products or contact the store through WhatsApp.
+
+Use only Lagos Sneaker Club. Remove Bearded Genius as a brand, nav item, page, product line, or partner. If old LSC Instagram assets contain Bearded Genius email text inside the image, treat it only as historical image content and do not repeat it in website copy.
+
+Primary goals: sell/reserve sneakers, explain Lagos sneaker culture, show the Ikoyi space, promote events/pop-ups, and make WhatsApp contact easy.
+
+Tone and style: world-class minimal editorial retail, black/white/charcoal, concrete grey, one strong red accent from the LSC partner poster, circular LSC logo, large refined serif display moments, clean sans-serif UI, generous whitespace, sharp product cards, 6-8px radius, subtle motion notes. Avoid generic streetwear clutter, gradients, purple/blue palettes, oversized marketing hero, fake hype copy, and Bearded Genius branding.
+
+Pages: Home, Shop, Events & Culture, Stock With Us, Visit Ikoyi, About, Contact. Home should feel like an actual premium store UI: animated image/video slideshow, sneaker culture in Lagos, featured drops, shop preview, event preview, store location, Instagram-style editorial feed. Shop should include real ecommerce structure: filters for brand/type/size/condition, sneaker product cards, reserve/add-to-bag CTA, WhatsApp checkout, and editable placeholder inventory.
+

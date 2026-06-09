@@ -1,0 +1,85 @@
+{
+  "createdFor": "Claude + Relume handoff",
+  "brand": "Lagos Sneaker Club",
+  "source": "Public Instagram data downloaded from @lgssnkrclub",
+  "images": [
+    {
+      "path": "assets/logo/lsc-profile-logo.jpg",
+      "usage": "Profile logo from Instagram"
+    },
+    {
+      "path": "assets/images/brand/01-calling-african-brands.jpg",
+      "usage": "Dark LSC store poster: Calling African Brands"
+    },
+    {
+      "path": "assets/images/brand/02-open-everyday.jpg",
+      "usage": "Dark LSC store poster: Open Everyday"
+    },
+    {
+      "path": "assets/images/events/01-partner-with-us.jpg",
+      "usage": "Red event partnership poster"
+    },
+    {
+      "path": "assets/images/events/02-rasta-roast-community.jpg",
+      "usage": "Community gathering and food event"
+    },
+    {
+      "path": "assets/images/events/03-sneaker-saturday-winners.jpg",
+      "usage": "Sneaker Saturday winners"
+    },
+    {
+      "path": "assets/images/products/01-lavcore-denim-crocs.jpg",
+      "usage": "Lavcore denim crocs product/editorial image"
+    },
+    {
+      "path": "assets/images/products/02-whats-in-my-lsc-bag.jpg",
+      "usage": "LSC bag contents and cross-sell image"
+    },
+    {
+      "path": "assets/images/products/03-1k-sneaker-saturday-fit.jpg",
+      "usage": "Sneaker Saturday product/event thumbnail"
+    },
+    {
+      "path": "assets/images/products/04-culture-fit.jpg",
+      "usage": "Lifestyle fit thumbnail"
+    },
+    {
+      "path": "assets/images/products/05-clue-4.jpg",
+      "usage": "Campaign clue poster/video thumbnail"
+    },
+    {
+      "path": "assets/images/products/06-clue-3.jpg",
+      "usage": "Campaign clue poster/video thumbnail"
+    }
+  ],
+  "videos": [
+    {
+      "path": "assets/videos/01-rasta-roast-iv-sneakerhead-edition-good-fo.mp4",
+      "shortcode": "DZHhjrdtL12",
+      "caption": "Rasta Roast IV: Sneakerhead Edition 👟 Good food brought wonderful people together. Big blessings to everyone who pulled up and made this ting one for the books 💛❤️💚 Until the next roast… keep it locked! 🔐 🏠: @lgssnkrclub 🧑‍🍳: @mregofix #rastakitchen #rastaroast #irievibes",
+      "usage": "Homepage motion teaser / culture reel",
+      "instagramUrl": "https://www.instagram.com/p/DZHhjrdtL12/"
+    },
+    {
+      "path": "assets/videos/02-bornstarng-really-said-hold-my-beer-you-re.mp4",
+      "shortcode": "DZFKrdHOPwF",
+      "caption": "@bornstarng really said “hold my beer, you’re about to get really turnt for @ardourrrrrr in the chillest fit(s)” 🫦",
+      "usage": "Slideshow or community section clip",
+      "instagramUrl": "https://www.instagram.com/p/DZFKrdHOPwF/"
+    },
+    {
+      "path": "assets/videos/03-it-s-almost-time-let-the-countdown-begin-c.mp4",
+      "shortcode": "DY7UT3Vs-nA",
+      "caption": "It’s almost time😉 Let the countdown begin!! Clue 4 lessgooooo!!! #1ksneakersaturday #yaba",
+      "usage": "Slideshow or community section clip",
+      "instagramUrl": "https://www.instagram.com/p/DY7UT3Vs-nA/"
+    },
+    {
+      "path": "assets/videos/04-we-told-you-to-keep-an-eye-out-hmm-were-yo.mp4",
+      "shortcode": "DY4o8ymIzLD",
+      "caption": "We told you to keep an eye out 😉 Hmm…were you? Clue 3 lessgooooo!!! #1ksneakersaturday #yaba",
+      "usage": "Slideshow or community section clip",
+      "instagramUrl": "https://www.instagram.com/p/DY4o8ymIzLD/"
+    }
+  ]
+}
