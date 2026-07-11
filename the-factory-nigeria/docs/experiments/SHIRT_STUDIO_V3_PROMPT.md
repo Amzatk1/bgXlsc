@@ -8,6 +8,35 @@ scope for this session — the founder has already approved this plan.
 
 ## 0. Context — read this first, do not rediscover it
 
+### WHERE TO WORK — do this before anything else
+
+**ALL work happens inside The Factory folder (the studio worktree):**
+
+```
+/Users/ayooluwakarim/bgxlsc-worktrees/custom-tee-studio/the-factory-nigeria/
+```
+
+Every file read, edit, build, test, asset export and git command runs inside that
+directory. Your session may open in a different working directory (e.g.
+`~/sneaker-genius-store`) — that is NOT the project. Do not create or edit any
+project file outside the worktree. Before your first edit, verify you are in the
+right place:
+
+```bash
+cd /Users/ayooluwakarim/bgxlsc-worktrees/custom-tee-studio/the-factory-nigeria
+git branch --show-current   # MUST print: feature/custom-tee-studio-prototype
+git log --oneline -3        # newest should include 44b9d01 / 13f3afe
+```
+
+If the branch check prints anything else, STOP and report — do not edit.
+
+There is also a second checkout of this repo at
+`/Users/ayooluwakarim/brand-codebases/the-factory-nigeria/` — that is the
+PRODUCTION checkout on `main` (live at thefactorynigeria.com). **Never edit,
+build into, or commit from that folder in this session.**
+
+### Project facts
+
 - **Worktree:** `/Users/ayooluwakarim/bgxlsc-worktrees/custom-tee-studio/the-factory-nigeria/`
 - **Branch:** `feature/custom-tee-studio-prototype` (NEVER merge to `main`, NEVER deploy)
 - **Main branch:** `e22401f` — the live site at thefactorynigeria.com. Do not touch it.
@@ -155,7 +184,24 @@ adopt/reject), then:
 - No invented business facts: no prices, no turnaround promises, no stock claims.
 - Do not break the live-site pages (Home/MobileHome are shared with main's design).
 
-## 7. Final report format
+## 7. Definition of done — verify every line before reporting
+
+- [ ] Working directory was the worktree for every change; production checkout untouched
+- [ ] At least 2 new garments generated, QA'd against the rejection list, integrated with measured zones + per-garment fabric luma
+- [ ] Colour masking verified on every kept garment (White, Black, #a425a4, one mid colour)
+- [ ] Fabric selection step live with close-up references + "Help me choose"
+- [ ] Availability status (one of the four labels) visible on EVERY garment and fabric option — text, never colour alone
+- [ ] The market-sourcing notice appears on: homepage promo, garment step, fabric step, review screen, WhatsApp message, design brief, reference sheet
+- [ ] Fabric visuals carry the "approximate references… confirmed using available market samples" notice
+- [ ] Editor re-layout done for desktop/tablet/mobile; all existing gestures, warnings, undo/redo, keyboard paths still work
+- [ ] Full customer end-to-end run completed (1 shirt, front+back, fabric chosen, package downloaded, WhatsApp preview checked)
+- [ ] All viewports in Task D checked; no overflow/clipped controls/console errors
+- [ ] All existing tests green + new tests for fabric state, availability labels in messages, new garment zones
+- [ ] `npm run build` clean; bundle size reported
+- [ ] `docs/experiments/CUSTOM_TEE_STUDIO.md` updated with a v3 section (assets kept/rejected, decisions)
+- [ ] Committed + pushed to `feature/custom-tee-studio-prototype` ONLY; nothing merged, nothing deployed
+
+## 8. Final report format
 
 Report: garments generated vs kept vs rejected (with reasons); fabric visuals
 generated; availability wording locations; Mobbin patterns adopted/rejected;
