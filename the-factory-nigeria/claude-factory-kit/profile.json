@@ -1,0 +1,40 @@
+{
+  "username": "thefactorynigeria_",
+  "fullName": "GARMENT PRODUCTION & PRINTING FACTORY IN LAGOS",
+  "instagram": "https://www.instagram.com/thefactorynigeria_/",
+  "followers": 1044,
+  "following": 15,
+  "postsCount": 211,
+  "highlightReelCount": 17,
+  "biography": "We specialize in garment production and printing services \nMOQ: 30pcs\n⏰: 9am - 5pm\nMonday to Friday \nFactory visits: (By Appointment)\nEnquiries⤵️",
+  "externalUrl": "http://wa.me/2349099436487",
+  "whatsapp": "2349099436487",
+  "whatsappDisplay": "+234 909 943 6487",
+  "minimumOrderQuantity": "30 pieces",
+  "hours": "9am - 5pm, Monday to Friday",
+  "visits": "Factory visits by appointment",
+  "address": {
+    "street": "46 Industrial Avenue, Ilupeju",
+    "city": "Lagos, Nigeria",
+    "latitude": 6.54003,
+    "longitude": 3.35868,
+    "display": "46 Industrial Avenue, Ilupeju, Lagos, Nigeria"
+  },
+  "services": [
+    "Garment production",
+    "Printing services",
+    "Custom apparel",
+    "Corporate uniforms",
+    "Merchandise",
+    "Souvenirs",
+    "Bulk orders",
+    "Brand production support"
+  ],
+  "screenshotHighlights": [
+    "Prints",
+    "Our Process",
+    "Products",
+    "Production",
+    "Payment"
+  ]
+}

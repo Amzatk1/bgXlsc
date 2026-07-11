@@ -1,0 +1,7 @@
+Create a premium, conversion-focused website for The Factory Nigeria, a garment production and printing factory in Lagos. The brand helps clothing brands, companies, teams, creators, and events produce custom apparel, branded uniforms, merchandise, souvenirs, caps, jackets, and bulk printed garments. The profile facts are: MOQ 30pcs, WhatsApp +234 909 943 6487, 46 Industrial Avenue, Ilupeju, Lagos, Nigeria, hours 9am-5pm Monday-Friday, factory visits by appointment.
+
+The website should feel like a modern production studio, not a fashion lookbook or sneaker store. Use a purple/lilac/black identity inspired by the Instagram logo, industrial atelier details, production-ticket cards, pattern-paper lines, process timelines, real workshop media, and clear quote CTAs.
+
+Pages: Home, Services, Process, Work / Products, Brands & Companies, Visit / Contact, FAQ / Payment. Home should immediately show what they do, MOQ, WhatsApp quote CTA, factory media, and a process preview. The Process page should explain enquiry → quote → artwork/design → material/blank selection → sample/proof → bulk production → QC → pickup/delivery. The Contact page should include address, hours, appointment note, map link, and a WhatsApp quote form.
+
+Avoid fake pricing, fake stats, generic stock imagery, and overdesigned purple gradients. Make it clean, operational, responsive, accessible, and ready for a real business.

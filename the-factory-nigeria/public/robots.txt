@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# Single-page app — all routes are served from https://thefactorynigeria.com/
