@@ -302,6 +302,17 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .package li { display: flex; gap: 8px; align-items: center; font-size: 0.88rem; font-weight: 500; }
 .package svg { color: var(--purple-700); flex: none; }
 
+/* Fabric-availability note on the send step — branded, gently emphasised
+   so it reads as guidance from the team rather than boilerplate. */
+.enquiry__hint--fabric {
+  background: var(--lilac-tint);
+  border: 1.5px solid var(--purple);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-weight: 500;
+}
+.enquiry__hint--fabric svg { color: var(--purple-700); }
+
 /* Confirmation */
 .studio__done { align-items: flex-start; }
 .sharefallback {

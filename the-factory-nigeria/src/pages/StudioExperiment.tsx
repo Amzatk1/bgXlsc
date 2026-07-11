@@ -1129,7 +1129,7 @@ export function StudioExperiment() {
                   <p className="field__note">Preparing reference sheet…</p>
                 )}
                 <span className="field__legend mono" style={{ marginTop: 14 }}>
-                  Package contents
+                  What you'll share
                 </span>
                 <ul className="package">
                   <li>
@@ -1160,17 +1160,24 @@ export function StudioExperiment() {
                 <pre className="msgpreview">{buildStudioMessage(state)}</pre>
               </div>
             </div>
+            <p className="enquiry__hint enquiry__hint--fabric">
+              <Info size={15} aria-hidden="true" />
+              A quick note before you send: some fabrics and colours may not be available in the
+              market at the time of your request. The Factory team confirms availability with you
+              in the WhatsApp chat after you send your design — and if your exact choice can't be
+              sourced, they'll suggest the closest available alternative before anything is made.
+            </p>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              Test mode: nothing is uploaded or sent automatically. Creating the enquiry prepares your
-              files locally — you choose what to share on WhatsApp.
+              Test mode: nothing is uploaded or sent automatically. Preparing your design only
+              creates the files on your device — you choose what to share on WhatsApp.
             </p>
             <button
               type="button"
               className="btn btn--primary btn--lg"
               onClick={() => setSubmitted(new Date().toISOString())}
             >
-              Create enquiry package (test mode)
+              Prepare my design to send <ArrowRight size={17} aria-hidden="true" />
             </button>
           </section>
         )}
@@ -1180,7 +1187,7 @@ export function StudioExperiment() {
           <section className="studio__panel studio__done" aria-label="Enquiry ready">
             <span className="chip chip--ready">
               <span className="chip__dot" aria-hidden="true" />
-              Enquiry package ready — {state.reference}
+              Design ready to send — {state.reference}
             </span>
             <h2 className="h3">Your design is ready to share</h2>
             <p className="lede">
