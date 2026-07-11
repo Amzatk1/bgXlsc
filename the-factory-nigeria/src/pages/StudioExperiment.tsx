@@ -270,6 +270,9 @@ export function StudioExperiment() {
       <header className="studio__head container">
         <span className="eyebrow">The Shirt Studio</span>
         <h1 className="h2">Design your shirt</h1>
+        <p className="studio__stepmeta mono" aria-hidden="true">
+          Step {step + 1} of {STEPS.length} · {STEPS[step]}
+        </p>
         <div className="studio__progress" role="group" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
           {STEPS.map((s, i) => (
             <button
@@ -685,9 +688,15 @@ export function StudioExperiment() {
                   <strong className="sizes__total">{sizeTotal(state.details.sizes)}</strong>
                 </div>
               </div>
-              <p className="field__note" role="status">
-                {assigned} of {qtyNum || "—"} assigned
-                {qtyNum > assigned ? ` · -e remaining` : qtyNum && qtyNum === assigned ? " · all assigned ✓" : ""}
+              <p
+                className={qtyNum && qtyNum === assigned ? "field__ok" : "field__note"}
+                role="status"
+              >
+                {qtyNum && qtyNum === assigned
+                  ? `All ${qtyNum} shirt${qtyNum === 1 ? " has" : "s have"} been assigned.`
+                  : qtyNum > assigned && assigned > 0
+                    ? `${assigned} of ${qtyNum} shirts assigned. Choose sizes for the remaining ${qtyNum - assigned}.`
+                    : `${assigned} of ${qtyNum || "—"} assigned`}
               </p>
               {sizesStatus && (
                 <p className={sizesStatus.level === "error" ? "field__error" : "field__note"} role="status">
@@ -980,6 +989,15 @@ export function StudioExperiment() {
                 This is an enquiry — not an order. Nothing goes into production until The Factory confirms
                 it with you.
               </p>
+            </div>
+
+            <div className="sizes__actions">
+              <button type="button" className="btn btn--ghost" onClick={() => window.location.reload()}>
+                <span className="btn-underline">Start another design</span>
+              </button>
+              <a className="btn btn--ghost" href="#/">
+                <span className="btn-underline">Return to the homepage</span>
+              </a>
             </div>
           </section>
         )}
