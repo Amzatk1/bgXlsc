@@ -170,6 +170,9 @@ export function Home() {
             </div>
           </section>
 
+          {/* ---------- THE SHIRT STUDIO (flagship, section 4) ---------- */}
+          <StudioPromo />
+
           {/* ---------- PROOF PREVIEW ---------- */}
           <section className="section">
             <div className="container">
@@ -200,8 +203,6 @@ export function Home() {
               <VisitPanel />
             </div>
           </section>
-
-          <StudioPromo />
 
           <CtaBand />
         </>

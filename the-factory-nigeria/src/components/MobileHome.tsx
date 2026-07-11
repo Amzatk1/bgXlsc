@@ -84,6 +84,8 @@ export function MobileHome() {
         </div>
       </section>
 
+      <StudioPromo compact />
+
       {/* Process summary — 4 tight steps */}
       <section className="section--tight">
         <div className="container">
@@ -107,8 +109,6 @@ export function MobileHome() {
           </ol>
         </div>
       </section>
-
-      <StudioPromo compact />
 
       {/* Brands we've produced for */}
       <section className="section--tight">

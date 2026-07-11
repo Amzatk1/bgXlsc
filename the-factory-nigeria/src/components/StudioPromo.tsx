@@ -39,21 +39,25 @@ export function StudioPromo({ compact = false }: { compact?: boolean }) {
             <span className="eyebrow">The Shirt Studio</span>
             <h2 className="h2">Design your shirt before we make it</h2>
             <p className="lede">
-              Choose your garment, pick a colour, upload your logo or artwork, place it on the front
-              and back, then send the finished design straight to The Factory for review and a quote.
+              Choose your shirt style, explore colours and fabric options, add your logo or artwork
+              to the front and back, select your quantity and sizes, and send the finished design
+              directly to The Factory Nigeria for production review and a personalised quote.
             </p>
             <ul className="spromo__points">
               <li>Start from just 1 shirt</li>
-              <li>Real fabric preview, front and back</li>
-              <li>Your quantities and sizes, your deadline</li>
+              <li>Real fabric preview — design the front and the back</li>
+              <li>Colours and fabrics shown as visual references</li>
+              <li>Your quantities, sizes and deadline</li>
               <li>Sent to the team on WhatsApp — no payment online</li>
             </ul>
             <a className="btn btn--primary btn--lg" href="#/experiments/custom-tee-studio">
               Open The Shirt Studio <ArrowUpRight size={17} aria-hidden="true" />
             </a>
             <p className="spromo__note">
-              The preview is approximate — final colours, materials, placement, pricing and timing
-              are confirmed before production.
+              Options shown are visual references, not live stock. Garment, fabric and colour
+              availability depends on what can be sourced in the market at the time of your request —
+              the team confirms availability, minimum quantity, pricing and production time before
+              any order is accepted.
             </p>
           </Reveal>
         </div>

@@ -309,7 +309,9 @@ export function StudioExperiment() {
             </div>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              Prototype garment list — the full range (polos, jerseys, caps) is confirmed with the team.
+              Prototype garment list — the full range (polos, jerseys, hoodies, caps) is confirmed
+              with the team. Garments, fabrics and colours shown are visual references: availability
+              depends on what can be sourced in the market when you send your request.
             </p>
           </section>
         )}
