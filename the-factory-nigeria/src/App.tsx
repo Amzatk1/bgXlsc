@@ -35,7 +35,7 @@ export default function App() {
   }, [path]);
 
   const Page = PAGES[path] ?? Home;
-  // The Shirt Studio has its own sticky step navigation and accepts
+  // Studio has its own sticky step navigation and accepts
   // 1-shirt requests — the site-wide "Min. 30 pcs" bar would cover the
   // studio's primary action on phones and contradict its minimum.
   const showQuoteBar = path !== "/experiments/custom-tee-studio";

@@ -2,7 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import { GARMENT_IMG, layerTuning } from "../studio/garment";
 import { Reveal } from "./Reveal";
 
-// Homepage introduction for The Shirt Studio. The visual is the REAL
+// Homepage introduction for Studio. The visual is the REAL
 // studio garment render (same layers as the editor) — not a mock UI.
 export function StudioPromo({ compact = false }: { compact?: boolean }) {
   const img = GARMENT_IMG["unisex-tee"].front;
@@ -36,22 +36,22 @@ export function StudioPromo({ compact = false }: { compact?: boolean }) {
             </div>
           </Reveal>
           <Reveal delay={80} className="spromo__body">
-            <span className="eyebrow">The Shirt Studio</span>
-            <h2 className="h2">Design your shirt before we make it</h2>
+            <span className="eyebrow">Studio</span>
+            <h2 className="h2">Design it in Studio. We will help you make it.</h2>
             <p className="lede">
-              Choose your shirt style, explore colours and fabric options, add your logo or artwork
-              to the front and back, select your quantity and sizes, and send the finished design
-              directly to The Factory Nigeria for production review and a personalised quote.
+              Choose a garment, explore fabrics and colours, add your artwork to the front or back,
+              select your sizes and send the completed design to The Factory Nigeria for a
+              personalised production quote.
             </p>
             <ul className="spromo__points">
-              <li>Start from just 1 shirt</li>
+              <li>Requests can start from one item</li>
               <li>Tees, polos and hoodies — real garment previews, front and back</li>
-              <li>Colours and fabrics shown as visual references</li>
-              <li>Your quantities, sizes and deadline</li>
-              <li>Sent to the team on WhatsApp — no payment online</li>
+              <li>Garments, fabrics and colours depend on market availability</li>
+              <li>The on-screen preview is approximate</li>
+              <li>Specifications, price and timing confirmed before production</li>
             </ul>
             <a className="btn btn--primary btn--lg" href="#/experiments/custom-tee-studio">
-              Open The Shirt Studio <ArrowUpRight size={17} aria-hidden="true" />
+              Open Studio <ArrowUpRight size={17} aria-hidden="true" />
             </a>
             <p className="spromo__note">
               Options shown are visual references, not live stock. Garment, fabric and colour

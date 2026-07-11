@@ -321,7 +321,7 @@ export const QUALITY_COPY: Record<QualityLevel, string> = {
 };
 
 export const MIN_ORDER = 30; // general manufacturing enquiry minimum (live site)
-export const STUDIO_MIN_ORDER = 1; // The Shirt Studio accepts requests from a single shirt
+export const STUDIO_MIN_ORDER = 1; // Studio accepts requests from a single item
 
 export const PREVIEW_DISCLAIMER =
   "The on-screen preview is an approximation. Fabric colour, sizing, placement, and final print appearance are confirmed during production review.";

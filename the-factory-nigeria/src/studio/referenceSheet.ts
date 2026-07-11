@@ -134,7 +134,7 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   ctx.fillRect(0, 0, W, 110);
   ctx.fillStyle = PAPER;
   ctx.font = "800 44px Archivo, Arial, sans-serif";
-  ctx.fillText("THE FACTORY NIGERIA — DESIGN REFERENCE", 48, 68);
+  ctx.fillText("THE FACTORY NIGERIA — STUDIO REFERENCE", 48, 68);
   ctx.font = "600 26px Archivo, Arial, sans-serif";
   ctx.globalAlpha = 0.8;
   const dateStr = new Date().toISOString().slice(0, 10);

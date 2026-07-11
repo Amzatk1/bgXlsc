@@ -242,12 +242,12 @@ export function sizeIssue(details: OrderDetails): SizeIssue | null {
   if (total < qty) {
     return {
       level: "error",
-      message: `Your size breakdown currently totals ${total} shirt${total === 1 ? "" : "s"}, but your order quantity is ${qty}. Please assign the remaining ${qty - total} shirt${qty - total === 1 ? "" : "s"} before continuing.`,
+      message: `Your size breakdown currently totals ${total} item${total === 1 ? "" : "s"}, but your order quantity is ${qty}. Please assign the remaining ${qty - total} item${qty - total === 1 ? "" : "s"} before continuing.`,
     };
   }
   return {
     level: "error",
-    message: `Your size breakdown totals ${total} shirts — ${total - qty} more than your order quantity of ${qty}. Please reduce the breakdown or increase the quantity.`,
+    message: `Your size breakdown totals ${total} items — ${total - qty} more than your order quantity of ${qty}. Please reduce the breakdown or increase the quantity.`,
   };
 }
 

@@ -353,7 +353,7 @@ export function StudioExperiment() {
       {!art && (
         <ol className="emptysteps" aria-label="How it works">
           <li>Upload a logo or design</li>
-          <li>Position it on the shirt</li>
+          <li>Position it on the garment</li>
           <li>Review the preview</li>
           <li>Send it to The Factory for a quote</li>
         </ol>
@@ -534,8 +534,8 @@ export function StudioExperiment() {
       </div>
 
       <header className="studio__head container">
-        <span className="eyebrow">The Shirt Studio</span>
-        <h1 className="h2">Design your shirt</h1>
+        <span className="eyebrow">Studio</span>
+        <h1 className="h2">Design your garment</h1>
         <p className="studio__stepmeta mono" aria-hidden="true">
           Step {step + 1} of {STEPS.length} · {STEPS[step]}
         </p>
@@ -593,7 +593,7 @@ export function StudioExperiment() {
             <div>
               <fieldset className="field">
                 <legend>Standard colours</legend>
-                <div className="swatches" role="radiogroup" aria-label="Standard shirt colours">
+                <div className="swatches" role="radiogroup" aria-label="Standard garment colours">
                   {STANDARD_COLORS.map((c) => (
                     <label
                       key={c.id}
@@ -869,7 +869,7 @@ export function StudioExperiment() {
             )}
 
             <div className="field">
-              <label htmlFor="o-qty">How many shirts do you need?</label>
+              <label htmlFor="o-qty">How many items do you need?</label>
               <input
                 id="o-qty"
                 inputMode="numeric"
@@ -880,7 +880,7 @@ export function StudioExperiment() {
                 aria-describedby="o-qty-note"
               />
               <p className="field__note" id="o-qty-note">
-                {"Shirt Studio requests start from just 1 shirt. The team confirms the price for your quantity."}
+                {"Studio requests start from just 1 item. The team confirms the price for your quantity."}
               </p>
             </div>
 
@@ -931,9 +931,14 @@ export function StudioExperiment() {
                 role="status"
               >
                 {qtyNum && qtyNum === assigned
-                  ? `All ${qtyNum} shirt${qtyNum === 1 ? " has" : "s have"} been assigned.`
+                  ? qtyNum === 1
+                    ? `1 item assigned${(() => {
+                        const k = SIZE_KEYS.find((s) => state.details.sizes[s] === 1);
+                        return k ? ` to size ${k}` : "";
+                      })()}.`
+                    : `All ${qtyNum} items have been assigned.`
                   : qtyNum > assigned && assigned > 0
-                    ? `${assigned} of ${qtyNum} shirts assigned. Choose sizes for the remaining ${qtyNum - assigned}.`
+                    ? `${assigned} of ${qtyNum} items assigned. Choose sizes for the remaining ${qtyNum - assigned}.`
                     : `${assigned} of ${qtyNum || "—"} assigned`}
               </p>
               {sizesStatus && (
@@ -964,7 +969,7 @@ export function StudioExperiment() {
             </fieldset>
 
             <fieldset className="field">
-              <legend>Same design on every shirt?</legend>
+              <legend>Same design on every item?</legend>
               <div className="choices">
                 {(["yes", "no"] as const).map((v) => (
                   <label key={v} className={"choice" + (state.details.sameDesign === v ? " is-active" : "")}>

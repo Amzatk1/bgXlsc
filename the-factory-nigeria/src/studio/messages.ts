@@ -63,7 +63,7 @@ export function summaryRows(state: DesignState): SummaryRow[] {
       step: 0,
     },
     {
-      label: "Shirt colour",
+      label: "Garment colour",
       value: `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
       step: 1,
     },
@@ -104,7 +104,7 @@ export function buildStudioMessage(state: DesignState): string {
 
   const product = getProduct(state);
   const parts = [
-    "*New custom shirt enquiry* 👕",
+    "*New Studio enquiry* 👕",
     "",
     line("Reference", state.reference),
     line("Customer", d.name),
@@ -125,7 +125,7 @@ export function buildStudioMessage(state: DesignState): string {
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
     "I'm attaching the design reference sheet and my original artwork in this chat.",
-    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms availability, minimum quantity, pricing and production time (or suggests the closest alternative) before any order is accepted. Shirt Studio requests can start from one shirt._`,
+    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms availability, minimum quantity, pricing and production time (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
   ].filter((l) => l !== "");
 
   return parts.join("\n");
@@ -158,7 +158,7 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
   const fabric = getFabric(state);
   return {
     prototype: true,
-    generator: "The Factory Nigeria — The Shirt Studio (experimental prototype)",
+    generator: "The Factory Nigeria — Studio (experimental prototype)",
     disclaimer: PREVIEW_DISCLAIMER,
     availabilityNotice: MARKET_SOURCING_NOTICE,
     reference: state.reference,

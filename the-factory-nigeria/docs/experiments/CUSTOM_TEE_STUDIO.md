@@ -1,5 +1,37 @@
 # Custom Tee Studio — experimental prototype
 
+> **Public name: "Studio"** (renamed 2026-07-11 in the final polish pass).
+> Every customer-facing surface — navigation, homepage, page title, headings,
+> WhatsApp messages, design brief, reference sheet — uses **Studio**. Internal
+> file/route names (`custom-tee-studio`, `StudioExperiment`) are unchanged to
+> avoid churn.
+
+---
+
+# v3.1 — Final polish pass (Studio rename + UI refinement)
+
+- **Renamed to Studio** across nav (desktop/mobile/footer), page title, hero
+  ("Studio" eyebrow + "Design your garment"), homepage section (new heading
+  "Design it in Studio. We will help you make it.", button "Open Studio"),
+  WhatsApp header ("*New Studio enquiry*"), design-brief generator string,
+  reference-sheet header ("THE FACTORY NIGERIA — STUDIO REFERENCE"), quantity
+  copy and docs. Grammar moved from "shirts" to "items" (incl. the singular
+  "1 item assigned to size M." state); review row label is now "Garment
+  colour"; a11y labels updated.
+- **Editor rail boxes rebuilt** (the cramped mini-pickers): garment switcher is
+  a 2×2 grid of larger cards with sentence-case names (4-across on phones,
+  2-across ≤480px); fabric mini-list is single-column full-width rows (2-col on
+  phones); colour dots enlarged to 32px (38px touch on phones); hover states
+  added; availability badges pinned to a consistent bottom line on product and
+  fabric cards.
+- Spacing scale nudged consistently (prod grid 16, fabric grid 14, rail 18,
+  editor 16); mobile sheet-tab bar raised to clear the step nav (74px + safe
+  area) with padding under active panels.
+- Re-verified after changes: 320/430/768/1024/1920 overflow-free on steps 1–3,
+  tablet sticky tabs, desktop 3-zone (280/612/320 at 1920 capped 1360), mobile
+  sheet tabs, homepage promo copy — zero console errors; 35 tests green; build
+  89.96 KB gzip JS.
+
 ---
 
 # v3 — Garment & fabric library + availability honesty + editor re-layout

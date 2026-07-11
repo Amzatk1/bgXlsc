@@ -254,7 +254,7 @@ describe("enquiry summary & spec", () => {
   });
   it("builds a structured WhatsApp message with the availability warning", () => {
     const msg = buildStudioMessage(completeState());
-    expect(msg).toContain("New custom shirt enquiry");
+    expect(msg).toContain("New Studio enquiry");
     expect(msg).toContain("*Reference:* TFN-DS-");
     expect(msg).toContain("Amzat Karim");
     expect(msg).toContain("availability to confirm"); // custom colour status
@@ -289,7 +289,7 @@ describe("enquiry summary & spec", () => {
   it("summary rows tag the step that edits them", () => {
     const rows = summaryRows(completeState());
     expect(rows.find((r) => r.label === "Product")!.step).toBe(0);
-    expect(rows.find((r) => r.label === "Shirt colour")!.step).toBe(1);
+    expect(rows.find((r) => r.label === "Garment colour")!.step).toBe(1);
   });
   it("design spec is marked prototype and only embeds artwork when asked", () => {
     const spec = buildDesignSpec(completeState()) as {
