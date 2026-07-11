@@ -97,7 +97,7 @@ export function buildStudioMessage(state: DesignState): string {
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
     "I'm attaching the design reference sheet and my original artwork in this chat.",
-    `_The mockups are visual references. Please confirm fabric availability, printing method, final placement, price and production timeline. Minimum order noted: ${MIN_ORDER} pieces._`,
+    `_The mockups are visual references. Please confirm fabric availability, printing method, final placement, price and production timeline. Shirt Studio requests can start from one shirt._`,
   ].filter((l) => l !== "");
 
   return parts.join("\n");
@@ -128,7 +128,7 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
   const d = state.details;
   return {
     prototype: true,
-    generator: "The Factory Nigeria — Custom Tee Studio (experimental prototype)",
+    generator: "The Factory Nigeria — The Shirt Studio (experimental prototype)",
     disclaimer: PREVIEW_DISCLAIMER,
     reference: state.reference,
     createdAt: new Date().toISOString(),

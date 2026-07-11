@@ -7,6 +7,7 @@ import { ServiceIcon } from "./ServiceIcon";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 import { Photo } from "./Photo";
 import { ClientsStrip } from "./ClientsStrip";
+import { StudioPromo } from "./StudioPromo";
 import { Reveal } from "./Reveal";
 
 // Compact 4-step summary of the full 8-step process board on /process.
@@ -106,6 +107,8 @@ export function MobileHome() {
           </ol>
         </div>
       </section>
+
+      <StudioPromo compact />
 
       {/* Brands we've produced for */}
       <section className="section--tight">

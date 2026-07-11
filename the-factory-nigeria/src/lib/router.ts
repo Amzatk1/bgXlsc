@@ -70,5 +70,5 @@ export const TITLES: Record<Path, string> = {
   "/visit": "Contact & visit — The Factory Nigeria",
   "/faq": "FAQs — The Factory Nigeria",
   "/start-an-order": "Start an order enquiry — The Factory Nigeria",
-  "/experiments/custom-tee-studio": "Custom Tee Studio (Prototype) — The Factory Nigeria",
+  "/experiments/custom-tee-studio": "The Shirt Studio — The Factory Nigeria",
 };

@@ -66,6 +66,13 @@ async function mockupPanel(
   ctx.fillStyle = PAPER;
   ctx.font = "700 22px Archivo, Arial, sans-serif";
   ctx.fillText(view.toUpperCase(), x + 18, y + 27);
+  if (!state.artworks[view]) {
+    ctx.fillStyle = "rgba(20,17,15,0.55)";
+    ctx.fillRect(x, y + h - 44, w, 44);
+    ctx.fillStyle = PAPER;
+    ctx.font = "700 20px Archivo, Arial, sans-serif";
+    ctx.fillText("NO DESIGN ADDED", x + 16, y + h - 16);
+  }
   return w;
 }
 
@@ -111,7 +118,7 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   if (!ctx) throw new Error("Canvas unavailable");
   const d = state.details;
   const product = getProduct(state);
-  const views: ViewId[] = state.artworks.back ? ["front", "back"] : ["front"];
+  const views: ViewId[] = ["front", "back"];
 
   // Background + header
   ctx.fillStyle = PAPER;
@@ -136,11 +143,12 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
     mx += w + 28;
   }
 
-  // Close-ups under mockups
+  // Close-ups under mockups (only for sides that carry artwork)
+  const cuViews = views.filter((vv) => state.artworks[vv]);
   const cuY = 150 + mockH + 26;
-  const cuW = views.length === 2 ? (mx - 48 - 28) / 2 - 14 : 380;
+  const cuW = cuViews.length === 2 ? (mx - 48 - 28) / 2 - 14 : 380;
   let cx0 = 48;
-  for (const v of views) {
+  for (const v of cuViews) {
     await closeupPanel(ctx, state, v, cx0, cuY, cuW, H - cuY - 110);
     cx0 += cuW + 28;
   }

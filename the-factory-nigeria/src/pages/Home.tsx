@@ -14,6 +14,7 @@ import { ServiceCard } from "../components/ServiceCard";
 import { ProofWall } from "../components/ProofWall";
 import { VisitPanel } from "../components/VisitPanel";
 import { ClientsStrip } from "../components/ClientsStrip";
+import { StudioPromo } from "../components/StudioPromo";
 import { CtaBand } from "../components/CtaBand";
 
 export function Home() {
@@ -199,6 +200,8 @@ export function Home() {
               <VisitPanel />
             </div>
           </section>
+
+          <StudioPromo />
 
           <CtaBand />
         </>

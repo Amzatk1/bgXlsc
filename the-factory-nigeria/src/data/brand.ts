@@ -67,6 +67,7 @@ export const NAV: NavItem[] = [
   { label: "Brands & Co.", href: "#/brands" },
   { label: "Contact", href: "#/visit" },
   { label: "FAQs", href: "#/faq" },
+  { label: "Shirt Studio", href: "#/experiments/custom-tee-studio" },
 ];
 
 // Ticker keywords (plain, operational)

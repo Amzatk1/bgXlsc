@@ -422,3 +422,15 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 @media (prefers-reduced-motion: reduce) {
   .stage__box, .swatch, .preset, .dropzone { transition: none; }
 }
+
+/* Shirt Studio homepage promo */
+.spromo { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: clamp(20px, 4vw, 56px); align-items: center; }
+.spromo__stage { max-width: 360px; border: 1.5px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; background: #f4f2ef; }
+.spromo__body { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.spromo__points { display: grid; gap: 7px; }
+.spromo__points li { position: relative; padding-left: 22px; font-weight: 500; }
+.spromo__points li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 12px; height: 1.5px; background: var(--purple); }
+.spromo__note { font-size: 0.8rem; color: var(--text-faint); }
+@media (max-width: 800px) { .spromo { grid-template-columns: 1fr; } .spromo__stage { max-width: 260px; } }
+.sizes__actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.sizes__actions .btn { min-height: 40px; padding: 0 14px; font-size: 0.74rem; }

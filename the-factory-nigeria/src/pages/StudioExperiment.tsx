@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import {
   CUSTOM_COLOR_NOTICE,
-  MIN_ORDER,
   PRODUCTS,
   QUALITY_COPY,
   STANDARD_COLORS,
@@ -24,7 +23,6 @@ import {
 } from "../studio/catalog";
 import {
   applyPlacement,
-  belowMinimum,
   clampArtwork,
   defaultArtworkPlacement,
   emptySizes,
@@ -52,7 +50,7 @@ import {
   shareFiles,
 } from "../studio/exporter";
 import { downloadReferenceSheet, exportReferenceSheet } from "../studio/referenceSheet";
-import { GARMENT_IMG, layerTuning, STAGE_H, STAGE_W } from "../studio/garment";
+import { GARMENT_IMG, hexLuma, layerTuning, STAGE_H, STAGE_W } from "../studio/garment";
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
@@ -104,7 +102,7 @@ function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
         <img className="gstage__shade" src={img} alt="" aria-hidden="true" style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }} />
         <img className="gstage__light" src={img} alt="" aria-hidden="true" style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }} />
       </div>
-      <figcaption className="mono">{view}</figcaption>
+      <figcaption className="mono">{view}{art ? "" : " · no design added"}</figcaption>
     </figure>
   );
 }
@@ -243,6 +241,22 @@ export function StudioExperiment() {
 
   const sizesStatus = sizeIssue(state.details);
   const qty = state.details.quantity;
+  const qtyNum = parseInt(qty.replace(/[^\d]/g, ""), 10) || 0;
+  const assigned = sizeTotal(state.details.sizes);
+
+  /** Distribute the requested quantity evenly across the core sizes. */
+  function splitEvenly() {
+    if (!qtyNum) return;
+    const core: (typeof SIZE_KEYS)[number][] = qtyNum < 4 ? ["M"] : ["S", "M", "L", "XL"];
+    const base = Math.floor(qtyNum / core.length);
+    const next = emptySizes();
+    core.forEach((k, i) => (next[k] = base + (i < qtyNum % core.length ? 1 : 0)));
+    setDetails({ sizes: next });
+  }
+
+  /** Legibility guard: artwork tone vs shirt tone (approximate, non-blocking). */
+  const lowContrast =
+    art && typeof art.avgLuma === "number" && Math.abs(art.avgLuma - hexLuma(state.color.hex)) < 0.16;
 
   // ------------------------------------------------------------------
   return (
@@ -254,8 +268,8 @@ export function StudioExperiment() {
       </div>
 
       <header className="studio__head container">
-        <span className="eyebrow">Custom tee studio</span>
-        <h1 className="h2">Design your own tee</h1>
+        <span className="eyebrow">The Shirt Studio</span>
+        <h1 className="h2">Design your shirt</h1>
         <div className="studio__progress" role="group" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
           {STEPS.map((s, i) => (
             <button
@@ -506,6 +520,12 @@ export function StudioExperiment() {
                     <p className={"quality quality--" + qualityLevel(art)} role="status">
                       {QUALITY_COPY[qualityLevel(art)]} <em>Approximate guide, not a final decision.</em>
                     </p>
+                    {lowContrast && (
+                      <p className="quality quality--soft" role="status">
+                        Low contrast: your design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
+                        <em>We never change your colours — the team confirms legibility before printing.</em>
+                      </p>
+                    )}
                   </div>
 
                   <div className="field">
@@ -562,7 +582,7 @@ export function StudioExperiment() {
           <section className="studio__panel" aria-label="Review your design">
             <div className="tprev__row">
               <TeePreview state={state} view="front" />
-              {state.artworks.back && <TeePreview state={state} view="back" />}
+              <TeePreview state={state} view="back" />
             </div>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
@@ -615,13 +635,11 @@ export function StudioExperiment() {
                 type="text"
                 value={qty}
                 onChange={(e) => setDetails({ quantity: e.target.value })}
-                placeholder={`Minimum order: ${MIN_ORDER}`}
+                placeholder="e.g. 1"
                 aria-describedby="o-qty-note"
               />
               <p className="field__note" id="o-qty-note">
-                {belowMinimum(qty)
-                  ? `Our standard minimum order starts at ${MIN_ORDER} pieces. You can still submit — the team will confirm what's possible.`
-                  : `Minimum order: ${MIN_ORDER} pieces.`}
+                {"Shirt Studio requests start from just 1 shirt. The team confirms the price for your quantity."}
               </p>
             </div>
 
@@ -667,6 +685,10 @@ export function StudioExperiment() {
                   <strong className="sizes__total">{sizeTotal(state.details.sizes)}</strong>
                 </div>
               </div>
+              <p className="field__note" role="status">
+                {assigned} of {qtyNum || "—"} assigned
+                {qtyNum > assigned ? ` · -e remaining` : qtyNum && qtyNum === assigned ? " · all assigned ✓" : ""}
+              </p>
               {sizesStatus && (
                 <p className={sizesStatus.level === "error" ? "field__error" : "field__note"} role="status">
                   {sizesStatus.message}
@@ -684,13 +706,14 @@ export function StudioExperiment() {
                   placeholder="e.g. 3XL — 4, kids 10yrs — 6"
                 />
               </div>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => setDetails({ sizes: emptySizes() })}
-              >
-                <span className="btn-underline">Clear sizes</span>
-              </button>
+              <div className="sizes__actions">
+                <button type="button" className="btn btn--outline" onClick={splitEvenly} disabled={!qtyNum}>
+                  Split evenly
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={() => setDetails({ sizes: emptySizes() })}>
+                  <span className="btn-underline">Clear sizes</span>
+                </button>
+              </div>
             </fieldset>
 
             <fieldset className="field">
@@ -901,7 +924,7 @@ export function StudioExperiment() {
             </p>
             <div className="tprev__row">
               <TeePreview state={state} view="front" />
-              {state.artworks.back && <TeePreview state={state} view="back" />}
+              <TeePreview state={state} view="back" />
             </div>
             <p className="mono studio__meta">
               Submitted {new Date(submitted).toLocaleDateString()} · Quantity {qty || "—"} · Sizes{" "}

@@ -18,6 +18,7 @@ export type IntakeResult =
       naturalW: number;
       naturalH: number;
       hasAlpha: boolean;
+      avgLuma: number;
     }
   | { ok: false; error: string };
 
@@ -49,22 +50,31 @@ function sanitiseName(name: string): string {
   return clean.length > 60 ? clean.slice(0, 57) + "…" : clean || "artwork";
 }
 
-/** Detect any transparency by sampling the decoded image on a small canvas. */
-function detectAlpha(img: HTMLImageElement, isPng: boolean): boolean {
-  if (!isPng) return false;
+/** Sample the decoded image: transparency + average tone (for contrast checks). */
+function analyzeImage(img: HTMLImageElement, isPng: boolean): { hasAlpha: boolean; avgLuma: number } {
   try {
     const c = document.createElement("canvas");
     const s = 48;
     c.width = s;
     c.height = s;
     const ctx = c.getContext("2d");
-    if (!ctx) return isPng;
+    if (!ctx) return { hasAlpha: isPng, avgLuma: 0.5 };
     ctx.drawImage(img, 0, 0, s, s);
     const data = ctx.getImageData(0, 0, s, s).data;
-    for (let i = 3; i < data.length; i += 4) if (data[i] < 250) return true;
-    return false;
+    let hasAlpha = false;
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const a = data[i + 3];
+      if (a < 250) hasAlpha = true;
+      if (a > 16) {
+        sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+        n++;
+      }
+    }
+    return { hasAlpha: isPng && hasAlpha, avgLuma: n ? sum / n / 255 : 0.5 };
   } catch {
-    return isPng;
+    return { hasAlpha: isPng, avgLuma: 0.5 };
   }
 }
 
@@ -90,7 +100,7 @@ export function intakeFile(file: File): Promise<IntakeResult> {
           fileKB: Math.max(1, Math.round(file.size / 1024)),
           naturalW: img.naturalWidth,
           naturalH: img.naturalHeight,
-          hasAlpha: detectAlpha(img, file.type === "image/png"),
+          ...analyzeImage(img, file.type === "image/png"),
         });
       };
       img.src = src;

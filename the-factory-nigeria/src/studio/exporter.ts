@@ -57,7 +57,7 @@ export async function composeViewCanvas(
 
 /** Simple side-by-side preview PNG (front + back when designed). */
 export async function exportPreviewPng(state: DesignState): Promise<string> {
-  const views: ViewId[] = state.artworks.back ? ["front", "back"] : ["front"];
+  const views: ViewId[] = ["front", "back"];
   const scale = 2;
   const w = STAGE_W * scale * views.length;
   const h = STAGE_H * scale + 72;
@@ -72,7 +72,7 @@ export async function exportPreviewPng(state: DesignState): Promise<string> {
     ctx.drawImage(v, i * STAGE_W * scale, 0);
     ctx.fillStyle = "rgba(20,17,15,0.75)";
     ctx.font = "600 26px Archivo, Arial, sans-serif";
-    ctx.fillText(views[i].toUpperCase(), i * STAGE_W * scale + 24, 44);
+    ctx.fillText(views[i].toUpperCase() + (state.artworks[views[i]] ? '' : ' — NO DESIGN ADDED'), i * STAGE_W * scale + 24, 44);
   }
   ctx.fillStyle = "#14110f";
   ctx.fillRect(0, h - 72, w, 72);

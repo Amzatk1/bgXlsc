@@ -26,6 +26,8 @@ export type Artwork = {
   naturalW: number;
   naturalH: number;
   hasAlpha: boolean;
+  /** average tone of the artwork (0–1), used for legibility warnings */
+  avgLuma?: number;
   /** centre of the artwork, relative to the print zone (0–1) */
   cx: number;
   cy: number;
