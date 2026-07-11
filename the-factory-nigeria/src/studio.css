@@ -72,7 +72,6 @@
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.swatch:hover { border-color: var(--ink); }
 .swatch:active { transform: scale(0.97); }
 .swatch.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .swatch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -126,7 +125,7 @@
   stroke-width: 1.5;
   stroke-dasharray: 6 6;
 }
-.stage__art { position: absolute; cursor: grab; touch-action: none; }
+.stage__art { position: absolute; left: 0; top: 0; cursor: grab; touch-action: none; }
 .stage__art:active { cursor: grabbing; }
 .stage__art img { width: 100%; height: 100%; display: block; pointer-events: none; }
 .stage__box {
@@ -217,7 +216,6 @@
   font-weight: 600;
   transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
-.preset:hover { border-color: var(--purple); color: var(--purple-700); }
 .preset:active { transform: scale(0.96); }
 
 input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px; }
@@ -231,7 +229,9 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .editactions { display: flex; flex-wrap: wrap; gap: 8px; }
 .editactions .btn { min-height: 42px; padding: 0 14px; font-size: 0.76rem; }
 .editactions__remove { color: #b02a20; border-color: rgba(176, 42, 32, 0.5); }
-.editactions__remove:hover { background: #b02a20; border-color: #b02a20; color: #fff; }
+@media (hover: hover) and (pointer: fine) {
+  .editactions__remove:hover { background: #b02a20; border-color: #b02a20; color: #fff; }
+}
 
 /* Read-only previews */
 .tprev__row { display: flex; gap: 16px; flex-wrap: wrap; }
@@ -432,6 +432,71 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   .stage__box, .swatch, .preset, .dropzone { transition: none; }
 }
 
+/* =====================================================================
+   MOTION SYSTEM (design-engineering pass)
+   Hover is decorative → gated to true hover devices; touch gets press
+   feedback instead. Entrances are one-shot, GPU-only, sub-300ms.
+   ===================================================================== */
+
+/* Decorative hovers — only where a real pointer hovers (touch taps
+   otherwise leave elements stuck in their hover state). */
+@media (hover: hover) and (pointer: fine) {
+  .swatch:hover { border-color: var(--ink); }
+  .preset:hover { border-color: var(--purple); color: var(--purple-700); }
+  .prodcard:hover { border-color: var(--ink); }
+  .fabcard:hover { border-color: var(--ink); }
+  .minigarment:hover { border-color: var(--ink); }
+  .minifabric:hover { border-color: var(--ink); }
+  .viewtab:not(.is-active):hover { border-color: var(--ink); }
+  .gtool:not(:disabled):hover { border-color: var(--ink); color: var(--ink); }
+  .studio__step:not(:disabled):not(.is-active):hover { border-color: var(--ink); color: var(--ink); }
+}
+
+/* Press feedback on the remaining pressables (buttons already have it). */
+.viewtab,
+.gtool,
+.ed__sheettab,
+.studio__step {
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.viewtab:active,
+.gtool:not(:disabled):active,
+.ed__sheettab:active { transform: scale(0.96); }
+.studio__step:not(:disabled):active { transform: scale(0.97); }
+
+/* Step change: panels remount per step — a short rise orients the user
+   without delaying them (200ms, strong ease-out, GPU-only, one-shot). */
+.studio__panel {
+  animation: studio-panel-in 200ms var(--ease-out) both;
+}
+@keyframes studio-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Artwork arrival: opacity-only confirmation when a design lands on the
+   stage (mounts on upload, not on every view toggle). Non-blocking —
+   gestures work during the fade. */
+.stage__art {
+  animation: art-in 140ms var(--ease-out) both;
+  will-change: transform;
+}
+@keyframes art-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Disclosure content: fade the body in; height snaps (never animate layout). */
+.fabhelp[open] .fabhelp__body { animation: art-in 150ms var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__panel { animation: none; }
+  .stage__art { animation: none; will-change: auto; }
+  .fabhelp[open] .fabhelp__body { animation: none; }
+  .viewtab, .gtool, .ed__sheettab, .studio__step { transition: none; }
+}
+
 /* Shirt Studio homepage promo */
 .spromo { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: clamp(20px, 4vw, 56px); align-items: center; }
 .spromo__stage { max-width: 360px; border: 1.5px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; background: #f4f2ef; }
@@ -496,7 +561,7 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.prodcard:hover { border-color: var(--ink); }
+.prodcard:active { transform: scale(0.99); }
 .prodcard:active { transform: scale(0.99); }
 .prodcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .prodcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -525,7 +590,7 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.fabcard:hover { border-color: var(--ink); }
+.fabcard:active { transform: scale(0.99); }
 .fabcard:active { transform: scale(0.99); }
 .fabcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .fabcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -603,9 +668,9 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   background: var(--white);
   cursor: pointer;
   min-height: 108px;
-  transition: border-color var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.minigarment:hover { border-color: var(--ink); }
+.minigarment:active { transform: scale(0.97); }
 .minigarment.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .minigarment input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .minigarment:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
@@ -637,9 +702,9 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   background: var(--white);
   cursor: pointer;
   min-height: 46px;
-  transition: border-color var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.minifabric:hover { border-color: var(--ink); }
+.minifabric:active { transform: scale(0.98); }
 .minifabric.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .minifabric input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .minifabric:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }

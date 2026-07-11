@@ -71,15 +71,16 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
     };
   }
 
+  // Position via transform (compositor-only during drags); width/height are
+  // rewritten with identical strings on move-only frames, so they invalidate
+  // layout only when a resize gesture actually changes them.
   function paint(a: Artwork) {
     const el = artRef.current;
     if (!el) return;
     const b = artBox(a);
-    el.style.left = b.x * k + "px";
-    el.style.top = b.y * k + "px";
     el.style.width = b.w * k + "px";
     el.style.height = b.h * k + "px";
-    el.style.transform = `translate(-50%, -50%) rotate(${a.rotation}deg)`;
+    el.style.transform = `translate(${b.x * k}px, ${b.y * k}px) translate(-50%, -50%) rotate(${a.rotation}deg)`;
   }
 
   function schedule(a: Artwork) {
@@ -256,11 +257,9 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
                 onKeyDown={onKeyDown}
                 onPointerDown={(e) => onPointerDown(e, "move")}
                 style={{
-                  left: box.x * k,
-                  top: box.y * k,
                   width: box.w * k,
                   height: box.h * k,
-                  transform: `translate(-50%, -50%) rotate(${(live.current ?? artwork).rotation}deg)`,
+                  transform: `translate(${box.x * k}px, ${box.y * k}px) translate(-50%, -50%) rotate(${(live.current ?? artwork).rotation}deg)`,
                 }}
               >
                 <img src={artwork.src} alt="" draggable={false} />

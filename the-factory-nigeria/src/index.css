@@ -333,7 +333,11 @@ h4 {
     border-color var(--dur-ui) var(--ease-out);
   text-align: center;
 }
-.btn:hover { transform: translateY(-1px); }
+/* Hover lift only on devices that truly hover — touch taps trigger false
+   hovers, leaving the button stuck "lifted" after release. */
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { transform: translateY(-1px); }
+}
 .btn:active { transform: scale(0.97); }
 .btn svg { width: 18px; height: 18px; }
 
@@ -599,6 +603,7 @@ h4 {
   font-size: 0.74rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  transition: top var(--dur-ui) var(--ease-out);
+  /* No transition: keyboard-initiated (Tab) — must appear instantly, and
+     `top` is a layout property that should never animate anyway. */
 }
 .skip-link:focus { top: 12px; }
