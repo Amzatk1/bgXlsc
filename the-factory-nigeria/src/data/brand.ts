@@ -64,10 +64,10 @@ export const NAV: NavItem[] = [
   { label: "Services", href: "#/services" },
   { label: "How it works", href: "#/process" },
   { label: "Our work", href: "#/work" },
+  { label: "Shirt Studio", href: "#/experiments/custom-tee-studio" },
   { label: "Brands & Co.", href: "#/brands" },
   { label: "Contact", href: "#/visit" },
   { label: "FAQs", href: "#/faq" },
-  { label: "Shirt Studio", href: "#/experiments/custom-tee-studio" },
 ];
 
 // Ticker keywords (plain, operational)
