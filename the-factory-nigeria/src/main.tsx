@@ -4,6 +4,7 @@ import App from "./App";
 import { AudioBusProvider } from "./lib/audioBus";
 import "./index.css";
 import "./ui.css";
+import "./studio.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -12,6 +12,7 @@ import { Brands } from "./pages/Brands";
 import { Visit } from "./pages/Visit";
 import { Faq } from "./pages/Faq";
 import { StartOrder } from "./pages/StartOrder";
+import { StudioExperiment } from "./pages/StudioExperiment";
 
 const PAGES: Record<Path, () => JSX.Element> = {
   "/": Home,
@@ -22,6 +23,7 @@ const PAGES: Record<Path, () => JSX.Element> = {
   "/visit": Visit,
   "/faq": Faq,
   "/start-an-order": StartOrder,
+  "/experiments/custom-tee-studio": StudioExperiment,
 };
 
 export default function App() {
