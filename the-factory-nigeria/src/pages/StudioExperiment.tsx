@@ -5,6 +5,7 @@ import {
   Check,
   Download,
   FlaskConical,
+  HelpCircle,
   Info,
   Minus,
   Paperclip,
@@ -15,10 +16,16 @@ import {
   Upload,
 } from "lucide-react";
 import {
+  AVAILABILITY_LABEL,
+  colorAvailability,
   CUSTOM_COLOR_NOTICE,
+  FABRIC_VISUAL_NOTICE,
+  FABRICS,
+  MARKET_SOURCING_NOTICE,
   PRODUCTS,
   QUALITY_COPY,
   STANDARD_COLORS,
+  type AvailabilityStatus,
   type ViewId,
 } from "../studio/catalog";
 import {
@@ -41,7 +48,7 @@ import {
   type DesignState,
 } from "../studio/state";
 import { intakeFile } from "../studio/imageFile";
-import { buildStudioMessage, studioWaLink, summaryRows } from "../studio/messages";
+import { buildStudioMessage, getFabric, studioWaLink, summaryRows } from "../studio/messages";
 import {
   dataUrlToFile,
   downloadOriginalArtwork,
@@ -54,8 +61,13 @@ import { GARMENT_IMG, hexLuma, layerTuning, STAGE_H, STAGE_W } from "../studio/g
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
-const STEPS = ["Product", "Colour", "Design", "Review", "Order details", "Send"];
+const STEPS = ["Product", "Colour & fabric", "Design", "Review", "Order details", "Send"];
 const METHODS = ["Screen printing", "Direct-to-garment (DTG)", "Heat transfer", "Embroidery", "Not sure — advise me"];
+
+/** Availability status: always text, never colour alone. */
+function AvailabilityBadge({ status }: { status: AvailabilityStatus }) {
+  return <span className={"avail avail--" + status}>{AVAILABILITY_LABEL[status]}</span>;
+}
 
 // Read-only photoreal mockup used on review/confirm screens (no handles).
 function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
@@ -63,7 +75,7 @@ function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
   const zone = product.zones[view];
   const art = state.artworks[view];
   const img = (GARMENT_IMG[product.id] ?? GARMENT_IMG["unisex-tee"])[view];
-  const tuning = useMemo(() => layerTuning(state.color.hex), [state.color.hex]);
+  const tuning = useMemo(() => layerTuning(state.color.hex, product.id), [state.color.hex, product.id]);
   const box = art
     ? {
         w: (art.widthIn * zone.w) / zone.widthIn,
@@ -117,16 +129,32 @@ export function StudioExperiment() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null); // ISO date
   const [shareState, setShareState] = useState<"idle" | "shared" | "unsupported">("idle");
+  const [mtab, setMtab] = useState<"artwork" | "adjust" | "style">("artwork"); // mobile bottom-sheet tab
   const fileRef = useRef<HTMLInputElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   const product = getProduct(state);
   const zone = getZone(state);
   const art = state.artworks[state.view];
+  const fabric = getFabric(state);
 
   const set = (patch: Partial<DesignState>) => setState((s) => ({ ...s, ...patch }));
   const setDetails = (patch: Partial<DesignState["details"]>) =>
     setState((s) => ({ ...s, details: { ...s.details, ...patch } }));
+
+  /** Switch garment; keep artwork but re-clamp it to the new print zones. */
+  function setProductId(id: string) {
+    setState((s) => {
+      const next = PRODUCTS.find((p) => p.id === id);
+      if (!next) return s;
+      const artworks = { ...s.artworks };
+      (Object.keys(artworks) as ViewId[]).forEach((v) => {
+        const a = artworks[v];
+        if (a) artworks[v] = clampArtwork(a, next.zones[v]);
+      });
+      return { ...s, productId: id, artworks };
+    });
+  }
 
   // ---- artwork history (undo / redo) ----
   // Mutations happen OUTSIDE setState updaters (StrictMode double-invokes
@@ -258,6 +286,244 @@ export function StudioExperiment() {
   const lowContrast =
     art && typeof art.avgLuma === "number" && Math.abs(art.avgLuma - hexLuma(state.color.hex)) < 0.16;
 
+  // ---- shared editor control fragments (rendered once, re-arranged by CSS) ----
+
+  const uploadControls = (
+    <>
+      <div
+        className="field dropzone"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.currentTarget.classList.add("is-over");
+        }}
+        onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.currentTarget.classList.remove("is-over");
+          onFile(e.dataTransfer.files);
+        }}
+      >
+        <label htmlFor="art-upload">
+          {art ? "Replace" : "Upload"} {state.view} artwork
+        </label>
+        <input
+          ref={fileRef}
+          id="art-upload"
+          className="upload"
+          type="file"
+          accept="image/png,image/jpeg"
+          onChange={(e) => onFile(e.target.files)}
+        />
+        <p className="field__note">
+          Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Transparent PNGs keep their transparency.
+        </p>
+        {uploadError && (
+          <p className="field__error" role="alert">
+            {uploadError}
+          </p>
+        )}
+      </div>
+
+      {(history.current.past.length > 0 || history.current.future.length > 0) && (
+        <div className="editactions" aria-label="History">
+          <button type="button" className="btn btn--outline" onClick={undo} disabled={!history.current.past.length} aria-label="Undo (Ctrl+Z)">
+            Undo
+          </button>
+          <button type="button" className="btn btn--outline" onClick={redo} disabled={!history.current.future.length} aria-label="Redo (Ctrl+Shift+Z)">
+            Redo
+          </button>
+        </div>
+      )}
+
+      {art && (
+        <div className="editactions">
+          <button type="button" className="btn btn--outline" onClick={() => fileRef.current?.click()}>
+            <Upload size={16} aria-hidden="true" /> Replace
+          </button>
+          <button
+            type="button"
+            className="btn btn--outline editactions__remove"
+            onClick={() => setArtwork(state.view, undefined)}
+          >
+            <Trash2 size={16} aria-hidden="true" /> Remove
+          </button>
+        </div>
+      )}
+
+      {!art && (
+        <ol className="emptysteps" aria-label="How it works">
+          <li>Upload a logo or design</li>
+          <li>Position it on the shirt</li>
+          <li>Review the preview</li>
+          <li>Send it to The Factory for a quote</li>
+        </ol>
+      )}
+    </>
+  );
+
+  const adjustControls = art ? (
+    <>
+      <div className="field">
+        <span className="field__legend mono">Placement presets</span>
+        <div className="presetrow">
+          {placementsForView(state.view).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="preset"
+              onClick={() => setArtwork(state.view, applyPlacement(art, p, zone))}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="art-size">
+          Printed width — {art.widthIn}″
+          <span className="field__opt"> (~{estimatedDpi(art)} DPI)</span>
+        </label>
+        <input
+          id="art-size"
+          type="range"
+          min={1}
+          max={round2(zone.widthIn * 1.15)}
+          step={0.25}
+          value={art.widthIn}
+          onChange={(e) =>
+            setArtwork(state.view, clampArtwork({ ...art, widthIn: Number(e.target.value) }, zone))
+          }
+        />
+        <p className={"quality quality--" + qualityLevel(art)} role="status">
+          {QUALITY_COPY[qualityLevel(art)]} <em>Approximate guide, not a final decision.</em>
+        </p>
+        {lowContrast && (
+          <p className="quality quality--soft" role="status">
+            Low contrast: your design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
+            <em>We never change your colours — the team confirms legibility before printing.</em>
+          </p>
+        )}
+      </div>
+
+      <div className="field">
+        <label htmlFor="art-rot">Rotation — {Math.round(art.rotation)}°</label>
+        <input
+          id="art-rot"
+          type="range"
+          min={-180}
+          max={180}
+          step={1}
+          value={((art.rotation + 180) % 360) - 180}
+          onChange={(e) =>
+            setArtwork(state.view, clampArtwork({ ...art, rotation: Number(e.target.value) }, zone))
+          }
+        />
+      </div>
+
+      <div className="editactions">
+        <button
+          type="button"
+          className="btn btn--outline"
+          onClick={() =>
+            setArtwork(
+              state.view,
+              clampArtwork({ ...art, ...defaultArtworkPlacement(zone, art.naturalW, art.naturalH) }, zone),
+            )
+          }
+        >
+          Centre &amp; reset
+        </button>
+      </div>
+      <p className="field__note">
+        Tip: drag to move · pinch or use the corner handle to resize · keyboard arrows, + − and [ ] also work.
+      </p>
+    </>
+  ) : (
+    <p className="field__note">Upload artwork first — position and size controls appear here.</p>
+  );
+
+  const styleControls = (
+    <>
+      <div className="field">
+        <span className="field__legend mono">Garment</span>
+        <div className="minigarments" role="radiogroup" aria-label="Switch garment">
+          {PRODUCTS.map((p) => (
+            <label key={p.id} className={"minigarment" + (state.productId === p.id ? " is-active" : "")} title={p.name}>
+              <input
+                type="radio"
+                name="ed-product"
+                checked={state.productId === p.id}
+                onChange={() => setProductId(p.id)}
+              />
+              <img src={p.thumb} alt="" loading="lazy" />
+              <span className="minigarment__name">{p.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="field">
+        <span className="field__legend mono">Colour — {state.color.name}</span>
+        <div className="minidots" role="radiogroup" aria-label="Switch colour">
+          {STANDARD_COLORS.map((c) => (
+            <label key={c.id} className={"minidot" + (state.color.id === c.id ? " is-active" : "")} title={c.name}>
+              <input type="radio" name="ed-color" checked={state.color.id === c.id} onChange={() => set({ color: { ...c } })} />
+              <span style={{ background: c.hex }} aria-hidden="true" />
+              <span className="sr-only">{c.name}</span>
+            </label>
+          ))}
+        </div>
+        {state.color.status === "confirm" && (
+          <p className="field__note">{state.color.name} — availability to confirm (custom colour kept).</p>
+        )}
+      </div>
+      <div className="field">
+        <span className="field__legend mono">Fabric — {fabric ? fabric.name : "team advises"}</span>
+        <div className="minifabrics" role="radiogroup" aria-label="Switch fabric">
+          <label className={"minifabric" + (!state.details.fabricId ? " is-active" : "")}>
+            <input type="radio" name="ed-fabric" checked={!state.details.fabricId} onChange={() => setDetails({ fabricId: "" })} />
+            <span className="minifabric__advise mono">Team advises</span>
+          </label>
+          {FABRICS.map((f) => (
+            <label key={f.id} className={"minifabric" + (state.details.fabricId === f.id ? " is-active" : "")} title={f.name}>
+              <input type="radio" name="ed-fabric" checked={state.details.fabricId === f.id} onChange={() => setDetails({ fabricId: f.id })} />
+              <img src={f.img} alt="" loading="lazy" />
+              <span className="minifabric__name">{f.name}</span>
+            </label>
+          ))}
+        </div>
+        <p className="field__note">Fabric choice never changes the preview — the render shows shape and colour only.</p>
+      </div>
+    </>
+  );
+
+  const liveSummary = (
+    <aside className="ed__summary" aria-label="Request so far">
+      <span className="field__legend mono">Your request so far</span>
+      <ul>
+        <li>
+          <strong>{product.name}</strong> — <AvailabilityBadge status={product.availability} />
+        </li>
+        <li>
+          {state.color.name} · <AvailabilityBadge status={colorAvailability(state.color.status)} />
+        </li>
+        <li>
+          {fabric ? (
+            <>
+              {fabric.name} · <AvailabilityBadge status={fabric.availability} />
+            </>
+          ) : (
+            "Fabric: no preference — the team advises"
+          )}
+        </li>
+        <li>
+          Front design: {state.artworks.front ? "added" : "—"} · Back design: {state.artworks.back ? "added" : "—"}
+        </li>
+      </ul>
+      <p className="ed__summarynote">{MARKET_SOURCING_NOTICE}</p>
+    </aside>
+  );
+
   // ------------------------------------------------------------------
   return (
     <div className="studio" ref={topRef}>
@@ -293,32 +559,37 @@ export function StudioExperiment() {
         {/* STEP 1 — PRODUCT */}
         {step === 0 && (
           <section className="studio__panel" aria-label="Choose a product">
-            <div className="choices choices--stacked">
+            <div className="prodgrid">
               {PRODUCTS.map((p) => (
-                <label key={p.id} className={"choice" + (state.productId === p.id ? " is-active" : "")}>
+                <label key={p.id} className={"prodcard" + (state.productId === p.id ? " is-active" : "")}>
                   <input
                     type="radio"
                     name="product"
                     checked={state.productId === p.id}
-                    onChange={() => set({ productId: p.id })}
+                    onChange={() => setProductId(p.id)}
                   />
-                  <span className="choice__label">{p.name}</span>
-                  <span className="choice__desc">{p.note}</span>
+                  <img className="prodcard__thumb" src={p.thumb} alt={`${p.name} — real garment render`} loading="lazy" />
+                  <span className="prodcard__name">{p.name}</span>
+                  <span className="prodcard__fit mono">{p.fit}</span>
+                  <span className="prodcard__desc">{p.description}</span>
+                  <span className="prodcard__meta">
+                    <span className="prodcard__metaline"><strong>Typical use:</strong> {p.use}</span>
+                    <span className="prodcard__metaline"><strong>Material reference:</strong> {p.material}</span>
+                  </span>
+                  <AvailabilityBadge status={p.availability} />
                 </label>
               ))}
             </div>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              Prototype garment list — the full range (polos, jerseys, hoodies, caps) is confirmed
-              with the team. Garments, fabrics and colours shown are visual references: availability
-              depends on what can be sourced in the market when you send your request.
+              {MARKET_SOURCING_NOTICE}
             </p>
           </section>
         )}
 
-        {/* STEP 2 — COLOUR */}
+        {/* STEP 2 — COLOUR & FABRIC */}
         {step === 1 && (
-          <section className="studio__panel studio__panel--split" aria-label="Choose a colour">
+          <section className="studio__panel studio__panel--split" aria-label="Choose colour and fabric">
             <div>
               <fieldset className="field">
                 <legend>Standard colours</legend>
@@ -340,6 +611,10 @@ export function StudioExperiment() {
                     </label>
                   ))}
                 </div>
+                <p className="field__note">
+                  Standard colours are <strong>commonly available</strong> — final shade always depends on the
+                  fabric sourced for your order.
+                </p>
               </fieldset>
 
               <fieldset className="field" style={{ marginTop: 18 }}>
@@ -385,6 +660,78 @@ export function StudioExperiment() {
                   </p>
                 )}
               </fieldset>
+
+              <fieldset className="field" style={{ marginTop: 26 }}>
+                <legend>Fabric &amp; textile</legend>
+                <p className="field__note" style={{ marginBottom: 10 }}>
+                  {FABRIC_VISUAL_NOTICE} Your choice is a preference — it does not change the on-screen
+                  preview.
+                </p>
+                <div className="fabgrid" role="radiogroup" aria-label="Fabric options">
+                  <label className={"fabcard fabcard--advise" + (!state.details.fabricId ? " is-active" : "")}>
+                    <input
+                      type="radio"
+                      name="fabric"
+                      checked={!state.details.fabricId}
+                      onChange={() => setDetails({ fabricId: "" })}
+                    />
+                    <span className="fabcard__name">No preference</span>
+                    <span className="fabcard__desc">
+                      Let The Factory team recommend the best fabric for your design, quantity and budget.
+                    </span>
+                    <span className="avail avail--common">Team recommendation</span>
+                  </label>
+                  {FABRICS.map((f) => (
+                    <label key={f.id} className={"fabcard" + (state.details.fabricId === f.id ? " is-active" : "")}>
+                      <input
+                        type="radio"
+                        name="fabric"
+                        checked={state.details.fabricId === f.id}
+                        onChange={() => setDetails({ fabricId: f.id })}
+                      />
+                      <img className="fabcard__img" src={f.img} alt={`${f.name} close-up reference`} loading="lazy" />
+                      <span className="fabcard__name">
+                        {f.name} <span className="fabcard__weight mono">{f.weight}</span>
+                      </span>
+                      <span className="fabcard__desc">{f.description}</span>
+                      <span className="fabcard__use">Typical: {f.use}</span>
+                      {f.refNote && <span className="fabcard__refnote">{f.refNote}</span>}
+                      <AvailabilityBadge status={f.availability} />
+                    </label>
+                  ))}
+                </div>
+
+                <details className="fabhelp">
+                  <summary>
+                    <HelpCircle size={15} aria-hidden="true" /> Help me choose a fabric
+                  </summary>
+                  <div className="fabhelp__body">
+                    <p>
+                      <strong>Lightweight vs heavyweight:</strong> lightweight fabric is thinner, cooler and
+                      cheaper — great for hot weather and giveaways. Heavyweight fabric is thicker, warmer and
+                      feels more premium — it drapes with structure and lasts longer.
+                    </p>
+                    <p>
+                      <strong>Cotton vs polyester:</strong> cotton feels soft and natural and breathes well.
+                      Polyester is lighter, dries quickly and holds its shape — best for sports. Blends sit in
+                      the middle: cotton comfort with less creasing and shrinking.
+                    </p>
+                    <p>
+                      <strong>Smooth vs textured:</strong> smooth jersey (t-shirts) prints crisply. Piqué
+                      (polos) has a fine waffle texture that reads smart. Fleece and terry are thicker with a
+                      soft surface — bold prints and embroidery work best there.
+                    </p>
+                    <p>
+                      Not sure? Pick <strong>No preference</strong> — the team matches a fabric to your design,
+                      quantity and budget, and confirms it with you before anything is made.
+                    </p>
+                  </div>
+                </details>
+                <p className="enquiry__hint" style={{ marginTop: 12 }}>
+                  <Info size={15} aria-hidden="true" />
+                  {MARKET_SOURCING_NOTICE}
+                </p>
+              </fieldset>
             </div>
 
             <div className="studio__side">
@@ -398,17 +745,17 @@ export function StudioExperiment() {
                 compact
               />
               <p className="studio__colorstate mono">
-                {state.color.name} ·{" "}
-                {state.color.status === "standard" ? "standard option" : "availability to confirm"}
+                {state.color.name} · {AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}
+                {fabric ? ` · ${fabric.name}` : ""}
               </p>
             </div>
           </section>
         )}
 
-        {/* STEP 3 — DESIGN */}
+        {/* STEP 3 — DESIGN (three-zone workspace on desktop, tabbed sheet on mobile) */}
         {step === 2 && (
-          <section className="studio__panel studio__panel--editor" aria-label="Add and position artwork">
-            <div className="studio__stagecol">
+          <section className="studio__panel ed" aria-label="Add and position artwork">
+            <div className="ed__stagecol">
               <div className="viewtabs" role="tablist" aria-label="Garment view">
                 {(["front", "back"] as ViewId[]).map((v) => (
                   <button
@@ -433,151 +780,36 @@ export function StudioExperiment() {
               />
             </div>
 
-            <div className="studio__controls">
-              {!art && (
-                <ol className="emptysteps" aria-label="How it works">
-                  <li>Upload a logo or design</li>
-                  <li>Position it on the shirt</li>
-                  <li>Review the preview</li>
-                  <li>Send it to The Factory for a quote</li>
-                </ol>
-              )}
-              <div
-                className="field dropzone"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.add("is-over");
-                }}
-                onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.remove("is-over");
-                  onFile(e.dataTransfer.files);
-                }}
-              >
-                <label htmlFor="art-upload">
-                  {art ? "Replace" : "Upload"} {state.view} artwork
-                </label>
-                <input
-                  ref={fileRef}
-                  id="art-upload"
-                  className="upload"
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  onChange={(e) => onFile(e.target.files)}
-                />
-                <p className="field__note">
-                  Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Transparent PNGs keep their
-                  transparency.
-                </p>
-                {uploadError && (
-                  <p className="field__error" role="alert">
-                    {uploadError}
-                  </p>
-                )}
-              </div>
+            {/* Mobile bottom-sheet tabs (hidden ≥861px) */}
+            <div className="ed__sheettabs" role="tablist" aria-label="Editor controls">
+              {(
+                [
+                  ["artwork", "Artwork"],
+                  ["adjust", "Position"],
+                  ["style", "Garment & colour"],
+                ] as const
+              ).map(([id, name]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={mtab === id}
+                  className={"ed__sheettab" + (mtab === id ? " is-active" : "")}
+                  onClick={() => setMtab(id)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
 
-              {(history.current.past.length > 0 || history.current.future.length > 0) && (
-                <div className="editactions" aria-label="History">
-                  <button type="button" className="btn btn--outline" onClick={undo} disabled={!history.current.past.length} aria-label="Undo (Ctrl+Z)">
-                    Undo
-                  </button>
-                  <button type="button" className="btn btn--outline" onClick={redo} disabled={!history.current.future.length} aria-label="Redo (Ctrl+Shift+Z)">
-                    Redo
-                  </button>
-                </div>
-              )}
-
-              {art && (
-                <>
-                  <div className="field">
-                    <span className="field__legend mono">Placement presets</span>
-                    <div className="presetrow">
-                      {placementsForView(state.view).map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className="preset"
-                          onClick={() => setArtwork(state.view, applyPlacement(art, p, zone))}
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="art-size">
-                      Printed width — {art.widthIn}″
-                      <span className="field__opt"> (~{estimatedDpi(art)} DPI)</span>
-                    </label>
-                    <input
-                      id="art-size"
-                      type="range"
-                      min={1}
-                      max={round2(zone.widthIn * 1.15)}
-                      step={0.25}
-                      value={art.widthIn}
-                      onChange={(e) =>
-                        setArtwork(state.view, clampArtwork({ ...art, widthIn: Number(e.target.value) }, zone))
-                      }
-                    />
-                    <p className={"quality quality--" + qualityLevel(art)} role="status">
-                      {QUALITY_COPY[qualityLevel(art)]} <em>Approximate guide, not a final decision.</em>
-                    </p>
-                    {lowContrast && (
-                      <p className="quality quality--soft" role="status">
-                        Low contrast: your design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
-                        <em>We never change your colours — the team confirms legibility before printing.</em>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="art-rot">Rotation — {Math.round(art.rotation)}°</label>
-                    <input
-                      id="art-rot"
-                      type="range"
-                      min={-180}
-                      max={180}
-                      step={1}
-                      value={((art.rotation + 180) % 360) - 180}
-                      onChange={(e) =>
-                        setArtwork(state.view, clampArtwork({ ...art, rotation: Number(e.target.value) }, zone))
-                      }
-                    />
-                  </div>
-
-                  <div className="editactions">
-                    <button
-                      type="button"
-                      className="btn btn--outline"
-                      onClick={() =>
-                        setArtwork(
-                          state.view,
-                          clampArtwork({ ...art, ...defaultArtworkPlacement(zone, art.naturalW, art.naturalH) }, zone),
-                        )
-                      }
-                    >
-                      Centre & reset
-                    </button>
-                    <button type="button" className="btn btn--outline" onClick={() => fileRef.current?.click()}>
-                      <Upload size={16} aria-hidden="true" /> Replace
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--outline editactions__remove"
-                      onClick={() => setArtwork(state.view, undefined)}
-                    >
-                      <Trash2 size={16} aria-hidden="true" /> Remove
-                    </button>
-                  </div>
-                  <p className="field__note">
-                    Tip: drag to move · pinch or use the corner handle to resize · keyboard arrows, + − and [ ] also
-                    work.
-                  </p>
-                </>
-              )}
+            <div className={"ed__rail ed__rail--style" + (mtab === "style" ? " is-mtab" : "")}>
+              {styleControls}
+            </div>
+            <div className={"ed__rail ed__rail--work" + (mtab === "artwork" ? " is-mtab" : "")}>
+              {uploadControls}
+            </div>
+            <div className={"ed__rail ed__rail--adjust" + (mtab === "adjust" ? " is-mtab" : "")}>
+              {adjustControls}
+              {liveSummary}
             </div>
           </section>
         )}
@@ -610,6 +842,10 @@ export function StudioExperiment() {
                   </div>
                 ))}
             </dl>
+            <p className="enquiry__hint">
+              <Info size={15} aria-hidden="true" />
+              {MARKET_SOURCING_NOTICE}
+            </p>
             {errors.artwork && (
               <p className="field__error" role="alert">
                 {errors.artwork}
@@ -763,19 +999,17 @@ export function StudioExperiment() {
               </div>
             </fieldset>
 
+            <div className="field">
+              <span className="field__legend mono">Fabric</span>
+              <p className="field__note">
+                {fabric
+                  ? `${fabric.name} (${fabric.weight.toLowerCase()} weight) — ${AVAILABILITY_LABEL[fabric.availability].toLowerCase()}. `
+                  : "No preference — the team will recommend a fabric. "}
+                Change it in the Colour &amp; fabric step, or add specifics in the notes below.
+              </p>
+            </div>
+
             <div className="field-grid2">
-              <div className="field">
-                <label htmlFor="o-fabric">
-                  Fabric weight / quality <span className="field__opt">(optional)</span>
-                </label>
-                <input
-                  id="o-fabric"
-                  type="text"
-                  value={state.details.fabricWeight}
-                  onChange={(e) => setDetails({ fabricWeight: e.target.value })}
-                  placeholder="e.g. heavyweight cotton"
-                />
-              </div>
               <div className="field">
                 <label htmlFor="o-deadline">
                   When do you need it? <span className="field__opt">(optional)</span>
@@ -856,7 +1090,7 @@ export function StudioExperiment() {
                 rows={3}
                 value={state.details.notes}
                 onChange={(e) => setDetails({ notes: e.target.value })}
-                placeholder="Anything the team should know"
+                placeholder="Anything the team should know — including specific fabric or brand preferences"
               />
             </div>
           </section>
@@ -930,8 +1164,8 @@ export function StudioExperiment() {
             </span>
             <h2 className="h3">Your design request is ready</h2>
             <p className="lede">
-              Send the enquiry to The Factory Nigeria on WhatsApp so the team can confirm fabric
-              availability, printing method, pricing and production time.
+              Send the enquiry to The Factory Nigeria on WhatsApp so the team can confirm garment, fabric
+              and colour availability, printing method, pricing and production time.
             </p>
             <div className="tprev__row">
               <TeePreview state={state} view="front" />
@@ -983,8 +1217,11 @@ export function StudioExperiment() {
               <span className="field__legend mono">What happens next</span>
               <ol>
                 <li>You send the message (and attach the downloaded files) in WhatsApp.</li>
-                <li>The team reviews your design, colour and quantities.</li>
-                <li>They confirm fabric availability, method, price and timing with you.</li>
+                <li>The team reviews your design, colour, fabric and quantities.</li>
+                <li>
+                  They confirm availability, method, price and timing with you — or suggest the closest
+                  available alternative if something can't be sourced.
+                </li>
                 <li>Production only starts after you approve the final specification.</li>
               </ol>
               <p className="field__note">
@@ -1021,6 +1258,7 @@ export function StudioExperiment() {
                 onClick={() => {
                   if (step === 2 && !state.artworks.front && !state.artworks.back) {
                     setUploadError("Add at least one design (front or back) to continue.");
+                    setMtab("artwork");
                     return;
                   }
                   go(step + 1);

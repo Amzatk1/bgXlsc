@@ -53,7 +53,8 @@ export type OrderDetails = {
   otherSizes: string; // custom sizing — flagged for manual confirmation
   sameDesign: "yes" | "no" | "";
   method: string; // print/embroidery preference (confirmed by the factory)
-  fabricWeight: string;
+  /** Selected fabric id from FABRICS ("" = let the team advise). Availability always confirmed by the team. */
+  fabricId: string;
   deadline: string;
   deliveryLocation: string;
   notes: string;
@@ -90,7 +91,7 @@ export function initialState(): DesignState {
       otherSizes: "",
       sameDesign: "",
       method: "",
-      fabricWeight: "",
+      fabricId: "",
       deadline: "",
       deliveryLocation: "",
       notes: "",

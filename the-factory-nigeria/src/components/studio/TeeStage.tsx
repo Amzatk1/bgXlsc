@@ -41,7 +41,7 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
   const [dragOut, setDragOut] = useState(false);
 
   const img = (GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view];
-  const tuning = useMemo(() => layerTuning(colorHex), [colorHex]);
+  const tuning = useMemo(() => layerTuning(colorHex, productId), [colorHex, productId]);
   const zoom = ZOOMS[zoomI];
 
   useEffect(() => {

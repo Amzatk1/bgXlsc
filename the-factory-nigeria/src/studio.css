@@ -435,6 +435,241 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .sizes__actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .sizes__actions .btn { min-height: 40px; padding: 0 14px; font-size: 0.74rem; }
 
+/* =====================================================================
+   V3 — availability badges, product cards, fabric picker, 3-zone editor
+   ===================================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Availability status — text label always, tone via border (never colour alone) */
+.avail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+  background: var(--white);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  width: fit-content;
+}
+.avail::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+.avail--common { border-color: rgba(63, 143, 88, 0.55); color: #2c6b40; }
+.avail--confirm { border-color: rgba(201, 138, 27, 0.6); color: #8a5d0f; }
+.avail--special { border-color: rgba(122, 43, 122, 0.55); color: var(--purple-700, #7a2b7a); }
+.avail--custom { border-color: var(--line-strong); color: var(--text-soft); }
+
+/* Product cards */
+.prodgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.prodcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.prodcard:hover { border-color: var(--ink); }
+.prodcard:active { transform: scale(0.99); }
+.prodcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
+.prodcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.prodcard:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
+.prodcard__thumb { width: 100%; max-width: 180px; margin: 0 auto; aspect-ratio: 6 / 7; object-fit: contain; background: #f4f2ef; border-radius: var(--radius-sm); }
+.prodcard__name { font-weight: 700; font-size: 1rem; }
+.prodcard__fit { font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple-700); }
+.prodcard__desc { font-size: 0.86rem; color: var(--text-soft); line-height: 1.45; }
+.prodcard__meta { display: grid; gap: 3px; font-size: 0.76rem; color: var(--text-soft); border-top: 1px dashed var(--line, #e4e0da); padding-top: 8px; }
+.prodcard__metaline strong { font-weight: 600; color: var(--ink); }
+
+/* Fabric cards */
+.fabgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.fabcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.fabcard:hover { border-color: var(--ink); }
+.fabcard:active { transform: scale(0.99); }
+.fabcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
+.fabcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fabcard:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
+.fabcard__img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line, #e4e0da); }
+.fabcard__name { font-weight: 700; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
+.fabcard__weight { font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid var(--line-strong); border-radius: 5px; padding: 2px 6px; color: var(--text-soft); }
+.fabcard__desc { font-size: 0.82rem; color: var(--text-soft); line-height: 1.4; }
+.fabcard__use { font-size: 0.74rem; color: var(--text-faint); }
+.fabcard__refnote { font-size: 0.7rem; color: var(--text-faint); font-style: italic; }
+.fabcard--advise { justify-content: center; border-style: dashed; }
+
+.fabhelp { margin-top: 14px; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--white); }
+.fabhelp summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  list-style: none;
+}
+.fabhelp summary::-webkit-details-marker { display: none; }
+.fabhelp summary svg { color: var(--purple-700); }
+.fabhelp[open] summary { border-bottom: 1px dashed var(--line, #e4e0da); }
+.fabhelp__body { padding: 12px 14px 14px; display: grid; gap: 10px; font-size: 0.86rem; line-height: 1.5; color: var(--text-soft); }
+.fabhelp__body strong { color: var(--ink); }
+
+/* --- Design step: three-zone workspace (Mobbin-informed) ------------ */
+.ed { display: flex; flex-direction: column; gap: 14px; }
+.ed__stagecol { min-width: 0; }
+.ed__rail { display: none; gap: 16px; align-content: start; }
+.ed__rail.is-mtab { display: grid; }
+
+/* Mobile: bottom-sheet-style tab bar (one task at a time) */
+.ed__sheettabs {
+  position: sticky;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 29;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: var(--white);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(20, 17, 15, 0.08);
+}
+.ed__sheettab {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 9px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.ed__sheettab.is-active { background: var(--ink); color: var(--paper); }
+
+/* Mini pickers (editor style rail) */
+.minigarments { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.minigarment {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 8px 6px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+}
+.minigarment.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
+.minigarment input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.minigarment:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
+.minigarment img { width: 52px; aspect-ratio: 6/7; object-fit: contain; }
+.minigarment__name { font-size: 0.62rem; font-weight: 600; text-align: center; line-height: 1.2; }
+
+.minidots { display: flex; flex-wrap: wrap; gap: 8px; }
+.minidot { position: relative; cursor: pointer; }
+.minidot > span:first-of-type {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(20, 17, 15, 0.25);
+}
+.minidot input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.minidot.is-active > span:first-of-type { outline: 2px solid var(--purple); outline-offset: 2px; }
+.minidot:focus-within > span:first-of-type { outline: 2px solid var(--purple); outline-offset: 2px; }
+
+.minifabrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.minifabric {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+  min-height: 44px;
+}
+.minifabric.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
+.minifabric input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.minifabric:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
+.minifabric img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; }
+.minifabric__name { font-size: 0.72rem; font-weight: 600; line-height: 1.2; }
+.minifabric__advise { font-size: 0.66rem; }
+
+/* Live summary (right rail) */
+.ed__summary {
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--white);
+  padding: 14px;
+}
+.ed__summary ul { display: grid; gap: 8px; font-size: 0.84rem; }
+.ed__summary li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ed__summarynote { margin-top: 10px; font-size: 0.72rem; color: var(--text-faint); line-height: 1.45; }
+
+/* Tablet (two columns: large stage + tabbed side rail) */
+@media (min-width: 861px) and (max-width: 1099px) {
+  .ed {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+    grid-template-areas: "stage tabs" "stage rail";
+    align-items: start;
+    gap: 18px 22px;
+  }
+  .ed__stagecol { grid-area: stage; }
+  .ed__sheettabs { grid-area: tabs; position: sticky; top: 82px; bottom: auto; box-shadow: none; }
+  .ed__rail { grid-area: rail; }
+}
+
+/* Desktop three-zone workspace:
+   left rail = garment/colour/fabric + upload · centre = stage ·
+   right rail = placement, quality checks, live request summary */
+@media (min-width: 1100px) {
+  .studio__body:has(.ed) { max-width: 1360px; }
+  .ed {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    grid-auto-rows: min-content;
+    gap: 18px 26px;
+    align-items: start;
+  }
+  .ed__sheettabs { display: none; }
+  .ed__stagecol { grid-column: 2; grid-row: 1 / span 3; }
+  .ed__rail { display: grid; }
+  .ed__rail--style { grid-column: 1; grid-row: 1; }
+  .ed__rail--work { grid-column: 1; grid-row: 2; }
+  .ed__rail--adjust { grid-column: 3; grid-row: 1 / span 3; }
+}
+
 /* --- Final UX refinement pass ------------------------------------- */
 .studio__stepmeta {
   font-size: 12px;

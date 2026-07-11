@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { PLACEMENTS, PRODUCTS, STANDARD_COLORS, UPLOAD_LIMITS } from "../catalog";
+import {
+  AVAILABILITY_LABEL,
+  colorAvailability,
+  FABRIC_VISUAL_NOTICE,
+  FABRICS,
+  getFabricById,
+  MARKET_SOURCING_NOTICE,
+  PLACEMENTS,
+  PRODUCTS,
+  STANDARD_COLORS,
+  UPLOAD_LIMITS,
+} from "../catalog";
 import {
   applyPlacement,
   artworkCornersIn,
@@ -18,7 +29,7 @@ import {
   validateForSubmit,
   type Artwork,
 } from "../state";
-import { buildDesignSpec, buildStudioMessage, sizesLine, summaryRows } from "../messages";
+import { buildDesignSpec, buildStudioMessage, fabricLine, sizesLine, summaryRows } from "../messages";
 import { checkDimensions, precheckFile } from "../imageFile";
 
 const zone = PRODUCTS[0].zones.front;
@@ -43,8 +54,9 @@ describe("catalogue (prototype data)", () => {
   it("every product has front and back print zones with real-world sizes", () => {
     for (const p of PRODUCTS) {
       for (const v of ["front", "back"] as const) {
-        expect(p.zones[v].widthIn).toBeGreaterThan(6);
-        expect(p.zones[v].heightIn).toBeGreaterThan(10);
+        expect(p.zones[v].widthIn).toBeGreaterThanOrEqual(9);
+        // hoodie front is a deliberate short band above the pocket (7″)
+        expect(p.zones[v].heightIn).toBeGreaterThanOrEqual(6);
       }
     }
   });
@@ -59,6 +71,64 @@ describe("catalogue (prototype data)", () => {
   it("placements exist for both views", () => {
     expect(PLACEMENTS.some((p) => p.view === "front")).toBe(true);
     expect(PLACEMENTS.some((p) => p.view === "back")).toBe(true);
+  });
+  it("every product carries card copy and one of the four availability statuses", () => {
+    for (const p of PRODUCTS) {
+      expect(p.fit.length).toBeGreaterThan(2);
+      expect(p.description.length).toBeGreaterThan(10);
+      expect(p.use.length).toBeGreaterThan(5);
+      expect(p.material.length).toBeGreaterThan(5);
+      expect(p.thumb).toMatch(/\.webp$/);
+      expect(Object.keys(AVAILABILITY_LABEL)).toContain(p.availability);
+    }
+  });
+  it("v3 garment library includes polo and hoodie with measured zones", () => {
+    const polo = PRODUCTS.find((p) => p.id === "polo")!;
+    const hoodie = PRODUCTS.find((p) => p.id === "hoodie")!;
+    expect(polo).toBeTruthy();
+    expect(hoodie).toBeTruthy();
+    // polo front print sits below the placket (zone starts lower than the tee's)
+    expect(polo.zones.front.y).toBeGreaterThan(250);
+    expect(polo.zones.front.widthIn).toBeLessThanOrEqual(12);
+    // hoodie front zone is the short band ABOVE the kangaroo pocket
+    expect(hoodie.zones.front.h).toBeLessThan(hoodie.zones.back.h);
+    expect(hoodie.zones.front.heightIn).toBeLessThanOrEqual(8);
+    // all zones stay inside the 600×700 stage
+    for (const p of PRODUCTS) {
+      for (const v of ["front", "back"] as const) {
+        const z = p.zones[v];
+        expect(z.x).toBeGreaterThanOrEqual(0);
+        expect(z.y).toBeGreaterThanOrEqual(0);
+        expect(z.x + z.w).toBeLessThanOrEqual(600);
+        expect(z.y + z.h).toBeLessThanOrEqual(700);
+      }
+    }
+  });
+  it("exposes exactly the four approved availability labels", () => {
+    expect(Object.values(AVAILABILITY_LABEL).sort()).toEqual(
+      ["Availability to confirm", "Commonly available", "Custom request", "Special sourcing required"].sort(),
+    );
+    expect(colorAvailability("standard")).toBe("common");
+    expect(colorAvailability("confirm")).toBe("confirm");
+  });
+  it("fabric catalogue: eight options with copy, weight, status and close-up", () => {
+    expect(FABRICS).toHaveLength(8);
+    for (const f of FABRICS) {
+      expect(f.name.length).toBeGreaterThan(3);
+      expect(f.description.length).toBeGreaterThan(10);
+      expect(f.use.length).toBeGreaterThan(5);
+      expect(["Light", "Mid", "Heavy"]).toContain(f.weight);
+      expect(Object.keys(AVAILABILITY_LABEL)).toContain(f.availability);
+      expect(f.img).toMatch(/fabric-.*\.webp$/);
+    }
+    expect(getFabricById("pique")?.name).toBe("Piqué");
+    expect(getFabricById("nope")).toBeUndefined();
+  });
+  it("honesty notices exist and never promise stock", () => {
+    expect(MARKET_SOURCING_NOTICE).toContain("depends on what can be sourced");
+    expect(MARKET_SOURCING_NOTICE).toContain("closest available alternative");
+    expect(FABRIC_VISUAL_NOTICE).toContain("approximate references");
+    expect(MARKET_SOURCING_NOTICE).not.toMatch(/in stock|guaranteed/i);
   });
 });
 
@@ -182,15 +252,39 @@ describe("enquiry summary & spec", () => {
   it("formats the sizes line like the order sheet", () => {
     expect(sizesLine(completeState())).toBe("S — 5, M — 10, L — 10, XL — 5");
   });
-  it("builds a structured WhatsApp message with the confirmation warning", () => {
+  it("builds a structured WhatsApp message with the availability warning", () => {
     const msg = buildStudioMessage(completeState());
-    expect(msg).toContain("New custom T-shirt enquiry");
+    expect(msg).toContain("New custom shirt enquiry");
     expect(msg).toContain("*Reference:* TFN-DS-");
     expect(msg).toContain("Amzat Karim");
-    expect(msg).toContain("requires confirmation");
-    expect(msg).toContain("confirm fabric availability");
+    expect(msg).toContain("availability to confirm"); // custom colour status
+    expect(msg).toContain("visual references");
+    expect(msg).toContain("depends on market sourcing");
+    expect(msg).toContain("closest alternative");
     expect(msg).not.toContain("Email:"); // empty fields omitted
     expect(msg).not.toContain("base64"); // never embeds image data
+  });
+  it("carries the fabric choice with its availability label everywhere", () => {
+    const st = completeState();
+    st.details.fabricId = "fleece";
+    expect(fabricLine(st)).toBe("Fleece (heavy weight) — availability to confirm, confirmed by the team");
+    const msg = buildStudioMessage(st);
+    expect(msg).toContain("*Fabric:* Fleece");
+    const rows = summaryRows(st);
+    const fabricRow = rows.find((r) => r.label === "Fabric")!;
+    expect(fabricRow.step).toBe(1);
+    expect(fabricRow.value).toContain("Fleece");
+    const spec = buildDesignSpec(st) as { fabric: { name: string; availability?: string }; availabilityNotice: string };
+    expect(spec.fabric.name).toBe("Fleece");
+    expect(spec.fabric.availability).toBe("Availability to confirm");
+    expect(spec.availabilityNotice).toContain("closest available alternative");
+  });
+  it("defaults to team advice when no fabric is picked", () => {
+    const st = completeState();
+    expect(st.details.fabricId).toBe("");
+    expect(fabricLine(st)).toBe("");
+    expect(buildStudioMessage(st)).toContain("*Fabric:* No preference — please advise");
+    expect(summaryRows(st).find((r) => r.label === "Fabric")!.value).toContain("team will advise");
   });
   it("summary rows tag the step that edits them", () => {
     const rows = summaryRows(completeState());
@@ -240,6 +334,21 @@ describe("photoreal colour pipeline", () => {
     const white = layerTuning("#f4f2ee");
     expect(black.lightOpacity).toBeGreaterThan(white.lightOpacity);
     expect(black.shadeBrightness).toBeGreaterThan(1); // luma-normalised fabric
+  });
+  it("every product has garment images and a measured per-garment fabric luma", async () => {
+    const { GARMENT_IMG, FABRIC_LUMA, layerTuning } = await import("../garment");
+    for (const p of PRODUCTS) {
+      expect(GARMENT_IMG[p.id]?.front).toMatch(/\.webp$/);
+      expect(GARMENT_IMG[p.id]?.back).toMatch(/\.webp$/);
+      expect(FABRIC_LUMA[p.id]).toBeGreaterThan(0.3);
+      expect(FABRIC_LUMA[p.id]).toBeLessThan(0.7);
+    }
+    // per-garment normalisation actually uses the measured luma
+    const polo = layerTuning("#f4f2ee", "polo");
+    expect(polo.shadeBrightness).toBeCloseTo(1 / FABRIC_LUMA["polo"], 2);
+    // unknown products fall back to the default constant
+    const fallback = layerTuning("#f4f2ee", "unknown-product");
+    expect(fallback.shadeBrightness).toBeCloseTo(1 / 0.505, 2);
   });
 });
 

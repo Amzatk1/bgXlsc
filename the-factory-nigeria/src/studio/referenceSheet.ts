@@ -6,9 +6,16 @@
 // breakdown and notes. No editor UI, handles or grids appear here.
 // =====================================================================
 
-import { CUSTOM_COLOR_NOTICE, PREVIEW_DISCLAIMER, type ViewId } from "./catalog";
+import {
+  AVAILABILITY_LABEL,
+  colorAvailability,
+  CUSTOM_COLOR_NOTICE,
+  MARKET_SOURCING_NOTICE,
+  PREVIEW_DISCLAIMER,
+  type ViewId,
+} from "./catalog";
 import { composeViewCanvas, download } from "./exporter";
-import { artworkLine } from "./messages";
+import { artworkLine, fabricLine } from "./messages";
 import { getProduct, SIZE_KEYS, sizeTotal, type DesignState } from "./state";
 import { STAGE_H, STAGE_W } from "./garment";
 
@@ -149,7 +156,7 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   const cuW = cuViews.length === 2 ? (mx - 48 - 28) / 2 - 14 : 380;
   let cx0 = 48;
   for (const v of cuViews) {
-    await closeupPanel(ctx, state, v, cx0, cuY, cuW, H - cuY - 110);
+    await closeupPanel(ctx, state, v, cx0, cuY, cuW, H - cuY - 140);
     cx0 += cuW + 28;
   }
 
@@ -157,7 +164,7 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   const ix = Math.max(mx + 24, 1220);
   let iy = 190;
   label(ctx, "Product", ix, iy);
-  iy = value(ctx, product.name, ix, iy + 36, W - ix - 220);
+  iy = value(ctx, `${product.name} — ${AVAILABILITY_LABEL[product.availability]}`, ix, iy + 36, W - ix - 220);
 
   label(ctx, "Garment colour", ix, iy + 18);
   // swatch
@@ -167,14 +174,15 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   ctx.strokeRect(ix, iy + 34, 64, 64);
   iy = value(
     ctx,
-    `${state.color.name} (${state.color.hex}) — ${
-      state.color.status === "standard" ? "standard option" : "AVAILABILITY TO CONFIRM"
-    }`,
+    `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toUpperCase()}`,
     ix + 84,
     iy + 72,
     W - ix - 300,
   );
   iy += 16;
+
+  label(ctx, "Fabric", ix, iy + 18);
+  iy = value(ctx, fabricLine(state) || "No preference — team to advise", ix, iy + 54, W - ix - 220);
 
   for (const v of views) {
     const art = state.artworks[v];
@@ -210,7 +218,6 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
 
   const facts: [string, string][] = [
     ["Method preference", d.method],
-    ["Fabric preference", d.fabricWeight],
     ["Required date", d.deadline],
     ["Delivery location", d.deliveryLocation],
     ["Customer", [d.name, d.phone, d.email].filter((s) => s.trim()).join(" · ")],
@@ -228,13 +235,18 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
     iy = value(ctx, CUSTOM_COLOR_NOTICE, ix, iy + 18, W - ix - 220);
   }
 
-  // Footer disclaimer
+  // Footer disclaimers: preview approximation + market-sourcing honesty
+  const noticeSplit = MARKET_SOURCING_NOTICE.indexOf("; if not");
+  const noticeA = MARKET_SOURCING_NOTICE.slice(0, noticeSplit + 1);
+  const noticeB = MARKET_SOURCING_NOTICE.slice(noticeSplit + 2);
   ctx.fillStyle = INK;
-  ctx.fillRect(0, H - 74, W, 74);
+  ctx.fillRect(0, H - 118, W, 118);
   ctx.fillStyle = PAPER;
   ctx.globalAlpha = 0.85;
-  ctx.font = "22px Archivo, Arial, sans-serif";
-  ctx.fillText(PREVIEW_DISCLAIMER, 48, H - 30);
+  ctx.font = "21px Archivo, Arial, sans-serif";
+  ctx.fillText(PREVIEW_DISCLAIMER, 48, H - 82);
+  ctx.fillText(noticeA, 48, H - 52);
+  ctx.fillText(noticeB, 48, H - 22);
   ctx.globalAlpha = 1;
 
   return canvas.toDataURL("image/png");

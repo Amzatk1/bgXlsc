@@ -3,7 +3,16 @@
 // Test mode: nothing is ever sent automatically.
 // =====================================================================
 
-import { CUSTOM_COLOR_NOTICE, MIN_ORDER, PREVIEW_DISCLAIMER } from "./catalog";
+import {
+  AVAILABILITY_LABEL,
+  colorAvailability,
+  CUSTOM_COLOR_NOTICE,
+  getFabricById,
+  MARKET_SOURCING_NOTICE,
+  MIN_ORDER,
+  PREVIEW_DISCLAIMER,
+  type Fabric,
+} from "./catalog";
 import {
   estimatedDpi,
   getProduct,
@@ -32,16 +41,35 @@ export function sizesLine(state: DesignState): string {
   return parts.join(", ") || "—";
 }
 
+export function getFabric(state: DesignState): Fabric | undefined {
+  return getFabricById(state.details.fabricId);
+}
+
+/** "Midweight cotton (Mid weight) — Commonly available (confirmed by the team)" */
+export function fabricLine(state: DesignState): string {
+  const f = getFabric(state);
+  if (!f) return "";
+  return `${f.name} (${f.weight.toLowerCase()} weight) — ${AVAILABILITY_LABEL[f.availability].toLowerCase()}, confirmed by the team`;
+}
+
 export function summaryRows(state: DesignState): SummaryRow[] {
   const d = state.details;
+  const product = getProduct(state);
   const rows: SummaryRow[] = [
     { label: "Reference", value: state.reference },
-    { label: "Product", value: getProduct(state).name, step: 0 },
+    {
+      label: "Product",
+      value: `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`,
+      step: 0,
+    },
     {
       label: "Shirt colour",
-      value: `${state.color.name} (${state.color.hex})${
-        state.color.status === "confirm" ? " — availability to confirm" : ""
-      }`,
+      value: `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
+      step: 1,
+    },
+    {
+      label: "Fabric",
+      value: fabricLine(state) || "No preference — the team will advise",
       step: 1,
     },
   ];
@@ -51,7 +79,6 @@ export function summaryRows(state: DesignState): SummaryRow[] {
   if (sizeTotal(d.sizes) > 0 || d.otherSizes.trim()) rows.push({ label: "Sizes", value: sizesLine(state), step: 4 });
   if (d.sameDesign) rows.push({ label: "Same design on all", value: d.sameDesign === "yes" ? "Yes" : "No — see notes", step: 4 });
   if (d.method.trim()) rows.push({ label: "Method preference", value: d.method.trim(), step: 4 });
-  if (d.fabricWeight.trim()) rows.push({ label: "Fabric preference", value: d.fabricWeight.trim(), step: 4 });
   if (d.deadline.trim()) rows.push({ label: "Needed by", value: d.deadline.trim(), step: 4 });
   if (d.deliveryLocation.trim()) rows.push({ label: "Delivery location", value: d.deliveryLocation.trim(), step: 4 });
   if (d.name.trim()) rows.push({ label: "Name", value: d.name.trim(), step: 4 });
@@ -75,29 +102,30 @@ export function buildStudioMessage(state: DesignState): string {
   };
   const printing = [placement("front"), placement("back")].filter(Boolean).join("\n");
 
+  const product = getProduct(state);
   const parts = [
-    "*New custom T-shirt enquiry* 👕",
+    "*New custom shirt enquiry* 👕",
     "",
     line("Reference", state.reference),
     line("Customer", d.name),
     line("Phone", d.phone),
     d.email.trim() ? line("Email", d.email) : "",
-    line("Product", getProduct(state).name),
+    line("Product", `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`),
     line(
       "Colour",
-      `${state.color.name} (${state.color.hex})${state.color.status === "confirm" ? " — requires confirmation" : ""}`,
+      `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
     ),
+    line("Fabric", fabricLine(state) || "No preference — please advise"),
     line("Quantity", d.quantity),
     line("Sizes", sizesLine(state)),
     printing ? `*Printing:*\n${printing}` : "",
     d.method.trim() ? line("Method preference", d.method) : "",
-    d.fabricWeight.trim() ? line("Fabric preference", d.fabricWeight) : "",
     line("Required date", d.deadline),
     line("Delivery location", d.deliveryLocation),
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
     "I'm attaching the design reference sheet and my original artwork in this chat.",
-    `_The mockups are visual references. Please confirm fabric availability, printing method, final placement, price and production timeline. Shirt Studio requests can start from one shirt._`,
+    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms availability, minimum quantity, pricing and production time (or suggests the closest alternative) before any order is accepted. Shirt Studio requests can start from one shirt._`,
   ].filter((l) => l !== "");
 
   return parts.join("\n");
@@ -126,20 +154,36 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
       : undefined;
 
   const d = state.details;
+  const product = getProduct(state);
+  const fabric = getFabric(state);
   return {
     prototype: true,
     generator: "The Factory Nigeria — The Shirt Studio (experimental prototype)",
     disclaimer: PREVIEW_DISCLAIMER,
+    availabilityNotice: MARKET_SOURCING_NOTICE,
     reference: state.reference,
     createdAt: new Date().toISOString(),
     status: "draft", // future statuses: submitted, awaiting-review, quoted, approved, in-production, completed, cancelled
-    product: { id: state.productId, name: getProduct(state).name },
+    product: {
+      id: state.productId,
+      name: product.name,
+      availability: AVAILABILITY_LABEL[product.availability],
+    },
     color: {
       name: state.color.name,
       hex: state.color.hex,
       status: state.color.status,
+      availability: AVAILABILITY_LABEL[colorAvailability(state.color.status)],
       ...(state.color.status === "confirm" ? { notice: CUSTOM_COLOR_NOTICE } : {}),
     },
+    fabric: fabric
+      ? {
+          id: fabric.id,
+          name: fabric.name,
+          weight: fabric.weight,
+          availability: AVAILABILITY_LABEL[fabric.availability],
+        }
+      : { id: "", name: "No preference — team to advise" },
     artworks: { front: artSpec(state.artworks.front), back: artSpec(state.artworks.back) },
     order: {
       minimumOrder: MIN_ORDER,
@@ -148,7 +192,6 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
       otherSizes: d.otherSizes,
       sameDesignOnAll: d.sameDesign,
       methodPreference: d.method,
-      fabricPreference: d.fabricWeight,
       requiredDate: d.deadline,
       deliveryLocation: d.deliveryLocation,
       notes: d.notes,

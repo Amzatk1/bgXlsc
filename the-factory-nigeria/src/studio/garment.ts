@@ -13,21 +13,34 @@
 // preview and the production reference always match.
 // =====================================================================
 
-import type { ViewId } from "./catalog";
+import { ASSET_BASE, type ViewId } from "./catalog";
 
 /** Logical stage space (all zone/artwork coordinates live here). */
 export const STAGE_W = 600;
 export const STAGE_H = 700;
 
-const A = "/assets/the-factory-nigeria/studio";
+const A = ASSET_BASE;
 
 export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
   "unisex-tee": { front: `${A}/tee-std-front.webp`, back: `${A}/tee-std-back.webp` },
   "oversized-tee": { front: `${A}/tee-os-front.webp`, back: `${A}/tee-os-back.webp` },
+  polo: { front: `${A}/polo-front.webp`, back: `${A}/polo-back.webp` },
+  hoodie: { front: `${A}/hoodie-front.webp`, back: `${A}/hoodie-back.webp` },
 };
 
-/** Mean luminance of the photographed grey fabric (measured from asset). */
-export const FABRIC_LUMA = 0.505;
+/**
+ * Mean luminance of each garment's photographed grey fabric, measured
+ * per asset (alpha-weighted mean over garment pixels). Keeps the
+ * multiply-normalisation correct as the library grows.
+ */
+export const FABRIC_LUMA: Record<string, number> = {
+  "unisex-tee": 0.505,
+  "oversized-tee": 0.505,
+  polo: 0.507,
+  hoodie: 0.506,
+};
+
+export const DEFAULT_FABRIC_LUMA = 0.505;
 
 // ---------------------------------------------------------------------
 // Colour math
@@ -45,11 +58,13 @@ export function hexLuma(hex: string): number {
 /**
  * Layer tuning per shirt colour: the multiply layer is brightness-lifted so
  * mid-grey fabric doesn't muddy the tint; dark shirts get a stronger screen
- * (highlight) pass so folds stay visible on black/navy.
+ * (highlight) pass so folds stay visible on black/navy. The normalisation
+ * constant is per garment (each photo's fabric luma is measured).
  */
-export function layerTuning(colorHex: string) {
+export function layerTuning(colorHex: string, productId?: string) {
   const luma = hexLuma(colorHex);
-  const shadeBrightness = 1 / FABRIC_LUMA; // normalise fabric to ~white flats
+  const fabricLuma = (productId && FABRIC_LUMA[productId]) || DEFAULT_FABRIC_LUMA;
+  const shadeBrightness = 1 / fabricLuma; // normalise fabric to ~white flats
   const lightOpacity = luma < 0.16 ? 0.5 : luma < 0.35 ? 0.34 : luma < 0.6 ? 0.16 : 0.08;
   return { shadeBrightness: round2(shadeBrightness), lightOpacity };
 }
@@ -92,7 +107,7 @@ export async function drawGarment(
   drawArtwork?: (ctx: CanvasRenderingContext2D) => void,
 ): Promise<void> {
   const photo = await loadGarmentImage((GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view]);
-  const { shadeBrightness, lightOpacity } = layerTuning(colorHex);
+  const { shadeBrightness, lightOpacity } = layerTuning(colorHex, productId);
 
   // Work on an offscreen layer so blend modes stay contained
   const layer = document.createElement("canvas");

@@ -2,6 +2,183 @@
 
 ---
 
+# v3 — Garment & fabric library + availability honesty + editor re-layout
+
+## Garment library (Task A)
+
+**Generated with Higgsfield MCP** (`marketing_studio_image`, 16:9, 2k), same
+front+back-in-one-frame method as v2. **Credit constraint shaped this session:**
+the account held 6 credits on the free plan and each generation costs 2 credits
+(the per-batch cost preflight was misleading — `count:2` bills per image), so
+the plan (polo, hoodie, long-sleeve, sweatshirt) was cut to the two most
+valuable garments. Long-sleeve tee and crewneck sweatshirt are **deferred, not
+rejected** — the pipeline below makes adding them a ~1-hour job once credits
+exist. The billing "auto-refill" recovery flow suggested by the MCP was **not**
+invoked (no-payments rail).
+
+- **Polo shirt** — 2 candidates. Candidate B kept (calmer drape, cleaner chest
+  print area, crisper placket, better front/back match). Candidate A rejected:
+  busier hem/chest folds that would fight artwork.
+- **Pullover hoodie** — 1 candidate (credits exhausted the second). Kept after
+  one retouch: a tiny woven neck label inside the hood (unreadable marks, ~40px)
+  violated the no-labels rule — removed by cloning the adjacent plain lining
+  over it (feathered patch), standard product-photo cleanup.
+- QA against the v2 rejection list on both: collars/sleeves/seams/hem symmetric,
+  no text/logos/body parts, no perspective distortion, matched pairs. Pass.
+
+**Keying pipeline (evolved from v2):** split frame → 4-corner flood-fill key.
+Fuzz 9% left halo bands from the renders' soft contact shadows; final recipe is
+**fuzz 20% + alpha erode 2px + blur 0.6 + level 12/88%**, plus targeted
+threshold-in-rectangle kills for shadow islands the corner fill can't reach
+(enclosed sleeve/body pockets, under-hem strips — hoodie back needed most).
+Normalised to the same 1200×1400 frame as the tees (garment fit to 1200×1240,
+centred), exported WebP: polo 65+51 KB, hoodie 59+65 KB, plus 4 product thumbs
+(~6 KB each).
+
+**Per-garment fabric luma measured** (alpha-weighted mean): polo **0.507**,
+hoodie **0.506** (tees 0.505). `FABRIC_LUMA` is now a per-product map in
+`garment.ts`; `layerTuning(colorHex, productId)` normalises each photo by its
+own measurement.
+
+**Print zones measured** from the processed assets (stage units = asset px ÷ 2):
+
+| Garment | Front | Back |
+|---|---|---|
+| Polo | 170,295 260×275 → 10″ × 10.5″ (below the 3-button placket, y placket-bottom ≈ 560 asset px) | 170,130 260×415 → 10″ × 16″ |
+| Hoodie | 160,280 280×170 → 12″ × 7″ (band **above the kangaroo pocket**; pocket top seam measured at asset y≈922, x 440–760) | 160,300 280×280 → 12″ × 12″ (below the resting hood) |
+
+**Colour masking verified on every kept garment** (in-app editor + full-res
+ImageMagick composites): White, Black, Factory Purple #a425a4, and a mid colour
+(polo: royal blue; hoodie: navy). Black keeps visible folds via the screen pass;
+purple renders clean on both.
+
+## Fabric & textile selection (Task B)
+
+8 fabrics in `catalog.ts` (`FABRICS`): lightweight/midweight/heavyweight cotton,
+cotton-poly blend, performance polyester, piqué, french terry, fleece — each
+with plain-language description, typical use, weight chip (Light/Mid/Heavy),
+availability status and a close-up tile.
+
+**Close-up visuals under the zero-credit constraint:** tiles are macro crops of
+THIS project's own Higgsfield garment photography (tee assets → cotton family,
+polo → piqué + performance knit, hoodie → fleece family), cropped strictly
+inside the measured print zones (guaranteed plain fabric). Where the reference
+is a *family* stand-in rather than the exact weave (cotton-poly, performance
+polyester, french terry), the card carries an explicit `refNote` (e.g. "french
+terry has visible loops inside"). Every fabric surface shows the
+`FABRIC_VISUAL_NOTICE` ("approximate references… confirmed using available
+market samples"). Fresh dedicated texture generations are the first follow-up
+once credits exist.
+
+- Combined step 2 = **"Colour & fabric"** (flow stays 6 steps).
+- "No preference — team advises" is the default and an explicit card.
+- **"Help me choose"** disclosure: lightweight vs heavyweight, cotton vs
+  polyester, smooth vs textured — no textile jargon.
+- Fabric flows into `OrderDetails.fabricId` → review row, WhatsApp message,
+  JSON brief (id/name/weight/availability), reference sheet fact. The free-text
+  "fabric preference" field was **removed** (notes remain the escape hatch; the
+  order-details step shows the chosen fabric read-only).
+- Fabric choice never changes the garment render, and the UI says so on the
+  step and in the editor rail.
+
+## Availability honesty (the non-negotiable theme)
+
+- Exactly four statuses exist (`AVAILABILITY_LABEL`): **Commonly available ·
+  Availability to confirm · Special sourcing required · Custom request**.
+  Always text labels (badge = text + border tone, never colour alone).
+- Every garment card, fabric card, colour (via `colorAvailability`), editor
+  live-summary row, review row, WhatsApp line, JSON brief field and reference
+  sheet fact carries a status.
+- `MARKET_SOURCING_NOTICE` (sourced-in-market / closest-alternative / team
+  confirms before any order) appears on: homepage promo, product step, fabric
+  step, editor live summary, review screen, WhatsApp message (first person:
+  "I understand…"), design brief (`availabilityNotice`), reference sheet footer
+  (two wrapped lines added to the disclaimers).
+- No stock claims, no prices, no turnaround promises anywhere.
+
+## Editor re-layout (Task C — Mobbin-informed)
+
+Research (Mobbin MCP): Nike By You web customiser, Depop photo-editor bottom
+sheet, Instacart preference sheet, UNIQLO swatch sheet, GOAT bottom bar.
+
+**Adopted:** dominant stage with compact controls (Nike By You); selected-name
+labels next to swatches (Nike/UNIQLO); mobile bottom sheet = one task at a time
+with segmented tabs + big touch targets (Depop); option cards with image +
+description (Instacart); persistent sticky primary action (GOAT; already ours).
+**Rejected:** full-screen takeover editing (breaks the 6-step wizard + shared
+banner); Nike's part-stepper ("Swoosh 4/13" — we have no part sequence);
+physics/draggable sheets (JS weight + conflicts with stage pinch gestures — a
+fixed docked tab bar is deliberate); dark sheet theme (clashes with Factory OS
+paper/ink tokens).
+
+- **Desktop ≥1100px** — three-zone grid (280 / flex / 320): left rail = garment
+  mini-switcher (thumbs), colour dots, fabric mini-list, upload/replace/remove +
+  undo/redo; centre = stage with front/back tabs and workspace tools; right
+  rail = placement presets, width/DPI + rotation sliders, quality & contrast
+  warnings, **live request summary** with availability badges + notice.
+  `.studio__body:has(.ed)` widens the container to 1360px.
+- **Tablet 861–1099px** — large stage left, right column with a **sticky
+  segmented tab bar** (Artwork / Position / Garment & colour) showing one
+  control group at a time.
+- **Mobile ≤860px** — stage on top, docked bottom-sheet-style tab bar above the
+  sticky step nav, one task per tab, 42px+ targets. The desktop layout is never
+  squeezed onto phones.
+- Garment switching mid-design re-clamps artwork to the new product's zones
+  (`setProductId`); colour/fabric selections persist across garment switches.
+- **All v2 behaviour preserved**: pointer drag/pinch/rotate, rAF batching,
+  keyboard alternatives (arrows/+−/[ ]), undo/redo (buttons + Ctrl/Cmd+Z/⇧Z),
+  zoom, print-area + fabric-preview toggles, DPI/out-of-zone/low-contrast
+  warnings, fit-to-zone remedy, front/back preservation.
+
+**Bug found & fixed during viewport QA:** the site-wide mobile
+`StickyQuoteBar` ("Min. 30 pcs · Start an order") sat on top of the studio's
+sticky Continue at ≤720px — hiding the primary action AND contradicting the
+studio's 1-shirt minimum. It is now suppressed on the studio route only
+(`App.tsx`); every other page keeps it.
+
+## Verification (Task D)
+
+- **Unit tests: 35 passing** (27 v2 + 8 new: product-card copy + four-status
+  vocabulary, polo/hoodie zone geometry incl. above-pocket band and stage
+  bounds, fabric catalogue integrity, fabric line/summary/brief content,
+  team-advises default, honesty-notice wording, per-garment luma tuning +
+  fallback, GARMENT_IMG coverage).
+- **Build:** tsc strict + vite clean — **89.93 KB gzip JS** (v2: 84.9;
+  +5.0 KB for fabric picker, product cards, re-layout). CSS 12.03 KB gzip.
+  New assets: 4 garment views (~240 KB), 4 thumbs + 8 fabric tiles (~50 KB),
+  lazy-loaded on the studio route.
+- **End-to-end (desktop 1440):** polo → black → piqué → front crest PNG upload
+  (drag-drop) → left-chest preset (3.5″ @ 257 DPI) → out-of-zone + fit remedy →
+  keyboard nudge + Ctrl+Z undo → back view + second artwork → review rows
+  (product/colour/fabric each with availability) → 1-shirt order, size M=1
+  ("All 1 shirt has been assigned.") → DTG, date, contact → send step: WhatsApp
+  message with fabric + first-person availability acknowledgement, reference
+  sheet regenerated with fabric row + two-line footer → package created →
+  reference sheet + design brief downloaded → wa.me link verified (not sent).
+  **Zero console errors across the whole session.**
+- **Viewports (no horizontal overflow, steps 1–3 probed):** 320×568, 360×800,
+  375×667, 390×844, 412×915, 430×932, 640×360 (=200% zoom of 1280), 768×1024,
+  812×375 (landscape), 820×1180, 1024×768, 1280×720, 1366×768, 1440×900,
+  1920×1080 (3-zone capped at 1360px). Reduced-motion CSS rules verified
+  present. Grid columns measured per breakpoint (mobile stack / 566+340 tablet
+  / 280+flex+320 desktop).
+- Mobile tab switching, editor artwork flows and homepage promo (updated
+  points + market notice) verified in-browser.
+
+## v3 limitations / follow-ups
+
+- Long-sleeve tee + crewneck sweatshirt deferred (credits) — pipeline ready.
+- Dedicated fabric-texture generations to replace the family-crop stand-ins
+  (cards already disclose this per-tile).
+- Firefox rendering still assumed from spec (Chromium-verified only).
+- Keyboard flow: artwork controls + native inputs re-verified; a full
+  tab-order-only walkthrough of all 6 steps remains a manual QA item.
+- The four-status vocabulary includes "Custom request", currently unused by
+  catalogue data (custom colours map to "Availability to confirm") — reserved
+  for future custom-garment requests.
+
+---
+
 # v2 — Visual & interaction refinement pass
 
 **Before → after:** v1 rendered a hand-drawn flat SVG tee (clean but obviously illustrated).

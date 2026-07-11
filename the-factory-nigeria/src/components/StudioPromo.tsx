@@ -7,7 +7,7 @@ import { Reveal } from "./Reveal";
 export function StudioPromo({ compact = false }: { compact?: boolean }) {
   const img = GARMENT_IMG["unisex-tee"].front;
   const hex = "#a425a4"; // brand purple tee for the promo render
-  const tuning = layerTuning(hex);
+  const tuning = layerTuning(hex, "unisex-tee");
 
   return (
     <section className={"section" + (compact ? "--tight" : " section--paper2")}>
@@ -45,7 +45,7 @@ export function StudioPromo({ compact = false }: { compact?: boolean }) {
             </p>
             <ul className="spromo__points">
               <li>Start from just 1 shirt</li>
-              <li>Real fabric preview — design the front and the back</li>
+              <li>Tees, polos and hoodies — real garment previews, front and back</li>
               <li>Colours and fabrics shown as visual references</li>
               <li>Your quantities, sizes and deadline</li>
               <li>Sent to the team on WhatsApp — no payment online</li>
