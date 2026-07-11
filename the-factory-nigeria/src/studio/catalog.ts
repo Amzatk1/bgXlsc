@@ -37,8 +37,8 @@ export const PRODUCTS: Product[] = [
     note: "Classic fit, crew neck",
     cut: "regular",
     zones: {
-      front: { x: 190, y: 205, w: 220, h: 290, widthIn: 12, heightIn: 15.8 },
-      back: { x: 190, y: 185, w: 220, h: 300, widthIn: 12, heightIn: 16.4 },
+      front: { x: 185, y: 205, w: 230, h: 288, widthIn: 12, heightIn: 15 },
+      back: { x: 185, y: 185, w: 230, h: 307, widthIn: 12, heightIn: 16 },
     },
   },
   {
@@ -47,8 +47,8 @@ export const PRODUCTS: Product[] = [
     note: "Relaxed drop-shoulder fit",
     cut: "oversized",
     zones: {
-      front: { x: 178, y: 215, w: 244, h: 290, widthIn: 13, heightIn: 15.4 },
-      back: { x: 178, y: 195, w: 244, h: 300, widthIn: 13, heightIn: 16 },
+      front: { x: 175, y: 210, w: 250, h: 288, widthIn: 13, heightIn: 15 },
+      back: { x: 175, y: 190, w: 250, h: 307, widthIn: 13, heightIn: 16 },
     },
   },
 ];

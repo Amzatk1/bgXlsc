@@ -174,6 +174,18 @@ export function isOutOfZone(art: Artwork, zone: PrintZone, toleranceIn = 0.06): 
   );
 }
 
+/** One-click remedy: centre the artwork and shrink until fully inside. */
+export function fitArtworkToZone(art: Artwork, zone: PrintZone): Artwork {
+  let next: Artwork = { ...art, cx: 0.5, cy: 0.5 };
+  const aspect = art.naturalH / art.naturalW;
+  const maxW = Math.min(zone.widthIn, zone.heightIn / aspect) * 0.96;
+  if (next.widthIn > maxW) next = { ...next, widthIn: round2(maxW) };
+  for (let i = 0; i < 24 && isOutOfZone(next, zone); i++) {
+    next = { ...next, widthIn: round2(next.widthIn * 0.95) };
+  }
+  return clampArtwork(next, zone);
+}
+
 // ---------------------------------------------------------------------
 // Print-quality estimate (approximate, never a hard block)
 // ---------------------------------------------------------------------

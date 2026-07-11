@@ -227,6 +227,34 @@ describe("upload safety prechecks", () => {
   });
 });
 
+describe("photoreal colour pipeline", () => {
+  it("computes hex luminance correctly", async () => {
+    const { hexLuma } = await import("../garment");
+    expect(hexLuma("#ffffff")).toBeCloseTo(1, 2);
+    expect(hexLuma("#000000")).toBeCloseTo(0, 2);
+    expect(hexLuma("not-a-hex")).toBe(0.5);
+  });
+  it("gives dark shirts a stronger highlight pass than light shirts", async () => {
+    const { layerTuning } = await import("../garment");
+    const black = layerTuning("#211f1e");
+    const white = layerTuning("#f4f2ee");
+    expect(black.lightOpacity).toBeGreaterThan(white.lightOpacity);
+    expect(black.shadeBrightness).toBeGreaterThan(1); // luma-normalised fabric
+  });
+});
+
+describe("fit to print area", () => {
+  it("centres and shrinks an oversized rotated artwork until it fits", async () => {
+    const { fitArtworkToZone, isOutOfZone } = await import("../state");
+    const art = makeArt({ widthIn: zone.widthIn * 1.1, rotation: 30, cx: 0.1, cy: 0.9 });
+    expect(isOutOfZone(art, zone)).toBe(true);
+    const fixed = fitArtworkToZone(art, zone);
+    expect(isOutOfZone(fixed, zone)).toBe(false);
+    expect(fixed.cx).toBe(0.5);
+    expect(fixed.rotation).toBeCloseTo(30, 5); // rotation preserved
+  });
+});
+
 describe("references", () => {
   it("generates readable unique-ish references", () => {
     expect(makeReference(1720000000000)).toMatch(/^TFN-DS-[A-Z0-9]{6}$/);

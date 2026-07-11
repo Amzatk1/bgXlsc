@@ -8,7 +8,7 @@ import type { ViewId } from "./catalog";
 import { PREVIEW_DISCLAIMER } from "./catalog";
 import { buildDesignSpec } from "./messages";
 import { getProduct, type DesignState } from "./state";
-import { STAGE_H, STAGE_W, teeSvgDocument } from "./teeArt";
+import { drawGarment, STAGE_H, STAGE_W } from "./garment";
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -19,7 +19,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Compose one garment view (tee + artwork, no UI) onto a canvas. */
+/** Compose one garment view (photoreal tee + artwork, no UI) onto a canvas. */
 export async function composeViewCanvas(
   state: DesignState,
   view: ViewId,
@@ -33,24 +33,25 @@ export async function composeViewCanvas(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas unavailable");
 
-  const svg = teeSvgDocument(product.cut, view, state.color.hex);
-  const tee = await loadImage("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg));
-  ctx.drawImage(tee, 0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#f7f3ec";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const art = state.artworks[view];
-  if (art) {
-    const img = await loadImage(art.src);
+  const artImg = art ? await loadImage(art.src) : null;
+
+  await drawGarment(ctx, product.id, view, state.color.hex, 0, 0, canvas.width, canvas.height, (lc) => {
+    if (!art || !artImg) return;
     const pxPerIn = (zone.w / zone.widthIn) * scale;
     const wPx = art.widthIn * pxPerIn;
     const hPx = wPx * (art.naturalH / art.naturalW);
     const cx = (zone.x + art.cx * zone.w) * scale;
     const cy = (zone.y + art.cy * zone.h) * scale;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate((art.rotation * Math.PI) / 180);
-    ctx.drawImage(img, -wPx / 2, -hPx / 2, wPx, hPx);
-    ctx.restore();
-  }
+    lc.save();
+    lc.translate(cx, cy);
+    lc.rotate((art.rotation * Math.PI) / 180);
+    lc.drawImage(artImg, -wPx / 2, -hPx / 2, wPx, hPx);
+    lc.restore();
+  });
   return canvas;
 }
 

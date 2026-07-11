@@ -313,6 +313,112 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 
 .studio__nav { max-width: 1080px; }
 
+/* =====================================================================
+   PHOTOREAL GARMENT STAGE (v2)
+   ===================================================================== */
+.gtools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.gtool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  min-width: 38px;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--white);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.gtool:disabled { opacity: 0.4; }
+.gtool.is-on { border-color: var(--purple); color: var(--purple-700); background: var(--lilac-tint); }
+.gtool__sep { width: 1.5px; height: 22px; background: var(--line-strong); margin: 0 4px; }
+
+.gframe { border: 1.5px solid var(--line-strong); border-radius: var(--radius); background: #fff; overflow: hidden; }
+.gframe.is-zoomed { overflow: auto; max-height: 76vh; }
+
+.gstage { position: relative; touch-action: none; user-select: none; background: #f4f2ef; }
+.gstage__color,
+.gstage__artclip,
+.gstage__shade,
+.gstage__light,
+.gstage__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.gstage__color,
+.gstage__artclip {
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.gstage__shade { mix-blend-mode: multiply; pointer-events: none; object-fit: fill; }
+.gstage__light { mix-blend-mode: screen; pointer-events: none; object-fit: fill; }
+.gstage__overlay { pointer-events: none; }
+/* Clean mode: artwork above the fabric layers, unclipped, exact colours */
+.gstage.mode-clean .gstage__artclip { z-index: 3; }
+.gstage.mode-clean .gstage__shade,
+.gstage.mode-clean .gstage__light { z-index: 1; }
+.gstage__zonelabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  fill: var(--purple-700);
+  opacity: 0.8;
+}
+.stage__fix {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 5px 10px;
+  min-height: 30px;
+  border-radius: 7px;
+  background: #fff;
+  color: #b02a20;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stage__warn { align-items: center; flex-wrap: wrap; gap: 8px; }
+
+/* Empty state + dropzone */
+.emptysteps {
+  counter-reset: es;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--white);
+  list-style: none;
+}
+.emptysteps li { counter-increment: es; display: flex; gap: 10px; align-items: baseline; font-size: 0.9rem; font-weight: 500; }
+.emptysteps li::before {
+  content: counter(es, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--purple);
+}
+.dropzone { border-radius: var(--radius); transition: background var(--dur-fast) var(--ease-out); }
+.dropzone.is-over .upload { border-color: var(--purple); background: var(--lilac-tint); }
+
+/* Read-only preview artwork */
+.tprev__art { position: absolute; }
+.tprev__art img { width: 100%; height: auto; display: block; }
+.tprev__stage { border: 1.5px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+
 @media (prefers-reduced-motion: reduce) {
-  .stage__box, .swatch, .preset { transition: none; }
+  .stage__box, .swatch, .preset, .dropzone { transition: none; }
 }

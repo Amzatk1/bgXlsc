@@ -1,5 +1,90 @@
 # Custom Tee Studio — experimental prototype
 
+---
+
+# v2 — Visual & interaction refinement pass
+
+**Before → after:** v1 rendered a hand-drawn flat SVG tee (clean but obviously illustrated).
+v2 renders a **real photographed garment** with natural folds, ribbed collar and fabric drape,
+tinted deterministically per colour. The editor gained a workspace toolbar (zoom, print-area
+toggle, fabric/clean preview), drag-and-drop upload with a guided empty state, undo/redo,
+rAF-batched gestures, and a one-click "Fit to print area" remedy.
+
+## Garment-asset pipeline (Higgsfield)
+
+- **Generated with Higgsfield MCP**, model `marketing_studio_image`, 16:9, two candidates.
+  Prompt (retained): *"Professional e-commerce catalog photography: a plain medium-grey
+  heavyweight cotton crew-neck t-shirt shown in TWO views side by side on one pure white
+  seamless studio background. LEFT: the front… RIGHT: the back of the exact same t-shirt,
+  identical size, identical framing, identical soft even studio lighting. Natural subtle fabric
+  folds, realistic ribbed crew collar… No model, no text, no logos, no props…"*
+  Generating front+back **in one frame** guarantees a matched pair (same session/lighting).
+- **Selection:** candidate A (crisper folds) → standard tee; candidate B (boxier drape) →
+  oversized tee. Both reviewed against the rejection checklist (collars, sleeves, seams,
+  no text/logos/limbs) — no rejects needed. Jobs `72b3b0d0…` and `a7ca405e…`.
+- **Post-processing (ImageMagick, local):** crop halves → corner flood-fill background removal
+  (fuzz 9%, preserves interior highlights) → trim → normalise to a 1200×1400 frame →
+  **alpha WebP ~50 KB per view** (4 assets, ~200 KB total, lazy-loaded on the studio route only).
+  Grey fabric measured at mean luma **0.505** → bakes the multiply-normalisation constant.
+- **OpenAI image generation:** not used — no authorised OpenAI image tool was configured in
+  this environment; Higgsfield output met the bar. No runtime AI calls exist anywhere.
+- **Permitted use:** generated on the operator's Higgsfield account for this prototype;
+  treat as prototype material pending founder sign-off for production.
+
+## Colour rendering (deterministic, per §8)
+
+One photograph per view serves as silhouette mask + shading + highlights:
+flat colour masked by the garment alpha → artwork (clipped to the garment in fabric mode) →
+photo as **multiply** layer (folds; brightness-normalised by 1/0.505) → photo as **screen**
+layer whose opacity scales with colour darkness (black 0.5 → white 0.08), so black keeps
+visible folds and white keeps form. Identical geometry/lighting/print-zone across ALL colours;
+the same math runs in CSS (editor) and Canvas 2D (exports). A "Fabric preview / clean" toggle
+switches between subtle fabric integration and exact-colour artwork (clean mode is authoritative
+for accuracy; exports keep the disclaimer footer).
+
+## Editor & UX changes
+
+Workspace toolbar (zoom ×1/×1.4/×1.8, print-area toggle, fabric toggle) · print-zone label with
+real inches · out-of-zone warning now includes **Fit to print area** (centres + shrinks,
+preserves rotation — unit-tested) · drag-and-drop upload + 4-step empty state · **undo/redo**
+(buttons + Ctrl/Cmd+Z / Shift+Z, 40-step history) · gestures now write to a ref and paint via
+`requestAnimationFrame`, committing to React only on release (no per-move re-renders) ·
+review/confirm previews use the same photoreal layers.
+
+## QA performed (scripted against the dev build)
+
+Layers mount with correct per-product assets (front/back swap verified) · black tint fill +
+custom-colour notice · upload → drag moved exactly (40, 28) px via the rAF path · pinch with two
+pointers grew artwork +143 px · undo restored the pre-drag position, redo reapplied · clean/fabric
+mode toggles class correctly · full journey to the send step regenerates the reference sheet with
+the photoreal renderer (~900 KB PNG, 2200×1560) · fit-to-zone clears the warning · mobile 375px:
+no horizontal overflow, all controls touch-sized · **no console errors** · desktop + mobile
+screenshots captured during the run.
+
+**Two real bugs found and fixed by this QA:** (1) history mutations lived inside `setState`
+updaters — React StrictMode double-invokes those, corrupting undo; moved side effects out.
+(2) `setPointerCapture` can throw for edge-case pointers; now guarded.
+
+## Measurements
+
+- Bundle: **84.9 KB gzip JS** (v1: 83.8 KB — +1.1 KB despite the new editor; the SVG garment
+  module was removed and realism moved into images).
+- Garment images: 4 × ~50 KB WebP, loaded only on the studio route, cached via a shared decoder.
+- Tests: **27 passing** (24 v1 + colour-pipeline luma/tuning + fit-to-zone).
+- Export: reference sheet regenerates in ~1–2 s on a laptop (measured in the scripted run).
+
+## Known limitations (v2)
+
+- Workspace pinch-zoom is button-based; two-finger workspace zoom is deliberately reserved for
+  artwork manipulation. · Oversized tee uses its own photo pair but shares the flat-lay style;
+  a true drop-shoulder shoot would be better. · Firefox `mask-image`/blend rendering assumed from
+  spec support, not directly tested (Chromium-based verification only — stated honestly).
+  · The browser-pane session was shared with the user, so extended multi-viewport passes beyond
+  375/desktop were not re-captured for v2; v1 matrix + unchanged responsive CSS still apply.
+
+---
+
+
 **Status:** Prototype on branch `feature/custom-tee-studio-prototype`. Not deployed, not merged,
 not linked from production navigation. Test mode only.
 

@@ -10,7 +10,7 @@ import { CUSTOM_COLOR_NOTICE, PREVIEW_DISCLAIMER, type ViewId } from "./catalog"
 import { composeViewCanvas, download } from "./exporter";
 import { artworkLine } from "./messages";
 import { getProduct, SIZE_KEYS, sizeTotal, type DesignState } from "./state";
-import { STAGE_H, STAGE_W } from "./teeArt";
+import { STAGE_H, STAGE_W } from "./garment";
 
 const W = 2200;
 const H = 1560;

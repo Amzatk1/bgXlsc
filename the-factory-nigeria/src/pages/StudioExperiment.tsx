@@ -52,45 +52,57 @@ import {
   shareFiles,
 } from "../studio/exporter";
 import { downloadReferenceSheet, exportReferenceSheet } from "../studio/referenceSheet";
-import { pxPerInch, STAGE_H, STAGE_W, teeInnerMarkup } from "../studio/teeArt";
+import { GARMENT_IMG, layerTuning, STAGE_H, STAGE_W } from "../studio/garment";
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
 const STEPS = ["Product", "Colour", "Design", "Review", "Order details", "Send"];
 const METHODS = ["Screen printing", "Direct-to-garment (DTG)", "Heat transfer", "Embroidery", "Not sure — advise me"];
 
-// Read-only mockup used on review/confirm screens (no handles, no zone).
+// Read-only photoreal mockup used on review/confirm screens (no handles).
 function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
   const product = getProduct(state);
   const zone = product.zones[view];
   const art = state.artworks[view];
-  const inner = useMemo(
-    () => teeInnerMarkup(product.cut, view, state.color.hex),
-    [product.cut, view, state.color.hex],
-  );
-  const artBox = art
+  const img = (GARMENT_IMG[product.id] ?? GARMENT_IMG["unisex-tee"])[view];
+  const tuning = useMemo(() => layerTuning(state.color.hex), [state.color.hex]);
+  const box = art
     ? {
-        w: art.widthIn * pxPerInch(zone),
+        w: (art.widthIn * zone.w) / zone.widthIn,
         x: zone.x + art.cx * zone.w,
         y: zone.y + art.cy * zone.h,
       }
     : null;
   return (
     <figure className="tprev">
-      <div className="tprev__stage" style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}>
-        <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-label={`${view} preview`}>
-          <g dangerouslySetInnerHTML={{ __html: inner }} />
-          {art && artBox && (
-            <image
-              href={art.src}
-              x={artBox.x - artBox.w / 2}
-              y={artBox.y - (artBox.w * (art.naturalH / art.naturalW)) / 2}
-              width={artBox.w}
-              height={artBox.w * (art.naturalH / art.naturalW)}
-              transform={`rotate(${art.rotation} ${artBox.x} ${artBox.y})`}
-            />
+      <div
+        className="tprev__stage gstage mode-fabric"
+        role="img"
+        aria-label={`${view} preview — ${state.color.name} ${product.name}`}
+        style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}
+      >
+        <div
+          className="gstage__color"
+          style={{ backgroundColor: state.color.hex, WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }}
+          aria-hidden="true"
+        />
+        <div className="gstage__artclip" style={{ WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }}>
+          {art && box && (
+            <div
+              className="tprev__art"
+              style={{
+                left: `${(box.x / STAGE_W) * 100}%`,
+                top: `${(box.y / STAGE_H) * 100}%`,
+                width: `${(box.w / STAGE_W) * 100}%`,
+                transform: `translate(-50%, -50%) rotate(${art.rotation}deg)`,
+              }}
+            >
+              <img src={art.src} alt="" draggable={false} />
+            </div>
           )}
-        </svg>
+        </div>
+        <img className="gstage__shade" src={img} alt="" aria-hidden="true" style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }} />
+        <img className="gstage__light" src={img} alt="" aria-hidden="true" style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }} />
       </div>
       <figcaption className="mono">{view}</figcaption>
     </figure>
@@ -117,13 +129,56 @@ export function StudioExperiment() {
   const set = (patch: Partial<DesignState>) => setState((s) => ({ ...s, ...patch }));
   const setDetails = (patch: Partial<DesignState["details"]>) =>
     setState((s) => ({ ...s, details: { ...s.details, ...patch } }));
-  const setArtwork = (view: ViewId, a: Artwork | undefined) =>
-    setState((s) => {
-      const artworks = { ...s.artworks };
-      if (a) artworks[view] = a;
-      else delete artworks[view];
-      return { ...s, artworks };
-    });
+
+  // ---- artwork history (undo / redo) ----
+  // Mutations happen OUTSIDE setState updaters (StrictMode double-invokes
+  // updaters, so side effects inside them corrupt the stacks).
+  const history = useRef<{ past: DesignState["artworks"][]; future: DesignState["artworks"][] }>({
+    past: [],
+    future: [],
+  });
+  const artworksRef = useRef(state.artworks);
+  artworksRef.current = state.artworks;
+  const [historyTick, setHistoryTick] = useState(0);
+  const setArtwork = (view: ViewId, a: Artwork | undefined) => {
+    history.current.past.push(artworksRef.current);
+    if (history.current.past.length > 40) history.current.past.shift();
+    history.current.future = [];
+    setHistoryTick((t) => t + 1);
+    const artworks = { ...artworksRef.current };
+    if (a) artworks[view] = a;
+    else delete artworks[view];
+    setState((s) => ({ ...s, artworks }));
+  };
+  const undo = () => {
+    const prev = history.current.past.pop();
+    if (!prev) return;
+    history.current.future.push(artworksRef.current);
+    setHistoryTick((t) => t + 1);
+    setState((s) => ({ ...s, artworks: prev }));
+  };
+  const redo = () => {
+    const next = history.current.future.pop();
+    if (!next) return;
+    history.current.past.push(artworksRef.current);
+    setHistoryTick((t) => t + 1);
+    setState((s) => ({ ...s, artworks: next }));
+  };
+  void historyTick; // re-render trigger for button disabled states
+
+  useEffect(() => {
+    if (step !== 2) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   function go(n: number) {
     setErrors({});
@@ -315,13 +370,13 @@ export function StudioExperiment() {
 
             <div className="studio__side">
               <TeeStage
-                cut={product.cut}
+                productId={product.id}
                 view={state.view}
                 colorHex={state.color.hex}
                 zone={zone}
                 artwork={art}
                 onArtworkChange={(a) => setArtwork(state.view, a)}
-                showZone={false}
+                compact
               />
               <p className="studio__colorstate mono">
                 {state.color.name} ·{" "}
@@ -350,7 +405,7 @@ export function StudioExperiment() {
                 ))}
               </div>
               <TeeStage
-                cut={product.cut}
+                productId={product.id}
                 view={state.view}
                 colorHex={state.color.hex}
                 zone={zone}
@@ -360,7 +415,27 @@ export function StudioExperiment() {
             </div>
 
             <div className="studio__controls">
-              <div className="field">
+              {!art && (
+                <ol className="emptysteps" aria-label="How it works">
+                  <li>Upload a logo or design</li>
+                  <li>Position it on the shirt</li>
+                  <li>Review the preview</li>
+                  <li>Send it to The Factory for a quote</li>
+                </ol>
+              )}
+              <div
+                className="field dropzone"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add("is-over");
+                }}
+                onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("is-over");
+                  onFile(e.dataTransfer.files);
+                }}
+              >
                 <label htmlFor="art-upload">
                   {art ? "Replace" : "Upload"} {state.view} artwork
                 </label>
@@ -372,13 +447,27 @@ export function StudioExperiment() {
                   accept="image/png,image/jpeg"
                   onChange={(e) => onFile(e.target.files)}
                 />
-                <p className="field__note">PNG or JPEG, up to 10 MB. Transparent PNGs keep their transparency.</p>
+                <p className="field__note">
+                  Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Transparent PNGs keep their
+                  transparency.
+                </p>
                 {uploadError && (
                   <p className="field__error" role="alert">
                     {uploadError}
                   </p>
                 )}
               </div>
+
+              {(history.current.past.length > 0 || history.current.future.length > 0) && (
+                <div className="editactions" aria-label="History">
+                  <button type="button" className="btn btn--outline" onClick={undo} disabled={!history.current.past.length} aria-label="Undo (Ctrl+Z)">
+                    Undo
+                  </button>
+                  <button type="button" className="btn btn--outline" onClick={redo} disabled={!history.current.future.length} aria-label="Redo (Ctrl+Shift+Z)">
+                    Redo
+                  </button>
+                </div>
+              )}
 
               {art && (
                 <>
