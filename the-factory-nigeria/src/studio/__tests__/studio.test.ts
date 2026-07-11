@@ -29,7 +29,7 @@ import {
   validateForSubmit,
   type Artwork,
 } from "../state";
-import { buildDesignSpec, buildStudioMessage, fabricLine, sizesLine, summaryRows } from "../messages";
+import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, sizesLine, summaryRows } from "../messages";
 import { checkDimensions, precheckFile } from "../imageFile";
 
 const zone = PRODUCTS[0].zones.front;
@@ -250,7 +250,21 @@ describe("enquiry summary & spec", () => {
     return st;
   }
   it("formats the sizes line like the order sheet", () => {
-    expect(sizesLine(completeState())).toBe("S — 5, M — 10, L — 10, XL — 5");
+    expect(sizesLine(completeState())).toBe("S ×5, M ×10, L ×10, XL ×5");
+  });
+  it("summarises which sides carry a design", () => {
+    const st = completeState();
+    expect(designSidesLine(st)).toBe("Front only");
+    st.artworks.back = makeArt({ fileName: "back.png" });
+    expect(designSidesLine(st)).toBe("Front and back");
+    delete st.artworks.front;
+    expect(designSidesLine(st)).toBe("Back only");
+  });
+  it("tells the team what to confirm and what the shared file contains", () => {
+    const msg = buildStudioMessage(completeState());
+    expect(msg).toContain("*Design:* Front only");
+    expect(msg).toContain("shared reference file contains the complete front and back design");
+    expect(msg).toContain("final artwork size and placement, printing method, price and production time");
   });
   it("builds a structured WhatsApp message with the availability warning", () => {
     const msg = buildStudioMessage(completeState());
@@ -327,6 +341,12 @@ describe("photoreal colour pipeline", () => {
     expect(hexLuma("#ffffff")).toBeCloseTo(1, 2);
     expect(hexLuma("#000000")).toBeCloseTo(0, 2);
     expect(hexLuma("not-a-hex")).toBe(0.5);
+  });
+  it("converts hex to RGB for the production reference", async () => {
+    const { hexToRgb } = await import("../garment");
+    expect(hexToRgb("#a425a4")).toEqual({ r: 164, g: 37, b: 164 });
+    expect(hexToRgb("#FFFFFF")).toEqual({ r: 255, g: 255, b: 255 });
+    expect(hexToRgb("nope")).toBeNull();
   });
   it("gives dark shirts a stronger highlight pass than light shirts", async () => {
     const { layerTuning } = await import("../garment");

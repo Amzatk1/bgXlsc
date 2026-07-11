@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Copy,
   Download,
   FlaskConical,
   HelpCircle,
@@ -50,6 +51,8 @@ import {
 import { intakeFile } from "../studio/imageFile";
 import { buildStudioMessage, getFabric, studioWaLink, summaryRows } from "../studio/messages";
 import {
+  canShareFiles,
+  copyText,
   dataUrlToFile,
   downloadOriginalArtwork,
   downloadPreview,
@@ -129,7 +132,10 @@ export function StudioExperiment() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null); // ISO date
   const [shareState, setShareState] = useState<"idle" | "shared" | "unsupported">("idle");
+  const [copied, setCopied] = useState(false);
   const [mtab, setMtab] = useState<"artwork" | "adjust" | "style">("artwork"); // mobile bottom-sheet tab
+  /** Native file sharing available? Decides Share-first vs download fallback. */
+  const canShare = useMemo(() => canShareFiles(), []);
   const fileRef = useRef<HTMLInputElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
@@ -252,18 +258,27 @@ export function StudioExperiment() {
     };
   }, [step, state]);
 
+  /** Share the complete package (reference + untouched originals) through
+   *  the device share sheet. The customer confirms in the sheet themselves. */
   async function onShare() {
     try {
       const files: File[] = [];
-      if (sheetUrl) files.push(await dataUrlToFile(sheetUrl, `${state.reference}-reference-sheet.png`));
+      if (sheetUrl) files.push(await dataUrlToFile(sheetUrl, `${state.reference}-studio-reference.png`));
       for (const v of ["front", "back"] as ViewId[]) {
         const a = state.artworks[v];
-        if (a) files.push(await dataUrlToFile(a.src, `${state.reference}-${v}-${a.fileName}`));
+        if (a) files.push(await dataUrlToFile(a.src, `${state.reference}-${v}-original-${a.fileName}`));
       }
-      const result = await shareFiles(state, files);
+      const result = await shareFiles(state, files, buildStudioMessage(state));
       setShareState(result);
     } catch {
       /* user cancelled share — fine */
+    }
+  }
+
+  async function onCopyMessage() {
+    if (await copyText(buildStudioMessage(state))) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
     }
   }
 
@@ -1160,68 +1175,103 @@ export function StudioExperiment() {
           </section>
         )}
 
-        {/* CONFIRMATION */}
+        {/* CONFIRMATION — share-first */}
         {step === 5 && submitted && (
           <section className="studio__panel studio__done" aria-label="Enquiry ready">
             <span className="chip chip--ready">
               <span className="chip__dot" aria-hidden="true" />
               Enquiry package ready — {state.reference}
             </span>
-            <h2 className="h3">Your design request is ready</h2>
+            <h2 className="h3">Your design is ready to share</h2>
             <p className="lede">
-              Send the enquiry to The Factory Nigeria on WhatsApp so the team can confirm garment, fabric
-              and colour availability, printing method, pricing and production time.
+              Your Studio reference contains the front and back design, colour, quantity, sizes and
+              production information. Nothing is sent until you confirm it yourself.
             </p>
             <div className="tprev__row">
               <TeePreview state={state} view="front" />
               <TeePreview state={state} view="back" />
             </div>
             <p className="mono studio__meta">
-              Submitted {new Date(submitted).toLocaleDateString()} · Quantity {qty || "—"} · Sizes{" "}
+              Prepared {new Date(submitted).toLocaleDateString()} · Quantity {qty || "—"} · Sizes{" "}
               {sizeTotal(state.details.sizes) || "—"}
             </p>
 
-            <div className="downloadrow">
-              <button type="button" className="btn btn--outline" onClick={() => downloadReferenceSheet(state)}>
-                <Download size={16} aria-hidden="true" /> Reference sheet
-              </button>
-              <button type="button" className="btn btn--outline" onClick={() => downloadPreview(state)}>
-                <Download size={16} aria-hidden="true" /> Mockup
-              </button>
-              <button type="button" className="btn btn--outline" onClick={() => downloadSpec(state)}>
-                <Download size={16} aria-hidden="true" /> Design brief
-              </button>
-              {state.artworks.front && (
-                <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "front")}>
-                  <Download size={16} aria-hidden="true" /> Front original
+            {canShare ? (
+              <div className="sendrow">
+                <button type="button" className="btn btn--wa btn--lg" onClick={onShare}>
+                  <Share2 size={17} aria-hidden="true" /> Share Design to WhatsApp
                 </button>
-              )}
-              {state.artworks.back && (
-                <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "back")}>
-                  <Download size={16} aria-hidden="true" /> Back original
-                </button>
-              )}
-            </div>
-
-            <div className="sendrow">
-              <a className="btn btn--wa btn--lg" href={studioWaLink(state)} target="_blank" rel="noopener noreferrer">
-                <WhatsAppIcon /> Open WhatsApp with the enquiry
-              </a>
-              <button type="button" className="btn btn--outline btn--lg" onClick={onShare}>
-                <Share2 size={17} aria-hidden="true" /> Share files…
-              </button>
-            </div>
-            {shareState === "unsupported" && (
-              <p className="field__note">
-                Direct file sharing isn't supported in this browser — download the files above and attach
-                them in WhatsApp after it opens.
+              </div>
+            ) : (
+              <div className="sharefallback">
+                <span className="field__legend mono">How to send your design</span>
+                <ol>
+                  <li>Download the complete reference file below.</li>
+                  <li>Copy the enquiry message.</li>
+                  <li>Open The Factory's WhatsApp chat.</li>
+                  <li>
+                    Paste the message and <strong>attach the downloaded reference file</strong> in the chat.
+                  </li>
+                </ol>
+              </div>
+            )}
+            {shareState === "shared" && (
+              <p className="field__ok" role="status">
+                Share sheet opened — choose WhatsApp and confirm to send your design to The Factory.
               </p>
             )}
+
+            <div className="downloadrow">
+              <a className="btn btn--outline" href={studioWaLink(state)} target="_blank" rel="noopener noreferrer">
+                <WhatsAppIcon /> Open WhatsApp
+              </a>
+              <button type="button" className="btn btn--outline" onClick={onCopyMessage}>
+                {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                {copied ? " Copied" : " Copy enquiry message"}
+              </button>
+              <button type="button" className="btn btn--outline" onClick={() => downloadReferenceSheet(state)}>
+                <Download size={16} aria-hidden="true" /> Download complete reference
+              </button>
+            </div>
+
+            <details className="fabhelp studio__dlmore">
+              <summary>
+                <Download size={15} aria-hidden="true" /> Download files separately
+              </summary>
+              <div className="fabhelp__body">
+                <div className="downloadrow">
+                  <button type="button" className="btn btn--outline" onClick={() => downloadPreview(state)}>
+                    <Download size={16} aria-hidden="true" /> Mockup
+                  </button>
+                  <button type="button" className="btn btn--outline" onClick={() => downloadSpec(state)}>
+                    <Download size={16} aria-hidden="true" /> Design brief (JSON)
+                  </button>
+                  {state.artworks.front && (
+                    <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "front")}>
+                      <Download size={16} aria-hidden="true" /> Front original
+                    </button>
+                  )}
+                  {state.artworks.back && (
+                    <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "back")}>
+                      <Download size={16} aria-hidden="true" /> Back original
+                    </button>
+                  )}
+                </div>
+                <p className="field__note">
+                  The complete reference already includes the mockups, placement, colour and production
+                  details — these are optional extras for the team.
+                </p>
+              </div>
+            </details>
 
             <div className="nextlist">
               <span className="field__legend mono">What happens next</span>
               <ol>
-                <li>You send the message (and attach the downloaded files) in WhatsApp.</li>
+                <li>
+                  {canShare
+                    ? "You share the reference (and message) to The Factory's WhatsApp and confirm the send."
+                    : "You paste the message and attach the downloaded reference in WhatsApp."}
+                </li>
                 <li>The team reviews your design, colour, fabric and quantities.</li>
                 <li>
                   They confirm availability, method, price and timing with you — or suggest the closest

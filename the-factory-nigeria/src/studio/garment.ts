@@ -45,6 +45,13 @@ export const DEFAULT_FABRIC_LUMA = 0.505;
 // ---------------------------------------------------------------------
 // Colour math
 // ---------------------------------------------------------------------
+export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
 export function hexLuma(hex: string): number {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return 0.5;

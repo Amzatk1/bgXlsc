@@ -115,18 +115,60 @@ export function downloadOriginalArtwork(state: DesignState, view: ViewId): void 
   download(art.src, `${state.reference}-${view}-original-${art.fileName}`);
 }
 
-/** Web Share API — share generated files where the device supports it. */
-export async function shareFiles(state: DesignState, files: File[]): Promise<"shared" | "unsupported"> {
+/** Can this browser share files through the native share sheet? */
+export function canShareFiles(): boolean {
+  try {
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    const probe = new File([new Blob(["x"])], "probe.png", { type: "image/png" });
+    return (
+      typeof nav.share === "function" && typeof nav.canShare === "function" && nav.canShare({ files: [probe] })
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Web Share API — opens the DEVICE's share sheet (customer picks WhatsApp
+ * and confirms themselves; nothing is ever sent automatically).
+ */
+export async function shareFiles(
+  state: DesignState,
+  files: File[],
+  text?: string,
+): Promise<"shared" | "unsupported"> {
   const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
   if (nav.share && nav.canShare && nav.canShare({ files })) {
     await nav.share({
       files,
-      title: `Custom tee enquiry ${state.reference}`,
-      text: `Design reference ${state.reference} for The Factory Nigeria`,
+      title: `Studio enquiry ${state.reference}`,
+      text: text ?? `Studio design reference ${state.reference} for The Factory Nigeria`,
     });
     return "shared";
   }
   return "unsupported";
+}
+
+/** Copy the prepared enquiry message to the clipboard (with a fallback for
+ *  browsers that restrict the async Clipboard API). */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export async function dataUrlToFile(dataUrl: string, name: string): Promise<File> {

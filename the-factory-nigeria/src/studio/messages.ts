@@ -36,9 +36,16 @@ export function artworkLine(art: Artwork): string {
 
 export function sizesLine(state: DesignState): string {
   const d = state.details;
-  const parts = SIZE_KEYS.filter((k) => d.sizes[k] > 0).map((k) => `${k} — ${d.sizes[k]}`);
+  const parts = SIZE_KEYS.filter((k) => d.sizes[k] > 0).map((k) => `${k} ×${d.sizes[k]}`);
   if (d.otherSizes.trim()) parts.push(`Custom: ${d.otherSizes.trim()} (to confirm)`);
   return parts.join(", ") || "—";
+}
+
+/** "Front and back" | "Front only" | "Back only" | "" */
+export function designSidesLine(state: DesignState): string {
+  const f = !!state.artworks.front;
+  const b = !!state.artworks.back;
+  return f && b ? "Front and back" : f ? "Front only" : b ? "Back only" : "";
 }
 
 export function getFabric(state: DesignState): Fabric | undefined {
@@ -116,16 +123,18 @@ export function buildStudioMessage(state: DesignState): string {
       `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
     ),
     line("Fabric", fabricLine(state) || "No preference — please advise"),
+    line("Design", designSidesLine(state)),
     line("Quantity", d.quantity),
     line("Sizes", sizesLine(state)),
     printing ? `*Printing:*\n${printing}` : "",
-    d.method.trim() ? line("Method preference", d.method) : "",
+    d.method.trim() ? line("Print preference", d.method) : "",
     line("Required date", d.deadline),
-    line("Delivery location", d.deliveryLocation),
+    line("Delivery", d.deliveryLocation),
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
-    "I'm attaching the design reference sheet and my original artwork in this chat.",
-    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms availability, minimum quantity, pricing and production time (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
+    "The shared reference file contains the complete front and back design, artwork placement, colour reference and production information.",
+    "Please confirm garment and fabric availability, final artwork size and placement, printing method, price and production time.",
+    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms everything (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
   ].filter((l) => l !== "");
 
   return parts.join("\n");
