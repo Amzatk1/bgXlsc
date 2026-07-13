@@ -238,6 +238,8 @@ export const PRODUCTS: Product[] = [
       front: [
         { id: "left-sleeve", name: "Left sleeve", x: 74, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
         { id: "right-sleeve", name: "Right sleeve", x: 448, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
+        { id: "left-panel", name: "Left side panel", x: 158, y: 250, w: 40, h: 230, widthIn: 2, heightIn: 12 },
+        { id: "right-panel", name: "Right side panel", x: 402, y: 250, w: 40, h: 230, widthIn: 2, heightIn: 12 },
       ],
     },
     avoidAreas: {
@@ -259,6 +261,12 @@ export const PRODUCTS: Product[] = [
     zones: {
       front: { x: 196, y: 220, w: 208, h: 275, widthIn: 11, heightIn: 14.5 },
       back: { x: 196, y: 185, w: 208, h: 315, widthIn: 11, heightIn: 16.5 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-panel", name: "Left side panel", x: 168, y: 255, w: 34, h: 210, widthIn: 1.8, heightIn: 11 },
+        { id: "right-panel", name: "Right side panel", x: 398, y: 255, w: 34, h: 210, widthIn: 1.8, heightIn: 11 },
+      ],
     },
     avoidAreas: {
       front: [{ id: "collar", name: "V-neck collar", x: 258, y: 150, w: 84, h: 78, widthIn: 4, heightIn: 4 }],
@@ -499,6 +507,8 @@ export const PLACEMENTS: Placement[] = [
   { id: "right-shoulder", name: "Right shoulder", view: "front", areaId: "torso", rx: 0.18, ry: 0.04, sizeIn: 3 },
   { id: "left-sleeve", name: "Left sleeve", view: "front", areaId: "left-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
   { id: "right-sleeve", name: "Right sleeve", view: "front", areaId: "right-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
+  { id: "left-panel", name: "Left side panel", view: "front", areaId: "left-panel", rx: 0.5, ry: 0.5, sizeIn: 1.6 },
+  { id: "right-panel", name: "Right side panel", view: "front", areaId: "right-panel", rx: 0.5, ry: 0.5, sizeIn: 1.6 },
   // Back
   { id: "upper-back", name: "Upper back", view: "back", areaId: "torso", rx: 0.5, ry: 0.12, sizeIn: 10 },
   { id: "centre-back", name: "Centre back", view: "back", areaId: "torso", rx: 0.5, ry: 0.45, sizeIn: 9 },

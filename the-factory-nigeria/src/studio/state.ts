@@ -53,6 +53,8 @@ type LayerBase = {
   name?: string;
   /** hidden layers stay in the list but are excluded from preview + exports */
   hidden?: boolean;
+  /** locked layers render normally but can't be dragged/edited until unlocked */
+  locked?: boolean;
   /** centre, stage-normalised (0–1 across the whole garment) */
   cx: number;
   cy: number;
@@ -188,6 +190,18 @@ export function viewsWithDesign(state: DesignState): ViewId[] {
   const out: ViewId[] = [];
   for (const v of ["front", "back"] as ViewId[]) if (state.layers.some((l) => l.view === v && !l.hidden)) out.push(v);
   return out;
+}
+
+/** Short summary of what's on a view, e.g. "3 elements" / "Name, number" / "No design". */
+export function viewSummary(state: DesignState, view: ViewId): string {
+  const ls = visibleLayersForView(state, view);
+  if (!ls.length) return "No design";
+  const roles = ls.map((l) => (l.kind === "image" ? "logo" : l.role === "name" ? "name" : l.role === "number" ? "number" : "text"));
+  if (ls.length <= 3) {
+    // e.g. "Name, number, logo"
+    return roles.map((r) => r[0].toUpperCase() + r.slice(1)).join(", ");
+  }
+  return `${ls.length} elements`;
 }
 
 // ---------------------------------------------------------------------

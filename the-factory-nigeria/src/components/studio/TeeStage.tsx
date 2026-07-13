@@ -114,6 +114,7 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
     e.preventDefault();
     e.stopPropagation();
     if (layer.id !== selectedId) onSelect(layer.id);
+    if (layer.locked) return; // locked: selectable, but no drag/resize/rotate
     try {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     } catch {
@@ -162,17 +163,30 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
     if (g.kind === "drag") {
       let cx = g.cx0 + (p.x - g.startX) / STAGE_W;
       let cy = g.cy0 + (p.y - g.startY) / STAGE_H;
-      // snap to stage vertical centre + home-area centre lines
+      // snap to stage centre, home-area centre lines, and area edges
       // (hold Alt or turn off the Snap tool for complete freedom)
       const snapping = snapRef.current && !e.altKey;
+      const box = layerBox(a);
+      const hw = box.w / 2 / STAGE_W;
+      const hh = box.h / 2 / STAGE_H;
       const area = homeArea({ ...a, cx, cy }, product);
       const areaCx = (area.x + area.w / 2) / STAGE_W;
       const areaCy = (area.y + area.h / 2) / STAGE_H;
+      const aL = area.x / STAGE_W;
+      const aR = (area.x + area.w) / STAGE_W;
+      const aT = area.y / STAGE_H;
+      const aB = (area.y + area.h) / STAGE_H;
       let snapX = false;
       let snapY = false;
-      if (snapping && Math.abs(cx - 0.5) < SNAP) { cx = 0.5; snapX = true; }
-      else if (snapping && Math.abs(cx - areaCx) < SNAP) { cx = areaCx; snapX = true; }
-      if (snapping && Math.abs(cy - areaCy) < SNAP) { cy = areaCy; snapY = true; }
+      if (snapping) {
+        if (Math.abs(cx - 0.5) < SNAP) { cx = 0.5; snapX = true; }
+        else if (Math.abs(cx - areaCx) < SNAP) { cx = areaCx; snapX = true; }
+        else if (Math.abs(cx - hw - aL) < SNAP) { cx = aL + hw; snapX = true; }
+        else if (Math.abs(cx + hw - aR) < SNAP) { cx = aR - hw; snapX = true; }
+        if (Math.abs(cy - areaCy) < SNAP) { cy = areaCy; snapY = true; }
+        else if (Math.abs(cy - hh - aT) < SNAP) { cy = aT + hh; snapY = true; }
+        else if (Math.abs(cy + hh - aB) < SNAP) { cy = aB - hh; snapY = true; }
+      }
       setGuides({ x: snapX, y: snapY });
       schedule(clampLayer({ ...a, cx, cy }));
     } else if (g.kind === "scale") {
@@ -198,6 +212,7 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
   }
 
   function onKeyDown(e: React.KeyboardEvent, layer: Layer) {
+    if (layer.locked) return;
     const step = e.shiftKey ? 0.03 : 0.008;
     const map: Record<string, () => Layer> = {
       ArrowLeft: () => ({ ...layer, cx: layer.cx - step }),
@@ -265,10 +280,14 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
         {isSel && (
           <>
             <span className="stage__box" aria-hidden="true" />
-            <button type="button" className="stage__handle stage__handle--rotate" aria-label="Rotate" onPointerDown={(e) => onPointerDown(e, l, "rotate")}>
-              <RotateCw size={13} aria-hidden="true" />
-            </button>
-            <button type="button" className="stage__handle stage__handle--scale" aria-label="Resize" onPointerDown={(e) => onPointerDown(e, l, "scale")} />
+            {!l.locked && (
+              <>
+                <button type="button" className="stage__handle stage__handle--rotate" aria-label="Rotate" onPointerDown={(e) => onPointerDown(e, l, "rotate")}>
+                  <RotateCw size={13} aria-hidden="true" />
+                </button>
+                <button type="button" className="stage__handle stage__handle--scale" aria-label="Resize" onPointerDown={(e) => onPointerDown(e, l, "scale")} />
+              </>
+            )}
           </>
         )}
       </div>

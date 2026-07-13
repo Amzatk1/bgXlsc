@@ -37,6 +37,7 @@ import {
   straightenLayer,
   validateForSubmit,
   viewsWithDesign,
+  viewSummary,
   visibleLayersForView,
   type ImageLayer,
   type TextLayer,
@@ -137,6 +138,36 @@ describe("difficult-area warnings + hidden layers", () => {
     expect(visibleLayersForView(st, "front").length).toBe(1);
     st.layers = [imgLayer({ id: "b", hidden: true })];
     expect(hasAnyDesign(st)).toBe(false);
+  });
+});
+
+describe("side panels, summaries + heavy layer stacks", () => {
+  it("jerseys expose left/right side-panel print areas", () => {
+    for (const id of ["jersey", "basketball"]) {
+      const p = PRODUCTS.find((x) => x.id === id)!;
+      const ids = areasForView(p, "front").map((a) => a.id);
+      expect(ids).toContain("left-panel");
+      expect(ids).toContain("right-panel");
+    }
+    expect(PLACEMENTS.some((p) => p.areaId === "left-panel")).toBe(true);
+  });
+  it("summarises what's on each surface", () => {
+    const st = initialState();
+    expect(viewSummary(st, "front")).toBe("No design");
+    st.layers = [newTextLayer("name", tee, "front"), newTextLayer("number", tee, "front")];
+    expect(viewSummary(st, "front")).toBe("Name, Number");
+    st.layers = [imgLayer({ id: "1" }), imgLayer({ id: "2" }), imgLayer({ id: "3" }), imgLayer({ id: "4" })];
+    expect(viewSummary(st, "front")).toBe("4 elements");
+  });
+  it("handles 10 image layers on one side without dropping any", () => {
+    const st = initialState();
+    st.layers = Array.from({ length: 10 }, (_, i) => imgLayer({ id: "img" + i, cx: 0.2 + i * 0.06 }));
+    expect(visibleLayersForView(st, "front").length).toBe(10);
+    expect(viewSummary(st, "front")).toBe("10 elements");
+  });
+  it("locked flag is carried on layers (canvas gestures gate on it in the editor)", () => {
+    const l = imgLayer({ locked: true });
+    expect(l.locked).toBe(true);
   });
 });
 

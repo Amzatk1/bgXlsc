@@ -14,6 +14,7 @@ import {
   Hash,
   Image as ImageIcon,
   Info,
+  Lock,
   Minus,
   MoveDiagonal,
   Paperclip,
@@ -23,6 +24,7 @@ import {
   Share2,
   Trash2,
   Type as TypeIcon,
+  Unlock,
   User,
 } from "lucide-react";
 import {
@@ -66,6 +68,7 @@ import {
   sizeTotal,
   straightenLayer,
   validateForSubmit,
+  viewSummary,
   type DesignState,
   type Layer,
   type TextLayer,
@@ -463,7 +466,7 @@ export function StudioExperiment() {
 
   const layersPanel = (
     <div className="field">
-      <span className="field__legend mono">Layers on the {state.view} · {viewLayers.length}</span>
+      <span className="field__legend mono">{state.view} — {viewSummary(state, state.view)}</span>
       {viewLayers.length === 0 ? (
         <p className="field__note">Nothing added to the {state.view} yet.</p>
       ) : (
@@ -471,12 +474,15 @@ export function StudioExperiment() {
           {[...viewLayers].reverse().map((l) => {
             const idx = state.layers.findIndex((x) => x.id === l.id);
             return (
-              <li key={l.id} className={"layeritem" + (l.id === state.selectedId ? " is-sel" : "") + (l.hidden ? " is-hidden" : "")}>
+              <li key={l.id} className={"layeritem" + (l.id === state.selectedId ? " is-sel" : "") + (l.hidden ? " is-hidden" : "") + (l.locked ? " is-locked" : "")}>
                 <button type="button" className="layeritem__main" onClick={() => selectLayer(l.id)}>
                   <span className="layeritem__icon">{layerIcon(l)}</span>
                   <span className="layeritem__label">{layerLabel(l)}</span>
                 </button>
                 <span className="layeritem__ops">
+                  <button type="button" aria-label={l.locked ? "Unlock layer" : "Lock layer"} onClick={() => replaceLayer({ ...l, locked: !l.locked })}>
+                    {l.locked ? <Lock size={14} aria-hidden="true" /> : <Unlock size={14} aria-hidden="true" />}
+                  </button>
                   <button type="button" aria-label={l.hidden ? "Show layer" : "Hide layer"} onClick={() => replaceLayer({ ...l, hidden: !l.hidden })}>
                     {l.hidden ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
                   </button>
@@ -506,13 +512,27 @@ export function StudioExperiment() {
         <span className="field__legend mono">
           {layerIcon(selected)} Editing: {layerLabel(selected)}
         </span>
-        <input
-          type="text"
-          aria-label="Layer name"
-          placeholder="Name this layer (optional) — e.g. Main sponsor"
-          value={selected.name ?? ""}
-          onChange={(e) => replaceLayer({ ...selected, name: e.target.value.slice(0, 40) })}
-        />
+        <div className="outlinerow">
+          <input
+            type="text"
+            aria-label="Layer name"
+            placeholder="Name this layer (optional) — e.g. Main sponsor"
+            value={selected.name ?? ""}
+            onChange={(e) => replaceLayer({ ...selected, name: e.target.value.slice(0, 40) })}
+          />
+          <button
+            type="button"
+            className={"btn btn--outline" + (selected.locked ? " is-locked" : "")}
+            aria-pressed={!!selected.locked}
+            title={selected.locked ? "Unlock to move on the garment" : "Lock position on the garment"}
+            onClick={() => replaceLayer({ ...selected, locked: !selected.locked })}
+          >
+            {selected.locked ? <Lock size={16} aria-hidden="true" /> : <Unlock size={16} aria-hidden="true" />}
+          </button>
+        </div>
+        {selected.locked && (
+          <p className="field__note">Locked on the garment — you can still fine-tune below, but it won't move when you drag on the preview.</p>
+        )}
       </div>
 
       {selCrossings.length > 0 && (
@@ -729,10 +749,8 @@ export function StudioExperiment() {
             "Fabric: no preference — the team advises"
           )}
         </li>
-        <li>
-          Front: {layersForView(state, "front").length} layer{layersForView(state, "front").length === 1 ? "" : "s"} · Back:{" "}
-          {layersForView(state, "back").length} layer{layersForView(state, "back").length === 1 ? "" : "s"}
-        </li>
+        <li>Front — {viewSummary(state, "front")}</li>
+        <li>Back — {viewSummary(state, "back")}</li>
       </ul>
       <p className="ed__summarynote">{MARKET_SOURCING_NOTICE}</p>
     </aside>

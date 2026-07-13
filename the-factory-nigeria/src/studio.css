@@ -939,3 +939,9 @@ select#t-font {
 .layeritem.is-hidden { opacity: 0.5; }
 .layeritem.is-hidden .layeritem__label { text-decoration: line-through; }
 .field__legend + input[type="text"] { margin-top: 4px; }
+
+/* v4.2 — layer locking + name/lock row */
+.outlinerow input[type="text"] { flex: 1; min-width: 0; }
+.outlinerow .btn { flex: none; min-height: 44px; padding: 0 12px; }
+.btn.is-locked { border-color: var(--purple); color: var(--purple-700); background: var(--lilac-tint); }
+.layeritem.is-locked .layeritem__label { font-style: italic; }
