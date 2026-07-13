@@ -64,7 +64,7 @@ export const NAV: NavItem[] = [
   { label: "Services", href: "#/services" },
   { label: "How it works", href: "#/process" },
   { label: "Our work", href: "#/work" },
-  { label: "Studio", href: "#/experiments/custom-tee-studio" },
+  { label: "Studio", href: "#/studio" },
   { label: "Brands & Co.", href: "#/brands" },
   { label: "Contact", href: "#/visit" },
   { label: "FAQs", href: "#/faq" },

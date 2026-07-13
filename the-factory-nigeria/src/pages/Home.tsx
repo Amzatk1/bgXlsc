@@ -154,7 +154,7 @@ export function Home() {
               <SectionHeader
                 eyebrow="What we make"
                 title="Production, built around your brief"
-                intro="Six core capabilities. Each one tells you exactly what to send so we can quote fast."
+                intro="Seven core capabilities. Each one tells you exactly what to send so we can quote fast."
                 action={
                   <a className="btn btn--ghost" href="#/services">
                     <span className="btn-underline">All services</span>

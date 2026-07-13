@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { BRAND, NAV } from "../data/brand";
 import { LOGO } from "../data/media";
@@ -9,6 +9,7 @@ export function Header() {
   const path = useHashRoute();
   const [scrolled, setScrolled] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -55,7 +56,7 @@ export function Header() {
         </div>
       </div>
 
-      <MobileDrawer open={drawer} onClose={() => setDrawer(false)} path={path} />
+      {drawer && <MobileDrawer open onClose={closeDrawer} path={path} />}
     </header>
   );
 }

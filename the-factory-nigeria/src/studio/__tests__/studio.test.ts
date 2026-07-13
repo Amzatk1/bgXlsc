@@ -349,12 +349,15 @@ describe("enquiry summary & spec (multi-layer)", () => {
     expect(rows.find((r) => r.label === "Garment colour")!.step).toBe(1);
     expect(rows.find((r) => r.label === "Front design")!.value).toContain("logo.png");
   });
-  it("design spec is prototype-flagged, lists layers, embeds artwork only on request", () => {
+  it("design spec is preview-flagged, lists layers, embeds artwork only on request", () => {
     const spec = buildDesignSpec(completeState()) as {
       prototype: boolean;
+      generator: string;
       layers: { kind: string; originalDataUrl?: string }[];
     };
     expect(spec.prototype).toBe(true);
+    expect(spec.generator).toContain("Studio preview");
+    expect(spec.generator).not.toContain("experimental");
     expect(spec.layers.length).toBe(3);
     const img = spec.layers.find((l) => l.kind === "image")!;
     expect(img.originalDataUrl).toBeUndefined();

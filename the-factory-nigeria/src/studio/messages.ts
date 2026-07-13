@@ -198,7 +198,7 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
   const fabric = getFabric(state);
   return {
     prototype: true,
-    generator: "The Factory Nigeria — Studio (experimental prototype)",
+    generator: "The Factory Nigeria — Studio preview",
     disclaimer: PREVIEW_DISCLAIMER,
     availabilityNotice: MARKET_SOURCING_NOTICE,
     reference: state.reference,

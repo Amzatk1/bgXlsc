@@ -40,7 +40,7 @@ export function Brands() {
       <PageIntro
         eyebrow="For brands & companies"
         title="Your production partner in Lagos"
-        intro="We produce for the people building things — brands, companies, teams, creators and events. Tell us what you need and we’ll make it, to spec."
+        intro="We produce for the people building things — brands, companies, teams, creators and events. Tell us what you need and we’ll confirm the right production path with you."
       >
         <SpecLine items={["Minimum order: 30 pieces", "Bulk & corporate orders", "Ilupeju, Lagos"]} />
       </PageIntro>

@@ -9,6 +9,10 @@ export const FAQS: Faq[] = [
     a: "Our standard minimum order is 30 pieces. It applies across garment production, printing and most custom work. If you’re close to 30 or unsure how your order splits, send the details and we’ll advise.",
   },
   {
+    q: "Is Studio the same as the general order enquiry?",
+    a: "No. The general enquiry is for manufacturing and printing requests with our standard 30-piece minimum. Studio lets you design a garment or jersey and send a visual request starting from one item. In both cases, the team confirms availability, price and production timing before anything is accepted.",
+  },
+  {
     q: "How do I start an order?",
     a: "Use “Start an order enquiry” on this site. Answer a few short questions and it opens WhatsApp with your details ready to send. You can also message us directly at +234 909 943 6487. This is an enquiry — we confirm the price and timing before anything is produced.",
   },
