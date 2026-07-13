@@ -16,7 +16,7 @@ import {
   DPI_THRESHOLDS,
   getFontById,
   MIN_ORDER,
-  PLACEMENTS,
+  placementsFor,
   PRODUCTS,
   productPpi,
   type Placement,
@@ -333,8 +333,7 @@ export function applyPlacement(layer: Layer, placement: Placement, product: Prod
 }
 
 export function placementsForLayer(product: Product, view: ViewId): Placement[] {
-  const areaIds = new Set(areasForView(product, view).map((a) => a.id));
-  return PLACEMENTS.filter((p) => p.view === view && areaIds.has(p.areaId));
+  return placementsFor(product, view);
 }
 
 // ---------------------------------------------------------------------

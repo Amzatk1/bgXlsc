@@ -60,6 +60,8 @@ export type Product = {
   /** Material reference (visual/feel reference only, not a stock claim) */
   material: string;
   availability: AvailabilityStatus;
+  /** Garment family — decides which placement presets apply (chest/back vs cap panels). */
+  family?: "top" | "headwear";
   /** Product-card thumbnail (real processed studio asset) */
   thumb: string;
   /** Primary (torso) print zones per view, in stage units */
@@ -273,6 +275,66 @@ export const PRODUCTS: Product[] = [
       back: [{ id: "collar", name: "neckline", x: 258, y: 150, w: 84, h: 40, widthIn: 4, heightIn: 2 }],
     },
   },
+  {
+    id: "cap-snapback",
+    name: "Snapback cap",
+    note: "Flat peak, structured, snap closure",
+    fit: "Structured 6-panel",
+    description: "A flat-brim structured snapback — a bold front panel for embroidery or a printed patch.",
+    use: "Streetwear, team caps, merch, events",
+    material: "Structured cotton twill (reference)",
+    availability: "confirm",
+    family: "headwear",
+    thumb: `${ASSET_BASE}/cap-snapback-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 222, y: 190, w: 156, h: 142, widthIn: 4.5, heightIn: 3 },
+      back: { x: 238, y: 205, w: 124, h: 92, widthIn: 3.6, heightIn: 2.6 },
+    },
+    avoidAreas: {
+      front: [{ id: "brim", name: "peak / brim", x: 150, y: 470, w: 300, h: 110, widthIn: 7, heightIn: 2.5 }],
+    },
+  },
+  {
+    id: "cap-baseball",
+    name: "Baseball cap (curved)",
+    note: "Curved peak, soft, strap back",
+    fit: "Unstructured dad-cap",
+    description: "The classic soft curved-peak cap (face cap) — a clean front panel for a logo or name.",
+    use: "Everyday caps, casual merch, giveaways",
+    material: "Washed cotton twill (reference)",
+    availability: "confirm",
+    family: "headwear",
+    thumb: `${ASSET_BASE}/cap-baseball-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 225, y: 198, w: 150, h: 135, widthIn: 4.2, heightIn: 3 },
+      back: { x: 240, y: 210, w: 120, h: 88, widthIn: 3.4, heightIn: 2.4 },
+    },
+    avoidAreas: {
+      front: [{ id: "brim", name: "peak / brim", x: 150, y: 470, w: 300, h: 110, widthIn: 7, heightIn: 2.5 }],
+    },
+  },
+  {
+    id: "cap-trucker",
+    name: "Trucker cap",
+    note: "Foam front, mesh back, snap closure",
+    fit: "Structured 5-panel",
+    description: "A foam-front trucker with a breathable mesh back — a big flat front panel, ideal for bold logos.",
+    use: "Streetwear, festivals, summer merch, teams",
+    material: "Foam front + polyester mesh (reference)",
+    availability: "confirm",
+    family: "headwear",
+    thumb: `${ASSET_BASE}/cap-trucker-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 220, y: 182, w: 160, h: 150, widthIn: 4.8, heightIn: 3.2 },
+      back: { x: 244, y: 200, w: 112, h: 84, widthIn: 3.2, heightIn: 2.2 },
+    },
+    avoidAreas: {
+      front: [{ id: "brim", name: "peak / brim", x: 150, y: 470, w: 300, h: 110, widthIn: 7, heightIn: 2.5 }],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------
@@ -364,6 +426,16 @@ export const FABRICS: Fabric[] = [
     availability: "confirm",
     img: `${ASSET_BASE}/fabric-interlock.webp`,
     refNote: "Macro crop of this project's jersey render; interlock is a similar smooth performance knit.",
+  },
+  {
+    id: "twill",
+    name: "Cotton twill",
+    description: "A tight, durable diagonal weave — structured and hard-wearing.",
+    use: "Caps, workwear, structured garments",
+    weight: "Mid",
+    availability: "common",
+    img: `${ASSET_BASE}/fabric-twill.webp`,
+    refNote: "Macro crop of this project's cap render; twill has a fine diagonal rib.",
   },
   {
     id: "pique",
@@ -491,7 +563,9 @@ export type Placement = {
   ry: number;
   /** printed width hint, inches (image layers) */
   sizeIn: number;
-  /** which garments this preset suits (undefined = all) */
+  /** garment family this preset belongs to (default "top") */
+  family?: "top" | "headwear";
+  /** which garments this preset suits (undefined = all in family) */
   only?: string[];
 };
 
@@ -514,11 +588,19 @@ export const PLACEMENTS: Placement[] = [
   { id: "centre-back", name: "Centre back", view: "back", areaId: "torso", rx: 0.5, ry: 0.45, sizeIn: 9 },
   { id: "full-back", name: "Full back", view: "back", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 11.5 },
   { id: "lower-back", name: "Lower back", view: "back", areaId: "torso", rx: 0.5, ry: 0.84, sizeIn: 7 },
+  // Headwear (caps) — front/back panels
+  { id: "cap-front-centre", name: "Front panel", view: "front", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 3.5, family: "headwear" },
+  { id: "cap-front-left", name: "Front left", view: "front", areaId: "torso", rx: 0.26, ry: 0.5, sizeIn: 2, family: "headwear" },
+  { id: "cap-front-right", name: "Front right", view: "front", areaId: "torso", rx: 0.74, ry: 0.5, sizeIn: 2, family: "headwear" },
+  { id: "cap-back", name: "Back panel", view: "back", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 3, family: "headwear" },
 ];
 
 export function placementsFor(product: Product, view: ViewId): Placement[] {
   const areaIds = new Set(areasForView(product, view).map((a) => a.id));
-  return PLACEMENTS.filter((p) => p.view === view && areaIds.has(p.areaId) && (!p.only || p.only.includes(product.id)));
+  const fam = product.family ?? "top";
+  return PLACEMENTS.filter(
+    (p) => p.view === view && areaIds.has(p.areaId) && (p.family ?? "top") === fam && (!p.only || p.only.includes(product.id)),
+  );
 }
 
 // ---------------------------------------------------------------------

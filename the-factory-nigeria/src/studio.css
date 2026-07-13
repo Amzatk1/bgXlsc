@@ -154,8 +154,8 @@
 .stage__art:focus-visible { outline: 2px solid var(--purple); outline-offset: 3px; }
 .stage__handle {
   position: absolute;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--ink);
   color: var(--paper);
@@ -165,7 +165,12 @@
   box-shadow: 0 2px 8px rgba(20, 17, 15, 0.35);
   touch-action: none;
 }
-.stage__handle--scale { right: -15px; bottom: -15px; cursor: nwse-resize; }
+.stage__handle--scale { right: -17px; bottom: -17px; cursor: nwse-resize; }
+/* Coarse pointers (touch): larger, easier-to-grab handles */
+@media (pointer: coarse) {
+  .stage__handle { width: 40px; height: 40px; }
+  .stage__handle--scale { right: -20px; bottom: -20px; }
+}
 .stage__handle--scale::after { content: ""; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; }
 .stage__handle--rotate { left: 50%; top: -38px; transform: translateX(-50%); cursor: grab; }
 .stage__warn {

@@ -28,6 +28,9 @@ export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
   hoodie: { front: `${A}/hoodie-front.webp`, back: `${A}/hoodie-back.webp` },
   jersey: { front: `${A}/jersey-front.webp`, back: `${A}/jersey-back.webp` },
   basketball: { front: `${A}/basketball-front.webp`, back: `${A}/basketball-back.webp` },
+  "cap-snapback": { front: `${A}/cap-snapback-front.webp`, back: `${A}/cap-snapback-back.webp` },
+  "cap-baseball": { front: `${A}/cap-baseball-front.webp`, back: `${A}/cap-baseball-back.webp` },
+  "cap-trucker": { front: `${A}/cap-trucker-front.webp`, back: `${A}/cap-trucker-back.webp` },
 };
 
 /**
@@ -42,6 +45,9 @@ export const FABRIC_LUMA: Record<string, number> = {
   hoodie: 0.506,
   jersey: 0.505,
   basketball: 0.518,
+  "cap-snapback": 0.487,
+  "cap-baseball": 0.524,
+  "cap-trucker": 0.474,
 };
 
 export const DEFAULT_FABRIC_LUMA = 0.505;

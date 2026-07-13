@@ -71,9 +71,12 @@ function imgLayer(over: Partial<ImageLayer> = {}): ImageLayer {
 describe("catalogue (prototype data)", () => {
   it("every product has front and back print zones with real-world sizes", () => {
     for (const p of PRODUCTS) {
+      // caps print small; tops print large
+      const minW = p.family === "headwear" ? 3 : 6;
+      const minH = p.family === "headwear" ? 2 : 6;
       for (const v of ["front", "back"] as const) {
-        expect(p.zones[v].widthIn).toBeGreaterThan(6);
-        expect(p.zones[v].heightIn).toBeGreaterThan(6);
+        expect(p.zones[v].widthIn).toBeGreaterThanOrEqual(minW);
+        expect(p.zones[v].heightIn).toBeGreaterThanOrEqual(minH);
       }
     }
   });
@@ -170,6 +173,41 @@ describe("side panels, summaries + heavy layer stacks", () => {
   it("locked flag is carried on layers (canvas gestures gate on it in the editor)", () => {
     const l = imgLayer({ locked: true });
     expect(l.locked).toBe(true);
+  });
+});
+
+describe("headwear (caps)", () => {
+  const capIds = ["cap-snapback", "cap-baseball", "cap-trucker"];
+  it("adds three distinct cap garments in the headwear family", () => {
+    for (const id of capIds) {
+      const p = PRODUCTS.find((x) => x.id === id)!;
+      expect(p).toBeTruthy();
+      expect(p.family).toBe("headwear");
+      expect(p.zones.front.widthIn).toBeGreaterThan(3);
+      expect(p.zones.front.widthIn).toBeLessThan(6); // caps print small
+    }
+    // still have the shirt/jersey range too
+    expect(PRODUCTS.length).toBeGreaterThanOrEqual(9);
+  });
+  it("caps show cap-panel placements, not chest/back-shirt presets", () => {
+    const cap = PRODUCTS.find((p) => p.id === "cap-snapback")!;
+    const frontIds = placementsFor(cap, "front").map((p) => p.id);
+    expect(frontIds).toContain("cap-front-centre");
+    expect(frontIds).toContain("cap-front-left");
+    expect(frontIds).not.toContain("left-chest");
+    expect(frontIds).not.toContain("full-front");
+    expect(placementsFor(cap, "back").map((p) => p.id)).toContain("cap-back");
+  });
+  it("shirts keep their chest/back presets (and never show cap presets)", () => {
+    const front = placementsFor(tee, "front").map((p) => p.id);
+    expect(front).toContain("left-chest");
+    expect(front).not.toContain("cap-front-centre");
+  });
+  it("a logo dropped on a cap lands inside the front panel", () => {
+    const cap = PRODUCTS.find((p) => p.id === "cap-baseball")!;
+    const l = newImageLayer({ src: "x", fileName: "logo.png", fileKB: 5, naturalW: 600, naturalH: 400, hasAlpha: true }, cap, "front");
+    expect(isLayerOutOfArea(l, cap)).toBe(false);
+    expect(homeArea(l, cap).id).toBe("torso");
   });
 });
 
