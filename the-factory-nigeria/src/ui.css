@@ -654,6 +654,9 @@
 .mpick__icon { width: 34px; height: 34px; flex: none; border-radius: 8px; background: var(--lilac-tint); color: var(--purple-700); display: grid; place-items: center; }
 .mpick__name { font-weight: 600; font-size: 0.88rem; line-height: 1.15; }
 .mpick__arr { margin-left: auto; color: var(--text-faint); flex: none; }
+@media (max-width: 360px) {
+  .mpick { grid-template-columns: 1fr; }
+}
 
 /* Compact process steps */
 .msteps { display: grid; }

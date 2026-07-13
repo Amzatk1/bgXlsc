@@ -9,7 +9,6 @@ import {
   Download,
   Eye,
   EyeOff,
-  FlaskConical,
   HelpCircle,
   Hash,
   Image as ImageIcon,
@@ -200,6 +199,13 @@ export function StudioExperiment() {
     setState((s) => ({ ...s, productId: id }));
   }
 
+  function setView(view: ViewId) {
+    const candidates = snapRef.current.layers.filter((layer) => layer.view === view && !layer.hidden);
+    const nextSelected = candidates.length ? candidates[candidates.length - 1].id : null;
+    setState((s) => ({ ...s, view, selectedId: nextSelected }));
+    setMtab(nextSelected ? "adjust" : "artwork");
+  }
+
   // ---- layer history (undo / redo) ----
   // Snapshots of the whole layer stack + selection. Mutations happen OUTSIDE
   // setState updaters (StrictMode double-invokes those, corrupting the stack).
@@ -288,7 +294,11 @@ export function StudioExperiment() {
   function go(n: number) {
     setErrors({});
     setStep(Math.max(0, Math.min(STEPS.length - 1, n)));
-    window.setTimeout(() => topRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 10);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.setTimeout(
+      () => topRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion ? "auto" : "smooth" }),
+      10,
+    );
   }
 
   async function onFile(files: FileList | null) {
@@ -760,15 +770,15 @@ export function StudioExperiment() {
   return (
     <div className="studio" ref={topRef}>
       <div className="studio__proto" role="note">
-        <FlaskConical size={14} aria-hidden="true" />
-        Experimental prototype — test mode. Nothing is sent automatically, prices are not shown, and
-        availability is confirmed by The Factory team.
+        <Info size={14} aria-hidden="true" />
+        Studio preview — nothing is sent automatically. Pricing and market availability are confirmed
+        by The Factory team before production.
       </div>
 
       <header className="studio__head container">
         <span className="eyebrow">Studio</span>
         <h1 className="h2">Design your garment</h1>
-        <p className="studio__stepmeta mono" aria-hidden="true">
+        <p className="studio__stepmeta mono" aria-live="polite">
           Step {step + 1} of {STEPS.length} · {STEPS[step]}
         </p>
         <div className="studio__progress" role="group" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
@@ -792,7 +802,7 @@ export function StudioExperiment() {
         {step === 0 && (
           <section className="studio__panel" aria-label="Choose a product">
             <div className="prodgrid">
-              {PRODUCTS.map((p) => (
+              {PRODUCTS.map((p, i) => (
                 <label key={p.id} className={"prodcard" + (state.productId === p.id ? " is-active" : "")}>
                   <input
                     type="radio"
@@ -800,7 +810,13 @@ export function StudioExperiment() {
                     checked={state.productId === p.id}
                     onChange={() => setProductId(p.id)}
                   />
-                  <img className="prodcard__thumb" src={p.thumb} alt={`${p.name} — real garment render`} loading="lazy" />
+                  <img
+                    className="prodcard__thumb"
+                    src={p.thumb}
+                    alt={`${p.name} — real garment render`}
+                    loading={i < 4 ? "eager" : "lazy"}
+                    decoding="async"
+                  />
                   <span className="prodcard__name">{p.name}</span>
                   <span className="prodcard__fit mono">{p.fit}</span>
                   <span className="prodcard__desc">{p.description}</span>
@@ -996,7 +1012,7 @@ export function StudioExperiment() {
                     role="tab"
                     aria-selected={state.view === v}
                     className={"viewtab" + (state.view === v ? " is-active" : "")}
-                    onClick={() => set({ view: v })}
+                    onClick={() => setView(v)}
                   >
                     {v === "front" ? "Front" : "Back"}
                     {layersForView(state, v).length ? <Check size={13} aria-hidden="true" /> : null}
@@ -1336,7 +1352,7 @@ export function StudioExperiment() {
           </section>
         )}
 
-        {/* STEP 6 — CONFIRM & SEND (TEST MODE) */}
+        {/* STEP 6 — CONFIRM & SEND */}
         {step === 5 && !submitted && (
           <section className="studio__panel" aria-label="Confirm and send">
             <h2 className="h3">This is exactly what will be shared</h2>
@@ -1382,7 +1398,7 @@ export function StudioExperiment() {
             </p>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              Test mode: nothing is uploaded or sent automatically. Preparing your design only
+              Privacy note: nothing is uploaded or sent automatically. Preparing your design only
               creates the files on your device — you choose what to share on WhatsApp.
             </p>
             <button
@@ -1539,7 +1555,7 @@ export function StudioExperiment() {
             )}
             {step === 3 && (
               <button type="button" className="btn btn--primary btn--lg" onClick={() => go(4)}>
-                Send design to The Factory <ArrowRight size={17} aria-hidden="true" />
+                Continue to order details <ArrowRight size={17} aria-hidden="true" />
               </button>
             )}
             {step === 4 && (

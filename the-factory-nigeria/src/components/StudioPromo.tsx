@@ -39,18 +39,17 @@ export function StudioPromo({ compact = false }: { compact?: boolean }) {
             <span className="eyebrow">Studio</span>
             <h2 className="h2">Design it in Studio. We will help you make it.</h2>
             <p className="lede">
-              Choose a garment, explore fabrics and colours, add your artwork to the front or back,
-              select your sizes and send the completed design to The Factory Nigeria for a
-              personalised production quote.
+              Choose a garment or jersey, explore fabrics and colours, and place artwork or text
+              across the front, back and sleeves before sending a clear production request.
             </p>
             <ul className="spromo__points">
               <li>Requests can start from one item</li>
-              <li>Tees, polos and hoodies — real garment previews, front and back</li>
+              <li>Tees, polos, hoodies, football and basketball jerseys</li>
+              <li>Front, back, sleeve and jersey-panel customisation</li>
               <li>Garments, fabrics and colours depend on market availability</li>
-              <li>The on-screen preview is approximate</li>
-              <li>Specifications, price and timing confirmed before production</li>
+              <li>Preview, sizes and artwork references stay together</li>
             </ul>
-            <a className="btn btn--primary btn--lg" href="#/experiments/custom-tee-studio">
+            <a className="btn btn--primary btn--lg" href="#/studio">
               Open Studio <ArrowUpRight size={17} aria-hidden="true" />
             </a>
             <p className="spromo__note">

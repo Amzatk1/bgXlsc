@@ -12,7 +12,8 @@ export type Path =
   | "/visit"
   | "/faq"
   | "/start-an-order"
-  | "/experiments/custom-tee-studio";
+  | "/studio"
+  | "/404";
 
 const KNOWN: Path[] = [
   "/",
@@ -23,13 +24,23 @@ const KNOWN: Path[] = [
   "/visit",
   "/faq",
   "/start-an-order",
-  "/experiments/custom-tee-studio",
+  "/studio",
+  "/404",
 ];
 
-export function getPath(): Path {
-  const raw = window.location.hash.replace(/^#/, "").split("?")[0];
+export function resolvePath(hash: string): Path {
+  const raw = hash.replace(/^#/, "").split("?")[0];
+  if (raw === "experiments/custom-tee-studio" || raw === "/experiments/custom-tee-studio") {
+    return "/studio";
+  }
+  // Native in-page anchors such as #main are not application routes.
+  if (raw && !raw.startsWith("/")) return "/";
   const clean = ("/" + raw.replace(/^\/+/, "")).replace(/\/+$/, "") || "/";
-  return (KNOWN.includes(clean as Path) ? clean : "/") as Path;
+  return KNOWN.includes(clean as Path) ? (clean as Path) : "/404";
+}
+
+export function getPath(): Path {
+  return resolvePath(window.location.hash);
 }
 
 // Read a query value from the hash, e.g. #/start-an-order?service=Printing
@@ -70,5 +81,6 @@ export const TITLES: Record<Path, string> = {
   "/visit": "Contact & visit — The Factory Nigeria",
   "/faq": "FAQs — The Factory Nigeria",
   "/start-an-order": "Start an order enquiry — The Factory Nigeria",
-  "/experiments/custom-tee-studio": "Studio — The Factory Nigeria",
+  "/studio": "Studio — The Factory Nigeria",
+  "/404": "Page not found — The Factory Nigeria",
 };

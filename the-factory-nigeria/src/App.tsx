@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { TITLES, useHashRoute, type Path } from "./lib/router";
 import { StatusBar } from "./components/StatusBar";
 import { Header } from "./components/Header";
@@ -12,9 +12,13 @@ import { Brands } from "./pages/Brands";
 import { Visit } from "./pages/Visit";
 import { Faq } from "./pages/Faq";
 import { StartOrder } from "./pages/StartOrder";
-import { StudioExperiment } from "./pages/StudioExperiment";
+import { NotFound } from "./pages/NotFound";
 
-const PAGES: Record<Path, () => JSX.Element> = {
+const Studio = lazy(() =>
+  import("./pages/StudioExperiment").then(({ StudioExperiment }) => ({ default: StudioExperiment })),
+);
+
+const PAGES: Record<Path, ComponentType> = {
   "/": Home,
   "/services": Services,
   "/process": Process,
@@ -23,8 +27,18 @@ const PAGES: Record<Path, () => JSX.Element> = {
   "/visit": Visit,
   "/faq": Faq,
   "/start-an-order": StartOrder,
-  "/experiments/custom-tee-studio": StudioExperiment,
+  "/studio": Studio,
+  "/404": NotFound,
 };
+
+function PageLoading() {
+  return (
+    <section className="route-loading container" role="status" aria-live="polite">
+      <span className="route-loading__mark" aria-hidden="true" />
+      <p className="mono mono--ink">Preparing Studio…</p>
+    </section>
+  );
+}
 
 export default function App() {
   const path = useHashRoute();
@@ -34,11 +48,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [path]);
 
-  const Page = PAGES[path] ?? Home;
+  const Page = PAGES[path];
   // Studio has its own sticky step navigation and accepts
   // 1-shirt requests — the site-wide "Min. 30 pcs" bar would cover the
   // studio's primary action on phones and contradict its minimum.
-  const showQuoteBar = path !== "/experiments/custom-tee-studio";
+  const showQuoteBar = path !== "/studio";
 
   return (
     <>
@@ -48,7 +62,9 @@ export default function App() {
       <StatusBar />
       <Header />
       <main id="main" tabIndex={-1}>
-        <Page />
+        <Suspense fallback={<PageLoading />}>
+          <Page />
+        </Suspense>
       </main>
       <Footer />
       {showQuoteBar && <StickyQuoteBar />}
