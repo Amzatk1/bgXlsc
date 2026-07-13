@@ -945,3 +945,26 @@ select#t-font {
 .outlinerow .btn { flex: none; min-height: 44px; padding: 0 12px; }
 .btn.is-locked { border-color: var(--purple); color: var(--purple-700); background: var(--lilac-tint); }
 .layeritem.is-locked .layeritem__label { font-style: italic; }
+
+/* v4.3 — on-device save/resume + precise numeric inputs */
+.resumebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1.5px solid var(--purple);
+  border-radius: var(--radius);
+  background: var(--lilac-tint);
+}
+.resumebar__text { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.9rem; }
+.resumebar__text svg { color: var(--purple-700); flex: none; }
+.resumebar__actions { display: flex; align-items: center; gap: 10px; }
+.resumebar__actions .btn { min-height: 40px; }
+.studio__loaddesign { margin-top: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.studio__loaddesign .btn { min-height: 36px; padding: 0 8px; }
+.numgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.numgrid label { display: grid; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+.numgrid input { min-height: 42px; text-align: center; font-weight: 700; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); }

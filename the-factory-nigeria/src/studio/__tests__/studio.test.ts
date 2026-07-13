@@ -44,6 +44,8 @@ import {
 } from "../state";
 import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, sizesLine, summaryRows } from "../messages";
 import { checkDimensions, precheckFile } from "../imageFile";
+import { deserializeDesign, isWorthSaving, serializeDesign } from "../persist";
+import { savedAgo } from "../deviceStore";
 
 const tee = PRODUCTS[0];
 
@@ -397,6 +399,70 @@ describe("photoreal colour pipeline", () => {
     const { measureTextAspect } = await import("../garment");
     // jsdom has no real text metrics → falls back to a length heuristic
     expect(measureTextAspect("10", "Archivo", 800)).toBeGreaterThan(0);
+  });
+});
+
+describe("design persistence (save on device / .json file)", () => {
+  function richState() {
+    const st = initialState();
+    st.productId = "basketball";
+    st.color = { id: "royal", name: "Royal blue", hex: "#2b4f9e", status: "standard" };
+    st.layers = [
+      imgLayer({ id: "logo", view: "front", fileName: "crest.png" }),
+      { ...(newTextLayer("number", tee, "back") as TextLayer), text: "23", locked: true },
+      { ...(newTextLayer("name", tee, "back") as TextLayer), text: "ADEYEMI", hidden: true, name: "Player name" },
+    ];
+    st.selectedId = "logo";
+    st.details.quantity = "12";
+    st.details.name = "Coach";
+    return st;
+  }
+  it("round-trips a complex design losslessly", () => {
+    const st = richState();
+    const restored = deserializeDesign(serializeDesign(st))!;
+    expect(restored).toBeTruthy();
+    expect(restored.productId).toBe("basketball");
+    expect(restored.color.hex).toBe("#2b4f9e");
+    expect(restored.layers.length).toBe(3);
+    expect(restored.selectedId).toBe("logo");
+    expect(restored.details.quantity).toBe("12");
+    const num = restored.layers.find((l) => l.kind === "text" && l.role === "number");
+    expect(num && "text" in num && num.text).toBe("23");
+    expect(num?.locked).toBe(true);
+    expect(restored.layers.find((l) => l.id !== "logo" && l.hidden)).toBeTruthy();
+  });
+  it("serialised form is plain JSON (no data loss through stringify)", () => {
+    const saved = serializeDesign(richState());
+    const trip = deserializeDesign(JSON.parse(JSON.stringify(saved)))!;
+    expect(trip.layers.length).toBe(3);
+    expect(saved.app).toBe("the-factory-studio");
+    expect(typeof saved.savedAt).toBe("number");
+  });
+  it("rejects junk and falls back safely", () => {
+    expect(deserializeDesign(null)).toBeNull();
+    expect(deserializeDesign(42)).toBeNull();
+    expect(deserializeDesign({})).toBeNull();
+    // unknown product → default; malformed layers dropped
+    const weird = deserializeDesign({ state: { productId: "nope", layers: [{ kind: "image" }, { kind: "text", text: "hi", fontId: "anton" }, 5] } })!;
+    expect(weird.productId).toBe(PRODUCTS[0].id);
+    expect(weird.layers.length).toBe(1); // the valid text layer only
+    expect(weird.layers[0].kind).toBe("text");
+  });
+  it("only saves when there's something worth saving", () => {
+    expect(isWorthSaving(initialState())).toBe(false);
+    const withLayer = initialState();
+    withLayer.layers = [imgLayer()];
+    expect(isWorthSaving(withLayer)).toBe(true);
+    const withName = initialState();
+    withName.details.name = "Ada";
+    expect(isWorthSaving(withName)).toBe(true);
+  });
+  it("formats 'saved ago' labels", () => {
+    const now = 1_000_000_000_000;
+    expect(savedAgo(now, now)).toBe("just now");
+    expect(savedAgo(now - 5 * 60000, now)).toBe("5 mins ago");
+    expect(savedAgo(now - 2 * 3600_000, now)).toBe("2 hours ago");
+    expect(savedAgo(now - 3 * 86400_000, now)).toBe("3 days ago");
   });
 });
 

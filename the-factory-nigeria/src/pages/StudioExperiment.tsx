@@ -20,10 +20,12 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Save,
   Share2,
   Trash2,
   Type as TypeIcon,
   Unlock,
+  Upload,
   User,
 } from "lucide-react";
 import {
@@ -86,6 +88,8 @@ import {
   shareFiles,
 } from "../studio/exporter";
 import { downloadReferenceSheet, exportReferenceSheet } from "../studio/referenceSheet";
+import { deserializeDesign, isWorthSaving, serializeDesign, type SavedDesign } from "../studio/persist";
+import { clearDesignLocal, loadDesignLocal, saveDesignLocal, savedAgo } from "../studio/deviceStore";
 import { GARMENT_IMG, hexLuma, layerTuning, measureTextAspect, STAGE_H, STAGE_W } from "../studio/garment";
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
@@ -180,10 +184,13 @@ export function StudioExperiment() {
   const [shareState, setShareState] = useState<"idle" | "shared" | "unsupported">("idle");
   const [copied, setCopied] = useState(false);
   const [mtab, setMtab] = useState<"artwork" | "adjust" | "style">("artwork"); // mobile bottom-sheet tab
+  const [resumeSave, setResumeSave] = useState<SavedDesign | null>(null); // on-device auto-save offer
   /** Native file sharing available? Decides Share-first vs download fallback. */
   const canShare = useMemo(() => canShareFiles(), []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const designFileRef = useRef<HTMLInputElement>(null); // hidden input for "load design file"
   const topRef = useRef<HTMLDivElement>(null);
+  const saveTimer = useRef<number>(0);
 
   const product = getProduct(state);
   const fabric = getFabric(state);
@@ -299,6 +306,74 @@ export function StudioExperiment() {
       () => topRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion ? "auto" : "smooth" }),
       10,
     );
+  }
+
+  // ---- on-device auto-save (this browser only; never uploaded) ----
+  // On first mount, offer to resume a recent design saved on this device.
+  useEffect(() => {
+    let on = true;
+    loadDesignLocal().then((saved) => {
+      if (on && saved && deserializeDesign(saved)) setResumeSave(saved);
+    });
+    return () => {
+      on = false;
+    };
+  }, []);
+
+  // Debounced auto-save whenever the design changes (skip once sent).
+  useEffect(() => {
+    if (submitted) return;
+    window.clearTimeout(saveTimer.current);
+    if (!isWorthSaving(state)) return;
+    saveTimer.current = window.setTimeout(() => {
+      void saveDesignLocal(serializeDesign(state));
+    }, 800);
+    return () => window.clearTimeout(saveTimer.current);
+  }, [state, submitted]);
+
+  function resumeSavedDesign() {
+    if (!resumeSave) return;
+    const restored = deserializeDesign(resumeSave);
+    if (restored) {
+      setState(restored);
+      go(restored.layers.length ? 2 : 0); // land on the editor if there's a design
+    }
+    setResumeSave(null);
+  }
+  function dismissResume() {
+    setResumeSave(null);
+    void clearDesignLocal();
+  }
+
+  /** Download the editable design as a .json file the customer keeps on their device. */
+  function saveDesignFile() {
+    const blob = new Blob([JSON.stringify(serializeDesign(state), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${state.reference}-studio-design.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  async function loadDesignFile(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    try {
+      const restored = deserializeDesign(JSON.parse(await f.text()));
+      if (restored) {
+        setState(restored);
+        setResumeSave(null);
+        go(2);
+      } else {
+        setUploadError("That design file couldn't be read. Please choose a Studio design (.json) file.");
+      }
+    } catch {
+      setUploadError("That design file couldn't be read. Please choose a Studio design (.json) file.");
+    }
+    if (designFileRef.current) designFileRef.current.value = "";
   }
 
   async function onFile(files: FileList | null) {
@@ -668,6 +743,45 @@ export function StudioExperiment() {
         />
       </div>
 
+      <div className="field">
+        <span className="field__legend mono">Precise position (numeric)</span>
+        <div className="numgrid">
+          <label>
+            X %
+            <input
+              type="number"
+              min={0}
+              max={100}
+              inputMode="numeric"
+              value={Math.round(selected.cx * 100)}
+              onChange={(e) => replaceLayer(clampLayer({ ...selected, cx: Number(e.target.value) / 100 }))}
+            />
+          </label>
+          <label>
+            Y %
+            <input
+              type="number"
+              min={0}
+              max={100}
+              inputMode="numeric"
+              value={Math.round(selected.cy * 100)}
+              onChange={(e) => replaceLayer(clampLayer({ ...selected, cy: Number(e.target.value) / 100 }))}
+            />
+          </label>
+          <label>
+            Angle °
+            <input
+              type="number"
+              min={-180}
+              max={180}
+              inputMode="numeric"
+              value={Math.round(selected.rotation > 180 ? selected.rotation - 360 : selected.rotation)}
+              onChange={(e) => replaceLayer(clampLayer({ ...selected, rotation: Number(e.target.value) }))}
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="editactions">
         <button type="button" className="btn btn--outline" onClick={() => replaceLayer(straightenLayer(selected))}>
           <MoveDiagonal size={15} aria-hidden="true" /> Straighten
@@ -798,6 +912,24 @@ export function StudioExperiment() {
       </header>
 
       <div className="container studio__body">
+        {/* On-device resume offer (this browser only; nothing uploaded) */}
+        {resumeSave && !submitted && (
+          <div className="resumebar" role="status">
+            <span className="resumebar__text">
+              <RotateCcw size={16} aria-hidden="true" />
+              You have a saved design on this device from {savedAgo(resumeSave.savedAt)}. Resume it?
+            </span>
+            <span className="resumebar__actions">
+              <button type="button" className="btn btn--primary" onClick={resumeSavedDesign}>
+                Resume design
+              </button>
+              <button type="button" className="btn btn--ghost" onClick={dismissResume}>
+                <span className="btn-underline">Start fresh</span>
+              </button>
+            </span>
+          </div>
+        )}
+
         {/* STEP 1 — PRODUCT */}
         {step === 0 && (
           <section className="studio__panel" aria-label="Choose a product">
@@ -831,6 +963,19 @@ export function StudioExperiment() {
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
               {MARKET_SOURCING_NOTICE}
+            </p>
+            <p className="field__note studio__loaddesign">
+              Continuing an earlier design?{" "}
+              <button type="button" className="btn btn--ghost" onClick={() => designFileRef.current?.click()}>
+                <Upload size={14} aria-hidden="true" /> <span className="btn-underline">Load a saved design file</span>
+              </button>
+              <input
+                ref={designFileRef}
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                onChange={(e) => loadDesignFile(e.target.files)}
+              />
             </p>
           </section>
         )}
@@ -1404,7 +1549,10 @@ export function StudioExperiment() {
             <button
               type="button"
               className="btn btn--primary btn--lg"
-              onClick={() => setSubmitted(new Date().toISOString())}
+              onClick={() => {
+                setSubmitted(new Date().toISOString());
+                void clearDesignLocal();
+              }}
             >
               Prepare my design to send <ArrowRight size={17} aria-hidden="true" />
             </button>
@@ -1476,6 +1624,9 @@ export function StudioExperiment() {
               </summary>
               <div className="fabhelp__body">
                 <div className="downloadrow">
+                  <button type="button" className="btn btn--outline" onClick={saveDesignFile}>
+                    <Save size={16} aria-hidden="true" /> Editable design (.json)
+                  </button>
                   <button type="button" className="btn btn--outline" onClick={() => downloadPreview(state)}>
                     <Download size={16} aria-hidden="true" /> Mockup
                   </button>
@@ -1489,8 +1640,9 @@ export function StudioExperiment() {
                   ))}
                 </div>
                 <p className="field__note">
-                  The complete reference already includes the mockups, placement, colour and production
-                  details — these are optional extras for the team.
+                  The <strong>editable design (.json)</strong> lets you (or the team) reopen and change this exact
+                  design later — load it from the first step. The complete reference already includes the mockups,
+                  placement, colour and production details.
                 </p>
               </div>
             </details>
@@ -1581,9 +1733,11 @@ export function StudioExperiment() {
               type="button"
               className="btn btn--outline"
               onClick={() => {
+                void clearDesignLocal();
                 setState(initialState());
                 setSubmitted(null);
                 setShareState("idle");
+                setResumeSave(null);
                 go(0);
               }}
             >
