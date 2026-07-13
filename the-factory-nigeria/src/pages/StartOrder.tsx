@@ -1,9 +1,10 @@
-import { getHashQuery } from "../lib/router";
+import { useHashQuery } from "../lib/router";
 import { chatLink } from "../lib/whatsapp";
 import { PageIntro } from "../components/PageIntro";
 import { EnquiryFlow } from "../components/EnquiryFlow";
 import { SectionHeader } from "../components/SectionHeader";
 import { SpecLine } from "../components/SpecLine";
+import { StudioRouteNote } from "../components/StudioRouteNote";
 
 const AFTER = [
   "We read your enquiry and check what’s possible.",
@@ -15,7 +16,7 @@ const AFTER = [
 ];
 
 export function StartOrder() {
-  const service = getHashQuery("service");
+  const service = useHashQuery("service");
 
   return (
     <>
@@ -29,7 +30,8 @@ export function StartOrder() {
 
       <section className="section section--tight">
         <div className="container container--narrow">
-          <EnquiryFlow initialService={service || undefined} />
+          <StudioRouteNote compact />
+          <EnquiryFlow key={service || "general"} initialService={service || undefined} />
         </div>
       </section>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePath } from "./router";
+import { getHashQueryValue, resolvePath } from "./router";
 
 describe("hash route resolution", () => {
   it("resolves public routes and ignores query values", () => {
@@ -17,5 +17,14 @@ describe("hash route resolution", () => {
 
   it("treats native in-page anchors as home on a fresh load", () => {
     expect(resolvePath("#main")).toBe("/");
+  });
+
+  it("reads service values when only the hash query changes", () => {
+    expect(getHashQueryValue("#/start-an-order?service=Printing%20services", "service")).toBe(
+      "Printing services",
+    );
+    expect(getHashQueryValue("#/start-an-order?service=Custom%20aso-ebi", "service")).toBe(
+      "Custom aso-ebi",
+    );
   });
 });

@@ -65,7 +65,11 @@ export function EnquiryFlow({ initialService }: { initialService?: string }) {
   }
 
   function scrollTop() {
-    window.setTimeout(() => topRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 10);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.setTimeout(() => {
+      topRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion ? "auto" : "smooth" });
+      topRef.current?.focus({ preventScroll: true });
+    }, 10);
   }
 
   function goNext() {
@@ -146,7 +150,7 @@ export function EnquiryFlow({ initialService }: { initialService?: string }) {
       <div className="enquiry__head" ref={topRef} tabIndex={-1}>
         <span className="eyebrow">Order enquiry</span>
         <h2 className="h2">{STEP_TITLES[step]}</h2>
-        <div className="enquiry__progress">
+        <div className="enquiry__progress" aria-live="polite">
           <span className="mono">
             Step {step + 1} of {TOTAL}
           </span>

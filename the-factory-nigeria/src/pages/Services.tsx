@@ -7,6 +7,7 @@ import { SectionHeader } from "../components/SectionHeader";
 import { Reveal } from "../components/Reveal";
 import { CtaBand } from "../components/CtaBand";
 import { SpecLine } from "../components/SpecLine";
+import { StudioRouteNote } from "../components/StudioRouteNote";
 
 const CHECKLIST = [
   "Quantity (minimum 30 pieces)",
@@ -29,7 +30,7 @@ export function Services() {
       <PageIntro
         eyebrow="Services"
         title="What The Factory produces"
-        intro="Six core capabilities for clothing brands, companies, teams, creators and events. Every card tells you what to send so we can quote fast on WhatsApp."
+        intro="Seven core capabilities for clothing brands, companies, teams, creators and events. Every card tells you what to send so we can quote fast on WhatsApp."
       >
         <SpecLine items={["Minimum order: 30 pieces", "Production & printing", "Start an order enquiry"]} />
       </PageIntro>
@@ -41,6 +42,7 @@ export function Services() {
               <ServiceCard key={s.id} s={s} />
             ))}
           </div>
+          <StudioRouteNote />
         </div>
       </section>
 

@@ -52,7 +52,7 @@ export default function App() {
   // Studio has its own sticky step navigation and accepts
   // 1-shirt requests — the site-wide "Min. 30 pcs" bar would cover the
   // studio's primary action on phones and contradict its minimum.
-  const showQuoteBar = path !== "/studio";
+  const showQuoteBar = path !== "/studio" && path !== "/start-an-order";
 
   return (
     <>

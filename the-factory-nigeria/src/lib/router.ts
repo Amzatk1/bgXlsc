@@ -44,13 +44,31 @@ export function getPath(): Path {
 }
 
 // Read a query value from the hash, e.g. #/start-an-order?service=Printing
-export function getHashQuery(key: string): string {
-  const q = window.location.hash.split("?")[1] || "";
+export function getHashQueryValue(hash: string, key: string): string {
+  const q = hash.split("?")[1] || "";
   try {
     return new URLSearchParams(q).get(key) || "";
   } catch {
     return "";
   }
+}
+
+export function getHashQuery(key: string): string {
+  return getHashQueryValue(window.location.hash, key);
+}
+
+export function useHashQuery(key: string): string {
+  const [value, setValue] = useState(() =>
+    typeof window === "undefined" ? "" : getHashQuery(key),
+  );
+
+  useEffect(() => {
+    const onChange = () => setValue(getHashQuery(key));
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, [key]);
+
+  return value;
 }
 
 export function useHashRoute(): Path {

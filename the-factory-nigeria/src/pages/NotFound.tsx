@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, MessageCircle } from "lucide-react";
 import { chatLink } from "../lib/whatsapp";
 
 export function NotFound() {
@@ -14,6 +14,9 @@ export function NotFound() {
         <div className="notfound__actions">
           <a className="btn btn--primary btn--lg" href="#/">
             <ArrowLeft size={17} aria-hidden="true" /> Back to home
+          </a>
+          <a className="btn btn--outline btn--lg" href="#/studio">
+            Open Studio <ArrowUpRight size={17} aria-hidden="true" />
           </a>
           <a className="btn btn--outline btn--lg" href={chatLink()} target="_blank" rel="noreferrer">
             <MessageCircle size={17} aria-hidden="true" /> Ask on WhatsApp
