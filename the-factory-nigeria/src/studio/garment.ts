@@ -27,6 +27,7 @@ export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
   polo: { front: `${A}/polo-front.webp`, back: `${A}/polo-back.webp` },
   hoodie: { front: `${A}/hoodie-front.webp`, back: `${A}/hoodie-back.webp` },
   jersey: { front: `${A}/jersey-front.webp`, back: `${A}/jersey-back.webp` },
+  basketball: { front: `${A}/basketball-front.webp`, back: `${A}/basketball-back.webp` },
 };
 
 /**
@@ -40,6 +41,7 @@ export const FABRIC_LUMA: Record<string, number> = {
   polo: 0.507,
   hoodie: 0.506,
   jersey: 0.505,
+  basketball: 0.518,
 };
 
 export const DEFAULT_FABRIC_LUMA = 0.505;
@@ -96,13 +98,25 @@ function getMeasureCtx(): CanvasRenderingContext2D | null {
   return measureCtx;
 }
 
+type CtxLS = CanvasRenderingContext2D & { letterSpacing?: string };
+
 /** width ÷ font-size of the rendered text (used to size the layer box). */
-export function measureTextAspect(text: string, fontStack: string, weight = 700): number {
+export function measureTextAspect(text: string, fontStack: string, weight = 700, letterSpacing = 0): number {
   const t = text || " ";
-  const ctx = getMeasureCtx();
-  if (!ctx) return Math.max(0.6, t.length * 0.62);
+  const ctx = getMeasureCtx() as CtxLS | null;
+  if (!ctx) return Math.max(0.6, t.length * (0.62 + letterSpacing));
   ctx.font = `${weight} 100px ${fontStack}`;
-  const w = ctx.measureText(t).width;
+  try {
+    ctx.letterSpacing = `${letterSpacing * 100}px`;
+  } catch {
+    /* older engines: fall back to metric width only */
+  }
+  const w = ctx.measureText(t).width + (ctx.letterSpacing ? 0 : letterSpacing * 100 * Math.max(0, t.length - 1));
+  try {
+    ctx.letterSpacing = "0px";
+  } catch {
+    /* noop */
+  }
   return Math.max(0.2, w / 100);
 }
 
@@ -113,6 +127,7 @@ export type TextDraw = {
   color: string;
   outline: string;
   outlineWidth: number; // fraction of font size
+  letterSpacing?: number; // fraction of font size
 };
 
 /** Draw text centred at (cx,cy) with a given font-size, optional outline. */
@@ -124,6 +139,7 @@ export function drawText(
   fontSizePx: number,
   rotationDeg: number,
 ): void {
+  const c = ctx as CtxLS;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate((rotationDeg * Math.PI) / 180);
@@ -132,6 +148,11 @@ export function drawText(
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   ctx.miterLimit = 2;
+  try {
+    c.letterSpacing = `${(t.letterSpacing ?? 0) * fontSizePx}px`;
+  } catch {
+    /* noop */
+  }
   if (t.outline && t.outlineWidth > 0) {
     ctx.strokeStyle = t.outline;
     ctx.lineWidth = Math.max(1, t.outlineWidth * fontSizePx * 2);
@@ -139,7 +160,27 @@ export function drawText(
   }
   ctx.fillStyle = t.color;
   ctx.fillText(t.text, 0, 0);
+  try {
+    c.letterSpacing = "0px";
+  } catch {
+    /* noop */
+  }
   ctx.restore();
+}
+
+/**
+ * Ensure bundled WebFonts are decoded before a canvas export uses them
+ * (canvas silently falls back to a default face for a font that isn't loaded).
+ */
+export async function ensureFontsLoaded(families: string[]): Promise<void> {
+  const fd = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fd) return;
+  try {
+    await Promise.all(families.flatMap((f) => [fd.load(`400 40px "${f}"`), fd.load(`600 40px "${f}"`)]));
+    await fd.ready;
+  } catch {
+    /* font loading best-effort; export still succeeds with fallback */
+  }
 }
 
 // ---------------------------------------------------------------------

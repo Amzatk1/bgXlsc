@@ -21,13 +21,13 @@ import {
   homeArea,
   layerHeightIn,
   layerLabel,
-  layersForView,
   layerWidthIn,
   qualityLevel,
   round2,
   SIZE_KEYS,
   sizeTotal,
   viewsWithDesign,
+  visibleLayersForView,
   type DesignState,
   type Layer,
 } from "./state";
@@ -89,7 +89,7 @@ export function summaryRows(state: DesignState): SummaryRow[] {
     { label: "Fabric", value: fabricLine(state) || "No preference — the team will advise", step: 1 },
   ];
   for (const v of ["front", "back"] as ViewId[]) {
-    const ls = layersForView(state, v);
+    const ls = visibleLayersForView(state, v);
     if (ls.length) {
       rows.push({
         label: `${v === "front" ? "Front" : "Back"} design`,
@@ -117,7 +117,7 @@ export function buildStudioMessage(state: DesignState): string {
   const line = (label: string, value: string) => (value.trim() ? `*${label}:* ${value.trim()}` : "");
   const printBlocks: string[] = [];
   for (const v of ["front", "back"] as ViewId[]) {
-    const ls = layersForView(state, v);
+    const ls = visibleLayersForView(state, v);
     if (!ls.length) continue;
     printBlocks.push(`${v === "front" ? "Front" : "Back"}:`);
     for (const l of ls) printBlocks.push(`• ${layerLine(l, product)}`);
@@ -179,14 +179,17 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
         ...(includeArtworkData ? { originalDataUrl: l.src } : {}),
       };
     }
+    const f = fontOf(l);
     return {
       ...common,
       kind: "text",
       role: l.role,
       text: l.text,
-      font: fontOf(l).name,
+      font: { name: f.name, family: f.family, weight: f.weight, license: f.license, source: f.source ?? null },
       color: l.color,
       outline: l.outline || null,
+      outlineWidth: l.outline ? l.outlineWidth : 0,
+      letterSpacing: l.letterSpacing,
       heightInches: layerHeightIn(l, product),
     };
   };
@@ -212,7 +215,7 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
     fabric: fabric
       ? { id: fabric.id, name: fabric.name, weight: fabric.weight, availability: AVAILABILITY_LABEL[fabric.availability] }
       : null,
-    layers: state.layers.map(layerSpec),
+    layers: state.layers.filter((l) => !l.hidden).map(layerSpec),
     order: {
       quantity: d.quantity,
       sizes: d.sizes,

@@ -20,11 +20,13 @@ import {
 import { composeViewCanvas, download, imageLayers, loadImage } from "./exporter";
 import { fabricLine, layerLine, sizesLine } from "./messages";
 import {
+  difficultCrossings,
+  fontOf,
   getProduct,
-  layersForView,
   qualityLevel,
   SIZE_KEYS,
   sizeTotal,
+  visibleLayersForView,
   type DesignState,
   type ImageLayer,
 } from "./state";
@@ -84,7 +86,7 @@ async function mockupPanel(ctx: CanvasRenderingContext2D, state: DesignState, vi
   ctx.fillStyle = PAPER;
   ctx.font = "700 22px Archivo, Arial, sans-serif";
   ctx.fillText(view.toUpperCase(), x + 18, y + 27);
-  if (!layersForView(state, view).length) {
+  if (!visibleLayersForView(state, view).length) {
     ctx.fillStyle = "rgba(20,17,15,0.55)";
     ctx.fillRect(x, y + h - 44, w, 44);
     ctx.fillStyle = PAPER;
@@ -155,15 +157,30 @@ function warnings(state: DesignState): string[] {
   const product = getProduct(state);
   const shirtLuma = hexLuma(state.color.hex);
   for (const l of state.layers) {
+    if (l.hidden) continue;
     const side = l.view === "front" ? "Front" : "Back";
+    const who = l.kind === "image" ? `“${l.fileName}”` : `“${l.text}”`;
     if (l.kind === "image") {
       const q = qualityLevel(l, product);
-      if (q !== "good") out.push(`${side} “${l.fileName}”: ${QUALITY_COPY[q]}`);
+      if (q !== "good") out.push(`${side} ${who}: ${QUALITY_COPY[q]}`);
       if (typeof l.avgLuma === "number" && Math.abs(l.avgLuma - shirtLuma) < 0.16)
-        out.push(`${side} “${l.fileName}”: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`);
+        out.push(`${side} ${who}: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`);
     }
+    const cross = difficultCrossings(l, product);
+    if (cross.length) out.push(`${side} ${who}: crosses the ${cross.join(" and ")} — may need special production handling; confirm it can be produced accurately.`);
   }
   return out;
+}
+
+/** Distinct fonts used across text layers, with licence (for production reuse). */
+function fontsUsed(state: DesignState): string[] {
+  const seen = new Map<string, string>();
+  for (const l of state.layers) {
+    if (l.hidden || l.kind !== "text") continue;
+    const f = fontOf(l);
+    if (!seen.has(f.name)) seen.set(f.name, `${f.name} — ${f.license}${f.source ? ` (${f.source})` : ""}`);
+  }
+  return [...seen.values()];
 }
 
 export async function exportReferenceSheet(state: DesignState): Promise<string> {
@@ -241,7 +258,7 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   iy = value(ctx, fabricLine(state) || "No preference — team to advise", ix, iy + 48, colW);
 
   for (const v of views) {
-    const ls = layersForView(state, v);
+    const ls = visibleLayersForView(state, v);
     if (!ls.length) continue;
     label(ctx, `${v} design — ${ls.length} layer${ls.length === 1 ? "" : "s"}`, ix, iy + 14);
     iy += 42;
@@ -284,6 +301,14 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
     if (!v.trim()) continue;
     label(ctx, l, ix, iy + 14);
     iy = value(ctx, v, ix, iy + 48, colW);
+  }
+
+  // Fonts used (licence + source, so the team can reuse the exact font)
+  const fonts = fontsUsed(state);
+  if (fonts.length) {
+    label(ctx, "Fonts used (licensed)", ix, iy + 14);
+    iy += 42;
+    for (const ft of fonts) iy = value(ctx, "• " + ft, ix, iy + 6, colW, SOFT, 22);
   }
 
   // Warnings block (quality / contrast) — text, colour-coded

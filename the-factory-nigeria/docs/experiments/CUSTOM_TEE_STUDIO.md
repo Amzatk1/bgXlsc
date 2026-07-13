@@ -80,6 +80,39 @@ garment in stage-normalised coordinates (not confined to one box). A new
 
 ---
 
+# v4.1 — Basketball jersey + production fonts + richer tools
+
+- **Basketball jersey** (Higgsfield candidate `37068bf3`, sleeveless mesh tank,
+  keyed like the others, `FABRIC_LUMA.basketball = 0.518`, big front/back number
+  areas). QA passed (V-neck, matched front/back, mesh texture); the alternate
+  rejected. Two real sport-fabric reference crops added (**sports mesh**,
+  **polyester interlock**) from this project's own renders.
+- **Bundled production fonts (SIL OFL 1.1)** — Teko, Anton, Bebas Neue, Oswald,
+  Graduate (varsity), Pacifico (script) as WebFonts under `/assets/…/fonts`,
+  plus system Archivo/Mono. Canvas exports `ensureFontsLoaded()` before drawing
+  so the reference matches the editor; the reference sheet + JSON brief record
+  the **exact font, weight, licence and source** so The Factory can reuse it.
+- **Richer text tools:** letter-spacing + outline-thickness sliders, per-font
+  defaults (number→Teko, name→Oswald), character-count/uppercase hints.
+- **Layers:** rename (optional name), hide/show (excluded from preview, exports,
+  counts). **More surfaces:** upper/lower front, centre/lower back, left/right
+  shoulder presets, on every garment.
+- **Difficult-area warnings** (soft, non-blocking): collar / placket / pocket /
+  hood / neckline regions per garment; the editor + reference flag a crossing
+  and say the team will confirm it can be produced accurately — the customer can
+  still submit.
+- **Alignment:** Snap toggle (+ hold Alt to bypass) and an optional Grid overlay.
+- **Mobbin** (MLS *Customize Jersey*, Universe editor, Nike By You): adopted the
+  large garment-focused preview + minimal grouped controls, grid-while-editing,
+  and text constraint hints; rejected Universe's per-element animation controls
+  (irrelevant to a static print).
+- Verified end-to-end (basketball + Anton number, difficult-area warning, grid,
+  reference sheet renders the font + records the licence). **41 tests**, tsc +
+  build clean (**98.6 KB gzip JS**). Deferred: true left/right **side/sleeve
+  camera views** (2.5D) and further jersey types — next pass.
+
+---
+
 # v3.1 — Final polish pass (Studio rename + UI refinement)
 
 - **Renamed to Studio** across nav (desktop/mobile/footer), page title, hero

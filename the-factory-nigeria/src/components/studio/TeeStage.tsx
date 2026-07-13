@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, RotateCw, Shrink, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Grid3x3, Magnet, RotateCw, Shrink, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
 import { areasForView, getFontById, PREVIEW_DISCLAIMER, type ViewId } from "../../studio/catalog";
 import {
   clampLayer,
@@ -45,8 +45,12 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
   const [zoomI, setZoomI] = useState(0);
   const [zoneVisible, setZoneVisible] = useState(true);
   const [fabricMode, setFabricMode] = useState(true);
+  const [snapOn, setSnapOn] = useState(true);
+  const [gridOn, setGridOn] = useState(false);
   const [dragOut, setDragOut] = useState(false);
   const [guides, setGuides] = useState<{ x: boolean; y: boolean } | null>(null);
+  const snapRef = useRef(true);
+  snapRef.current = snapOn;
 
   const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? PRODUCTS[0], [productId]);
   const img = (GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view];
@@ -159,14 +163,16 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
       let cx = g.cx0 + (p.x - g.startX) / STAGE_W;
       let cy = g.cy0 + (p.y - g.startY) / STAGE_H;
       // snap to stage vertical centre + home-area centre lines
+      // (hold Alt or turn off the Snap tool for complete freedom)
+      const snapping = snapRef.current && !e.altKey;
       const area = homeArea({ ...a, cx, cy }, product);
       const areaCx = (area.x + area.w / 2) / STAGE_W;
       const areaCy = (area.y + area.h / 2) / STAGE_H;
       let snapX = false;
       let snapY = false;
-      if (Math.abs(cx - 0.5) < SNAP) { cx = 0.5; snapX = true; }
-      else if (Math.abs(cx - areaCx) < SNAP) { cx = areaCx; snapX = true; }
-      if (Math.abs(cy - areaCy) < SNAP) { cy = areaCy; snapY = true; }
+      if (snapping && Math.abs(cx - 0.5) < SNAP) { cx = 0.5; snapX = true; }
+      else if (snapping && Math.abs(cx - areaCx) < SNAP) { cx = areaCx; snapX = true; }
+      if (snapping && Math.abs(cy - areaCy) < SNAP) { cy = areaCy; snapY = true; }
       setGuides({ x: snapX, y: snapY });
       schedule(clampLayer({ ...a, cx, cy }));
     } else if (g.kind === "scale") {
@@ -176,7 +182,8 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
     } else if (g.kind === "rotate") {
       const b = layerBox(a);
       const ang = Math.atan2(p.y - b.y, p.x - b.x);
-      schedule(clampLayer({ ...a, rotation: snapRotation(g.r0 + ((ang - g.a0) * 180) / Math.PI) }));
+      const raw = g.r0 + ((ang - g.a0) * 180) / Math.PI;
+      schedule(clampLayer({ ...a, rotation: snapRef.current && !e.altKey ? snapRotation(raw) : raw }));
     }
   }
 
@@ -247,6 +254,7 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
               fontFamily: getFontById(l.fontId).stack,
               fontWeight: getFontById(l.fontId).weight,
               color: l.color,
+              letterSpacing: `${(l.letterSpacing || 0) * b.h}px`,
               WebkitTextStroke: l.outline && l.outlineWidth > 0 ? `${l.outlineWidth * b.h}px ${l.outline}` : undefined,
               paintOrder: "stroke fill",
             }}
@@ -286,6 +294,13 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
           <button type="button" className={"gtool gtool--label" + (fabricMode ? " is-on" : "")} aria-pressed={fabricMode} onClick={() => setFabricMode((v) => !v)}>
             <Sparkles size={15} aria-hidden="true" /> Fabric preview
           </button>
+          <span className="gtool__sep" aria-hidden="true" />
+          <button type="button" className={"gtool gtool--label" + (snapOn ? " is-on" : "")} aria-pressed={snapOn} onClick={() => setSnapOn((v) => !v)} title="Snap to centre (hold Alt to bypass)">
+            <Magnet size={15} aria-hidden="true" /> Snap
+          </button>
+          <button type="button" className={"gtool gtool--label" + (gridOn ? " is-on" : "")} aria-pressed={gridOn} onClick={() => setGridOn((v) => !v)}>
+            <Grid3x3 size={15} aria-hidden="true" /> Grid
+          </button>
         </div>
       )}
 
@@ -301,18 +316,26 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
         >
           <div className="gstage__color" style={{ backgroundColor: colorHex, WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }} aria-hidden="true" />
           <div className="gstage__artclip" style={fabricMode ? { WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` } : undefined}>
-            {layers.map(renderLayer)}
+            {layers.filter((l) => !l.hidden).map(renderLayer)}
           </div>
           <img className="gstage__shade" src={img} alt="" aria-hidden="true" draggable={false} style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }} />
           <img className="gstage__light" src={img} alt="" aria-hidden="true" draggable={false} style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }} />
 
-          {zoneVisible && !compact && (
+          {(zoneVisible || gridOn) && !compact && (
             <svg className="gstage__overlay" viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
-              {areas.map((a) => (
-                <g key={a.id}>
-                  <rect className={"stage__zone" + (sel && homeArea(sel, product).id === a.id ? " is-home" : "")} x={a.x} y={a.y} width={a.w} height={a.h} rx={6} />
-                </g>
-              ))}
+              {gridOn &&
+                Array.from({ length: 11 }).map((_, i) => (
+                  <g key={"g" + i}>
+                    <line className="stage__grid" x1={(STAGE_W / 12) * (i + 1)} y1={0} x2={(STAGE_W / 12) * (i + 1)} y2={STAGE_H} />
+                    <line className="stage__grid" x1={0} y1={(STAGE_H / 14) * (i + 1)} x2={STAGE_W} y2={(STAGE_H / 14) * (i + 1)} />
+                  </g>
+                ))}
+              {zoneVisible &&
+                areas.map((a) => (
+                  <g key={a.id}>
+                    <rect className={"stage__zone" + (sel && homeArea(sel, product).id === a.id ? " is-home" : "")} x={a.x} y={a.y} width={a.w} height={a.h} rx={6} />
+                  </g>
+                ))}
               {sel && (
                 <text className="gstage__zonelabel" x={homeArea(sel, product).x + 6} y={homeArea(sel, product).y - 7}>
                   {homeArea(sel, product).name.toUpperCase()} · {homeArea(sel, product).widthIn}″ × {homeArea(sel, product).heightIn}″

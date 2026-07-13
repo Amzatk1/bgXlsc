@@ -70,9 +70,20 @@ export type Product = {
    * placement and size are always confirmed by the team before production.
    */
   extraAreas?: Partial<Record<ViewId, PrintArea[]>>;
+  /**
+   * Regions that need special production handling if a design crosses them
+   * (collar, pocket, placket, zip, hem…). Never a hard block — a soft warning,
+   * and the team confirms whether it can be produced accurately.
+   */
+  avoidAreas?: Partial<Record<ViewId, PrintArea[]>>;
   /** Slightly different silhouette proportions */
   cut: "regular" | "oversized";
 };
+
+/** Difficult regions on a view (collar/pocket/placket…), for soft warnings. */
+export function avoidAreasForView(product: Product, view: ViewId): PrintArea[] {
+  return product.avoidAreas?.[view] ?? [];
+}
 
 /**
  * All printable areas for a view — the torso zone first, then any extras
@@ -115,6 +126,10 @@ export const PRODUCTS: Product[] = [
         { id: "right-sleeve", name: "Right sleeve", x: 432, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
       ],
     },
+    avoidAreas: {
+      front: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
+      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
+    },
   },
   {
     id: "oversized-tee",
@@ -136,6 +151,10 @@ export const PRODUCTS: Product[] = [
         { id: "left-sleeve", name: "Left sleeve", x: 84, y: 236, w: 86, h: 96, widthIn: 4.2, heightIn: 5 },
         { id: "right-sleeve", name: "Right sleeve", x: 430, y: 236, w: 86, h: 96, widthIn: 4.2, heightIn: 5 },
       ],
+    },
+    avoidAreas: {
+      front: [{ id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
+      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
     },
   },
   {
@@ -161,6 +180,13 @@ export const PRODUCTS: Product[] = [
         { id: "right-sleeve", name: "Right sleeve", x: 428, y: 244, w: 68, h: 84, widthIn: 3.6, heightIn: 4.4 },
       ],
     },
+    avoidAreas: {
+      front: [
+        { id: "placket", name: "button placket", x: 272, y: 150, w: 56, h: 160, widthIn: 3, heightIn: 8 },
+        { id: "collar", name: "collar", x: 240, y: 120, w: 120, h: 55, widthIn: 6, heightIn: 3 },
+      ],
+      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 120, w: 100, h: 40, widthIn: 5, heightIn: 2 }],
+    },
   },
   {
     id: "hoodie",
@@ -185,6 +211,13 @@ export const PRODUCTS: Product[] = [
         { id: "right-sleeve", name: "Right sleeve", x: 438, y: 312, w: 66, h: 108, widthIn: 3.6, heightIn: 5.6 },
       ],
     },
+    avoidAreas: {
+      front: [
+        { id: "pocket", name: "kangaroo pocket", x: 175, y: 458, w: 250, h: 150, widthIn: 12, heightIn: 7 },
+        { id: "hood", name: "hood", x: 205, y: 55, w: 190, h: 120, widthIn: 9, heightIn: 6 },
+      ],
+      back: [{ id: "hood", name: "hood", x: 210, y: 60, w: 180, h: 110, widthIn: 9, heightIn: 5 }],
+    },
   },
   {
     id: "jersey",
@@ -206,6 +239,30 @@ export const PRODUCTS: Product[] = [
         { id: "left-sleeve", name: "Left sleeve", x: 74, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
         { id: "right-sleeve", name: "Right sleeve", x: 448, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
       ],
+    },
+    avoidAreas: {
+      front: [{ id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 58, widthIn: 4.5, heightIn: 3 }],
+      back: [{ id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 42, widthIn: 4.5, heightIn: 2 }],
+    },
+  },
+  {
+    id: "basketball",
+    name: "Basketball jersey",
+    note: "Sleeveless tank, V-neck, mesh",
+    fit: "Loose athletic fit",
+    description: "A sleeveless mesh basketball tank with a ribbed V-neck — big front and back numbers, team name and sponsors.",
+    use: "Basketball teams, 3×3, leagues, training squads, fan jerseys",
+    material: "Breathable basketball mesh (reference)",
+    availability: "confirm",
+    thumb: `${ASSET_BASE}/basketball-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 196, y: 220, w: 208, h: 275, widthIn: 11, heightIn: 14.5 },
+      back: { x: 196, y: 185, w: 208, h: 315, widthIn: 11, heightIn: 16.5 },
+    },
+    avoidAreas: {
+      front: [{ id: "collar", name: "V-neck collar", x: 258, y: 150, w: 84, h: 78, widthIn: 4, heightIn: 4 }],
+      back: [{ id: "collar", name: "neckline", x: 258, y: 150, w: 84, h: 40, widthIn: 4, heightIn: 2 }],
     },
   },
 ];
@@ -279,6 +336,26 @@ export const FABRICS: Fabric[] = [
     availability: "confirm",
     img: `${ASSET_BASE}/fabric-performance.webp`,
     refNote: "Reference photo shows a similar knit; polyester is smoother with a slight sheen.",
+  },
+  {
+    id: "sports-mesh",
+    name: "Sports mesh",
+    description: "Open, airy knit with tiny holes — the coolest, most breathable option.",
+    use: "Basketball jerseys, training bibs, hot-weather sports",
+    weight: "Light",
+    availability: "confirm",
+    img: `${ASSET_BASE}/fabric-mesh.webp`,
+    refNote: "Macro crop of this project's basketball-mesh render — the exact hole size is confirmed with a market sample.",
+  },
+  {
+    id: "interlock",
+    name: "Polyester interlock",
+    description: "Smooth, stable double-knit with a clean surface — holds prints crisply.",
+    use: "Football/soccer jerseys, structured sportswear",
+    weight: "Mid",
+    availability: "confirm",
+    img: `${ASSET_BASE}/fabric-interlock.webp`,
+    refNote: "Macro crop of this project's jersey render; interlock is a similar smooth performance knit.",
   },
   {
     id: "pique",
@@ -359,16 +436,34 @@ export type FontSpec = {
   name: string;
   /** CSS font-family stack, used verbatim by both HTML and Canvas. */
   stack: string;
+  /** the primary family name (for canvas font loading + @font-face) */
+  family: string;
   weight: number;
+  category: string;
+  /** licence recorded in the production reference so the team can reuse it */
+  license: string;
+  /** where the team can obtain the exact font (internal production note) */
+  source?: string;
 };
 
+/**
+ * Free, production-usable fonts. The OFL faces are bundled as WebFonts under
+ * /assets/the-factory-nigeria/fonts and recorded (with licence + source) in the
+ * generated reference, so The Factory can obtain and reuse the exact font.
+ */
 export const FONTS: FontSpec[] = [
-  { id: "archivo", name: "Archivo (site)", stack: "Archivo, Arial, sans-serif", weight: 800 },
-  { id: "grotesk", name: "Grotesk", stack: "'Arial Narrow', Arial, sans-serif", weight: 700 },
-  { id: "mono", name: "Mono", stack: "'IBM Plex Mono', ui-monospace, monospace", weight: 700 },
-  { id: "serif", name: "Serif", stack: "Georgia, 'Times New Roman', serif", weight: 700 },
-  { id: "rounded", name: "Rounded", stack: "'Trebuchet MS', Verdana, sans-serif", weight: 700 },
+  { id: "teko", name: "Teko (jersey number)", family: "Teko", stack: "'Teko', 'Arial Narrow', sans-serif", weight: 600, category: "Athletic / numbers", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Teko" },
+  { id: "anton", name: "Anton (display)", family: "Anton", stack: "'Anton', Impact, sans-serif", weight: 400, category: "Display / block", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Anton" },
+  { id: "bebas", name: "Bebas Neue (athletic)", family: "Bebas Neue", stack: "'Bebas Neue', 'Arial Narrow', sans-serif", weight: 400, category: "Condensed athletic", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Bebas+Neue" },
+  { id: "oswald", name: "Oswald (condensed)", family: "Oswald", stack: "'Oswald', 'Arial Narrow', sans-serif", weight: 600, category: "Condensed sans", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Oswald" },
+  { id: "graduate", name: "Graduate (varsity)", family: "Graduate", stack: "'Graduate', Georgia, serif", weight: 400, category: "Varsity / collegiate", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Graduate" },
+  { id: "pacifico", name: "Pacifico (script)", family: "Pacifico", stack: "'Pacifico', 'Segoe Script', cursive", weight: 400, category: "Script", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Pacifico" },
+  { id: "archivo", name: "Archivo (clean sans)", family: "Archivo", stack: "Archivo, Arial, sans-serif", weight: 800, category: "General purpose", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Archivo" },
+  { id: "mono", name: "Mono", family: "IBM Plex Mono", stack: "'IBM Plex Mono', ui-monospace, monospace", weight: 700, category: "Monospace", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/IBM+Plex+Mono" },
 ];
+
+/** Font families that ship as bundled WebFonts (need loading before canvas export). */
+export const BUNDLED_FONT_FAMILIES = ["Teko", "Anton", "Bebas Neue", "Oswald", "Graduate", "Pacifico"];
 
 export function getFontById(id: string): FontSpec {
   return FONTS.find((f) => f.id === id) ?? FONTS[0];
@@ -393,14 +488,22 @@ export type Placement = {
 };
 
 export const PLACEMENTS: Placement[] = [
+  // Front
   { id: "left-chest", name: "Left chest", view: "front", areaId: "torso", rx: 0.74, ry: 0.14, sizeIn: 3.5 },
   { id: "right-chest", name: "Right chest", view: "front", areaId: "torso", rx: 0.26, ry: 0.14, sizeIn: 3.5 },
   { id: "front-centre", name: "Centre chest", view: "front", areaId: "torso", rx: 0.5, ry: 0.22, sizeIn: 8 },
+  { id: "upper-front", name: "Upper front", view: "front", areaId: "torso", rx: 0.5, ry: 0.07, sizeIn: 9 },
   { id: "full-front", name: "Full front", view: "front", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 11 },
+  { id: "lower-front", name: "Lower front", view: "front", areaId: "torso", rx: 0.5, ry: 0.82, sizeIn: 7 },
+  { id: "left-shoulder", name: "Left shoulder", view: "front", areaId: "torso", rx: 0.82, ry: 0.04, sizeIn: 3 },
+  { id: "right-shoulder", name: "Right shoulder", view: "front", areaId: "torso", rx: 0.18, ry: 0.04, sizeIn: 3 },
   { id: "left-sleeve", name: "Left sleeve", view: "front", areaId: "left-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
   { id: "right-sleeve", name: "Right sleeve", view: "front", areaId: "right-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
+  // Back
   { id: "upper-back", name: "Upper back", view: "back", areaId: "torso", rx: 0.5, ry: 0.12, sizeIn: 10 },
-  { id: "full-back", name: "Full back", view: "back", areaId: "torso", rx: 0.5, ry: 0.46, sizeIn: 11.5 },
+  { id: "centre-back", name: "Centre back", view: "back", areaId: "torso", rx: 0.5, ry: 0.45, sizeIn: 9 },
+  { id: "full-back", name: "Full back", view: "back", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 11.5 },
+  { id: "lower-back", name: "Lower back", view: "back", areaId: "torso", rx: 0.5, ry: 0.84, sizeIn: 7 },
 ];
 
 export function placementsFor(product: Product, view: ViewId): Placement[] {

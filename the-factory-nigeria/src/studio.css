@@ -1,4 +1,15 @@
 /* =====================================================================
+   Bundled production fonts (SIL Open Font License 1.1) — recorded with
+   licence + source in the generated reference so The Factory can reuse them.
+   ===================================================================== */
+@font-face { font-family: 'Teko'; font-style: normal; font-weight: 600; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/Teko.woff2') format('woff2'); }
+@font-face { font-family: 'Anton'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/Anton.woff2') format('woff2'); }
+@font-face { font-family: 'Bebas Neue'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/BebasNeue.woff2') format('woff2'); }
+@font-face { font-family: 'Oswald'; font-style: normal; font-weight: 600; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/Oswald.woff2') format('woff2'); }
+@font-face { font-family: 'Graduate'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/Graduate.woff2') format('woff2'); }
+@font-face { font-family: 'Pacifico'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/the-factory-nigeria/fonts/Pacifico.woff2') format('woff2'); }
+
+/* =====================================================================
    CUSTOM TEE STUDIO — experimental prototype styles
    Uses the existing Factory OS tokens (index.css) and form patterns.
    ===================================================================== */
@@ -921,3 +932,10 @@ select#t-font {
   background: var(--white);
   font-size: 0.9rem;
 }
+
+/* v4.1 — grid overlay + hidden layers + text tool extras */
+.stage__grid { stroke: rgba(20, 17, 15, 0.13); stroke-width: 1; }
+:root[data-theme="dark"] .stage__grid { stroke: rgba(255, 255, 255, 0.14); }
+.layeritem.is-hidden { opacity: 0.5; }
+.layeritem.is-hidden .layeritem__label { text-decoration: line-through; }
+.field__legend + input[type="text"] { margin-top: 4px; }

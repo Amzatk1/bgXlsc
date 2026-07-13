@@ -13,9 +13,11 @@ import {
   applyPlacement,
   belowMinimum,
   clampLayer,
+  difficultCrossings,
   emptySizes,
   estimatedDpi,
   fitLayerToArea,
+  hasAnyDesign,
   homeArea,
   initialState,
   isLayerOutOfArea,
@@ -35,6 +37,7 @@ import {
   straightenLayer,
   validateForSubmit,
   viewsWithDesign,
+  visibleLayersForView,
   type ImageLayer,
   type TextLayer,
 } from "../state";
@@ -96,9 +99,44 @@ describe("catalogue (prototype data)", () => {
       expect(c.hex).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
-  it("offers a small set of named fonts", () => {
-    expect(FONTS.length).toBeGreaterThanOrEqual(3);
-    for (const f of FONTS) expect(f.stack).toContain(",");
+  it("offers production-ready fonts, each with a licence", () => {
+    expect(FONTS.length).toBeGreaterThanOrEqual(5);
+    for (const f of FONTS) {
+      expect(f.stack).toContain(",");
+      expect(f.license.length).toBeGreaterThan(3);
+    }
+    expect(FONTS.some((f) => f.id === "teko")).toBe(true); // jersey number font
+  });
+  it("includes the basketball jersey garment", () => {
+    const bb = PRODUCTS.find((p) => p.id === "basketball");
+    expect(bb).toBeTruthy();
+    expect(bb!.zones.front.widthIn).toBeGreaterThan(6);
+  });
+  it("exposes more placement surfaces (shoulders, upper/lower, centre back)", () => {
+    const ids = new Set(PLACEMENTS.map((p) => p.id));
+    for (const id of ["upper-front", "lower-front", "left-shoulder", "right-shoulder", "centre-back", "lower-back"]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+});
+
+describe("difficult-area warnings + hidden layers", () => {
+  it("warns (non-blocking) when a layer crosses a difficult region", () => {
+    const polo = PRODUCTS.find((p) => p.id === "polo")!;
+    // a wide centre design over the button placket should be flagged
+    const over = imgLayer({ view: "front", cx: 0.5, cy: 0.28, size: 0.4 });
+    expect(difficultCrossings(over, polo).join(" ")).toMatch(/placket|collar/);
+    // a small left-chest logo should be clear
+    const clear = imgLayer({ view: "front", cx: 0.74, cy: 0.35, size: 0.12 });
+    expect(difficultCrossings(clear, polo)).toEqual([]);
+  });
+  it("hidden layers stay in the list but leave the preview + counts", () => {
+    const st = initialState();
+    st.layers = [imgLayer({ id: "a" }), imgLayer({ id: "b", hidden: true, view: "front" })];
+    expect(layersForView(st, "front").length).toBe(2);
+    expect(visibleLayersForView(st, "front").length).toBe(1);
+    st.layers = [imgLayer({ id: "b", hidden: true })];
+    expect(hasAnyDesign(st)).toBe(false);
   });
 });
 

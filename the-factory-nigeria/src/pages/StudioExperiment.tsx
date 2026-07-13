@@ -7,6 +7,8 @@ import {
   ChevronUp,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   FlaskConical,
   HelpCircle,
   Hash,
@@ -42,6 +44,7 @@ import {
 import {
   applyPlacement,
   clampLayer,
+  difficultCrossings,
   emptySizes,
   estimatedDpi,
   fitLayerToArea,
@@ -120,6 +123,7 @@ function PreviewLayer({ layer }: { layer: Layer }) {
           fontFamily: f.stack,
           fontWeight: f.weight,
           color: layer.color,
+          letterSpacing: `${(layer.letterSpacing || 0) * b.h}cqh`,
           WebkitTextStroke: layer.outline && layer.outlineWidth > 0 ? `${layer.outlineWidth * b.h}cqh` : undefined,
           paintOrder: "stroke fill",
         }}
@@ -377,6 +381,8 @@ export function StudioExperiment() {
   const selLowContrast =
     selected && selected.kind === "image" && typeof selected.avgLuma === "number" &&
     Math.abs(selected.avgLuma - hexLuma(state.color.hex)) < 0.16;
+  /** Difficult regions (collar/pocket/placket…) the selected layer crosses. */
+  const selCrossings = selected ? difficultCrossings(selected, product) : [];
 
   function setSelectedSizeIn(inches: number) {
     if (!selected) return;
@@ -465,12 +471,15 @@ export function StudioExperiment() {
           {[...viewLayers].reverse().map((l) => {
             const idx = state.layers.findIndex((x) => x.id === l.id);
             return (
-              <li key={l.id} className={"layeritem" + (l.id === state.selectedId ? " is-sel" : "")}>
+              <li key={l.id} className={"layeritem" + (l.id === state.selectedId ? " is-sel" : "") + (l.hidden ? " is-hidden" : "")}>
                 <button type="button" className="layeritem__main" onClick={() => selectLayer(l.id)}>
                   <span className="layeritem__icon">{layerIcon(l)}</span>
                   <span className="layeritem__label">{layerLabel(l)}</span>
                 </button>
                 <span className="layeritem__ops">
+                  <button type="button" aria-label={l.hidden ? "Show layer" : "Hide layer"} onClick={() => replaceLayer({ ...l, hidden: !l.hidden })}>
+                    {l.hidden ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
+                  </button>
                   <button type="button" aria-label="Bring forward" disabled={idx >= state.layers.length - 1} onClick={() => reorderLayer(l.id, 1)}>
                     <ChevronUp size={14} aria-hidden="true" />
                   </button>
@@ -497,12 +506,27 @@ export function StudioExperiment() {
         <span className="field__legend mono">
           {layerIcon(selected)} Editing: {layerLabel(selected)}
         </span>
+        <input
+          type="text"
+          aria-label="Layer name"
+          placeholder="Name this layer (optional) — e.g. Main sponsor"
+          value={selected.name ?? ""}
+          onChange={(e) => replaceLayer({ ...selected, name: e.target.value.slice(0, 40) })}
+        />
       </div>
+
+      {selCrossings.length > 0 && (
+        <p className="quality quality--soft" role="status">
+          This placement crosses the {selCrossings.join(" and ")}. This may require special production
+          handling — <em>The Factory will review and confirm whether it can be produced accurately. You can
+          still submit it.</em>
+        </p>
+      )}
 
       {selected.kind === "text" && (
         <>
           <div className="field">
-            <label htmlFor="t-text">{selected.role === "number" ? "Number" : selected.role === "name" ? "Player name" : "Text"}</label>
+            <label htmlFor="t-text">{selected.role === "number" ? "Number (1–3 digits)" : selected.role === "name" ? "Player / team name" : "Text"}</label>
             <input
               id="t-text"
               type="text"
@@ -510,9 +534,12 @@ export function StudioExperiment() {
               inputMode={selected.role === "number" ? "numeric" : "text"}
               onChange={(e) => patchText(selected.id, { text: selected.role === "number" ? e.target.value.replace(/[^\d]/g, "").slice(0, 3) : e.target.value.slice(0, 24) })}
             />
+            <p className="field__note">
+              {selected.role === "number" ? "1, 2 or 3 digits." : `Up to 24 characters (${selected.text.length}/24). Hyphens and spaces are fine.`}
+            </p>
           </div>
           <div className="field">
-            <label htmlFor="t-font">Font</label>
+            <label htmlFor="t-font">Font <span className="field__opt">(production-ready, licensed)</span></label>
             <select id="t-font" value={selected.fontId} onChange={(e) => patchText(selected.id, { fontId: e.target.value })}>
               {FONTS.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -527,7 +554,7 @@ export function StudioExperiment() {
               <input id="t-color" type="color" className="colorin" value={selected.color} onChange={(e) => patchText(selected.id, { color: e.target.value })} />
             </div>
             <div className="field">
-              <label htmlFor="t-outline">Outline</label>
+              <label htmlFor="t-outline">Outline colour</label>
               <div className="outlinerow">
                 <input
                   id="t-outline"
@@ -537,10 +564,20 @@ export function StudioExperiment() {
                   onChange={(e) => patchText(selected.id, { outline: e.target.value, outlineWidth: selected.outlineWidth || 0.08 })}
                 />
                 <button type="button" className="btn btn--ghost" onClick={() => patchText(selected.id, { outline: selected.outline ? "" : "#211f1e", outlineWidth: selected.outline ? 0 : 0.08 })}>
-                  <span className="btn-underline">{selected.outline ? "Remove" : "Add"} outline</span>
+                  <span className="btn-underline">{selected.outline ? "Remove" : "Add"}</span>
                 </button>
               </div>
             </div>
+          </div>
+          {selected.outline && (
+            <div className="field">
+              <label htmlFor="t-outw">Outline thickness — {Math.round((selected.outlineWidth || 0) * 100)}%</label>
+              <input id="t-outw" type="range" min={0.02} max={0.2} step={0.01} value={selected.outlineWidth || 0.08} onChange={(e) => patchText(selected.id, { outlineWidth: Number(e.target.value) })} />
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="t-ls">Letter spacing — {Math.round((selected.letterSpacing || 0) * 100)}%</label>
+            <input id="t-ls" type="range" min={-0.1} max={0.4} step={0.01} value={selected.letterSpacing || 0} onChange={(e) => patchText(selected.id, { letterSpacing: Number(e.target.value) })} />
           </div>
         </>
       )}

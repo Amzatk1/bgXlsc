@@ -4,11 +4,11 @@
 // nothing is uploaded anywhere. Exports contain NO editor UI.
 // =====================================================================
 
-import { type ViewId } from "./catalog";
+import { BUNDLED_FONT_FAMILIES, type ViewId } from "./catalog";
 import { PREVIEW_DISCLAIMER } from "./catalog";
 import { buildDesignSpec } from "./messages";
-import { fontOf, getProduct, layerBox, layersForView, type DesignState, type ImageLayer, type Layer } from "./state";
-import { drawGarment, drawText, STAGE_H, STAGE_W } from "./garment";
+import { fontOf, getProduct, layerBox, layersForView, visibleLayersForView, type DesignState, type ImageLayer, type Layer } from "./state";
+import { drawGarment, drawText, ensureFontsLoaded, STAGE_H, STAGE_W } from "./garment";
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -35,8 +35,9 @@ export async function composeViewCanvas(
   ctx.fillStyle = "#f7f3ec";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Preload image layers for this view (in z-order, bottom → top).
-  const layers = layersForView(state, view);
+  // Preload image layers + bundled fonts for this view (z-order bottom → top).
+  const layers = visibleLayersForView(state, view);
+  await ensureFontsLoaded(BUNDLED_FONT_FAMILIES);
   const imgs = new Map<string, HTMLImageElement>();
   for (const l of layers) {
     if (l.kind === "image") imgs.set(l.id, await loadImage(l.src));
@@ -64,7 +65,7 @@ function drawLayer(lc: CanvasRenderingContext2D, l: Layer, img: HTMLImageElement
     const f = fontOf(l);
     drawText(
       lc,
-      { text: l.text, fontStack: f.stack, weight: f.weight, color: l.color, outline: l.outline, outlineWidth: l.outlineWidth },
+      { text: l.text, fontStack: f.stack, weight: f.weight, color: l.color, outline: l.outline, outlineWidth: l.outlineWidth, letterSpacing: l.letterSpacing },
       cx,
       cy,
       b.h * scale,
@@ -128,7 +129,7 @@ export function downloadSpec(state: DesignState): void {
 
 /** All uploaded image layers (originals preserved separately from the mockup). */
 export function imageLayers(state: DesignState): ImageLayer[] {
-  return state.layers.filter((l): l is ImageLayer => l.kind === "image");
+  return state.layers.filter((l): l is ImageLayer => l.kind === "image" && !l.hidden);
 }
 
 /** Preserve one uploaded artwork's ORIGINAL bytes (no re-encoding). */

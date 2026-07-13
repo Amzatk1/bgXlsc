@@ -12,6 +12,7 @@
 
 import {
   areasForView,
+  avoidAreasForView,
   DPI_THRESHOLDS,
   getFontById,
   MIN_ORDER,
@@ -48,6 +49,10 @@ export type Artwork = {
 type LayerBase = {
   id: string;
   view: ViewId;
+  /** optional custom name (falls back to a generated label) */
+  name?: string;
+  /** hidden layers stay in the list but are excluded from preview + exports */
+  hidden?: boolean;
   /** centre, stage-normalised (0–1 across the whole garment) */
   cx: number;
   cy: number;
@@ -72,6 +77,8 @@ export type TextLayer = LayerBase & {
   outline: string;
   /** outline width as a fraction of cap height (0 = none) */
   outlineWidth: number;
+  /** letter spacing as a fraction of cap height (can be negative) */
+  letterSpacing: number;
   /** measured width÷height of the rendered text (kept fresh by the editor) */
   aspect: number;
 };
@@ -164,17 +171,22 @@ export function layersForView(state: DesignState, view: ViewId): Layer[] {
   return state.layers.filter((l) => l.view === view);
 }
 
+/** Layers actually rendered on a view (skips hidden). */
+export function visibleLayersForView(state: DesignState, view: ViewId): Layer[] {
+  return state.layers.filter((l) => l.view === view && !l.hidden);
+}
+
 export function getSelected(state: DesignState): Layer | undefined {
   return state.layers.find((l) => l.id === state.selectedId);
 }
 
 export function hasAnyDesign(state: DesignState): boolean {
-  return state.layers.length > 0;
+  return state.layers.some((l) => !l.hidden);
 }
 
 export function viewsWithDesign(state: DesignState): ViewId[] {
   const out: ViewId[] = [];
-  for (const v of ["front", "back"] as ViewId[]) if (state.layers.some((l) => l.view === v)) out.push(v);
+  for (const v of ["front", "back"] as ViewId[]) if (state.layers.some((l) => l.view === v && !l.hidden)) out.push(v);
   return out;
 }
 
@@ -242,6 +254,21 @@ export function isLayerOutOfArea(layer: Layer, product: Product, tolPx = 10): bo
   return layerCorners(layer).some(
     (c) => c.x < a.x - tolPx || c.y < a.y - tolPx || c.x > a.x + a.w + tolPx || c.y > a.y + a.h + tolPx,
   );
+}
+
+/** Names of difficult regions (collar/pocket/placket…) a layer overlaps. */
+export function difficultCrossings(layer: Layer, product: Product): string[] {
+  const corners = layerCorners(layer);
+  const minX = Math.min(...corners.map((c) => c.x));
+  const maxX = Math.max(...corners.map((c) => c.x));
+  const minY = Math.min(...corners.map((c) => c.y));
+  const maxY = Math.max(...corners.map((c) => c.y));
+  const out: string[] = [];
+  for (const a of avoidAreasForView(product, layer.view)) {
+    const overlap = minX < a.x + a.w && maxX > a.x && minY < a.y + a.h && maxY > a.y;
+    if (overlap) out.push(a.name);
+  }
+  return out;
 }
 
 /** Clamp centre onto the stage and size/rotation into sane bounds. */
@@ -346,10 +373,11 @@ export function newTextLayer(role: TextRole, product: Product, view: ViewId): Te
     rotation: 0,
     role,
     text: def.text,
-    fontId: "archivo",
+    fontId: role === "number" ? "teko" : role === "name" ? "oswald" : "archivo",
     color: "#ffffff",
     outline: role === "number" ? "#211f1e" : "",
     outlineWidth: def.outlineWidth,
+    letterSpacing: role === "name" ? 0.04 : 0,
     aspect: textAspectGuess(def.text),
   }) as TextLayer;
 }
@@ -448,6 +476,7 @@ export function validateForSubmit(state: DesignState): ValidationIssue[] {
 
 /** Human label for a layer (used in summaries, layers panel, exports). */
 export function layerLabel(layer: Layer): string {
+  if (layer.name && layer.name.trim()) return layer.name.trim();
   if (layer.kind === "image") return layer.fileName;
   if (layer.role === "name") return `Name “${layer.text}”`;
   if (layer.role === "number") return `Number “${layer.text}”`;
