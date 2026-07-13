@@ -44,6 +44,9 @@ export type PrintZone = {
   heightIn: number;
 };
 
+/** A named printable region on a garment view (torso, sleeve, pocket…). */
+export type PrintArea = PrintZone & { id: string; name: string };
+
 export type Product = {
   id: string;
   name: string;
@@ -59,11 +62,36 @@ export type Product = {
   availability: AvailabilityStatus;
   /** Product-card thumbnail (real processed studio asset) */
   thumb: string;
-  /** Print zones per view, in stage units */
+  /** Primary (torso) print zones per view, in stage units */
   zones: Record<ViewId, PrintZone>;
+  /**
+   * Additional named printable regions per view (sleeves, pocket, sponsor
+   * bands…). Approximate references measured from the garment render —
+   * placement and size are always confirmed by the team before production.
+   */
+  extraAreas?: Partial<Record<ViewId, PrintArea[]>>;
   /** Slightly different silhouette proportions */
   cut: "regular" | "oversized";
 };
+
+/**
+ * All printable areas for a view — the torso zone first, then any extras
+ * (sleeves/pocket). "Place anywhere" designs are checked against the nearest
+ * of these, so a sleeve logo isn't flagged for leaving the chest area.
+ */
+export function areasForView(product: Product, view: ViewId): PrintArea[] {
+  const torso: PrintArea = {
+    ...product.zones[view],
+    id: "torso",
+    name: view === "front" ? "Front" : "Back",
+  };
+  return [torso, ...(product.extraAreas?.[view] ?? [])];
+}
+
+/** Stage pixels per real inch for a garment, from its front torso zone. */
+export function productPpi(product: Product): number {
+  return product.zones.front.w / product.zones.front.widthIn;
+}
 
 export const PRODUCTS: Product[] = [
   {
@@ -81,6 +109,12 @@ export const PRODUCTS: Product[] = [
       front: { x: 185, y: 205, w: 230, h: 288, widthIn: 12, heightIn: 15 },
       back: { x: 185, y: 185, w: 230, h: 307, widthIn: 12, heightIn: 16 },
     },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 96, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
+        { id: "right-sleeve", name: "Right sleeve", x: 432, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
+      ],
+    },
   },
   {
     id: "oversized-tee",
@@ -96,6 +130,12 @@ export const PRODUCTS: Product[] = [
     zones: {
       front: { x: 175, y: 210, w: 250, h: 288, widthIn: 13, heightIn: 15 },
       back: { x: 175, y: 190, w: 250, h: 307, widthIn: 13, heightIn: 16 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 84, y: 236, w: 86, h: 96, widthIn: 4.2, heightIn: 5 },
+        { id: "right-sleeve", name: "Right sleeve", x: 430, y: 236, w: 86, h: 96, widthIn: 4.2, heightIn: 5 },
+      ],
     },
   },
   {
@@ -115,6 +155,12 @@ export const PRODUCTS: Product[] = [
       front: { x: 170, y: 295, w: 260, h: 275, widthIn: 10, heightIn: 10.5 },
       back: { x: 170, y: 130, w: 260, h: 415, widthIn: 10, heightIn: 16 },
     },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 104, y: 244, w: 68, h: 84, widthIn: 3.6, heightIn: 4.4 },
+        { id: "right-sleeve", name: "Right sleeve", x: 428, y: 244, w: 68, h: 84, widthIn: 3.6, heightIn: 4.4 },
+      ],
+    },
   },
   {
     id: "hoodie",
@@ -132,6 +178,34 @@ export const PRODUCTS: Product[] = [
       // measured at stage y≈461) and below the hood.
       front: { x: 160, y: 280, w: 280, h: 170, widthIn: 12, heightIn: 7 },
       back: { x: 160, y: 300, w: 280, h: 280, widthIn: 12, heightIn: 12 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 96, y: 312, w: 66, h: 108, widthIn: 3.6, heightIn: 5.6 },
+        { id: "right-sleeve", name: "Right sleeve", x: 438, y: 312, w: 66, h: 108, widthIn: 3.6, heightIn: 5.6 },
+      ],
+    },
+  },
+  {
+    id: "jersey",
+    name: "Sports jersey",
+    note: "Athletic crew neck, short sleeves",
+    fit: "Athletic fit",
+    description: "A lightweight performance jersey with a ribbed crew neck — built for team names, numbers and sponsor logos.",
+    use: "Football/soccer teams, sports clubs, five-a-side, fan merch",
+    material: "Breathable performance knit (reference)",
+    availability: "confirm",
+    thumb: `${ASSET_BASE}/jersey-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 185, y: 205, w: 230, h: 285, widthIn: 12, heightIn: 15 },
+      back: { x: 185, y: 180, w: 230, h: 315, widthIn: 12, heightIn: 16 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 74, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
+        { id: "right-sleeve", name: "Right sleeve", x: 448, y: 206, w: 78, h: 92, widthIn: 4, heightIn: 4.8 },
+      ],
     },
   },
 ];
@@ -276,26 +350,63 @@ export const CUSTOM_COLOR_NOTICE =
   "This colour requires availability confirmation. Submit your design and contact The Factory Nigeria to confirm fabric options, minimum quantity, pricing, and production time.";
 
 // ---------------------------------------------------------------------
-// Placement presets (sets initial position/size; user can still adjust)
+// Text fonts — a small, safe set (loaded from the OS / already-bundled
+// site faces). Rendered identically in the editor (HTML) and exports
+// (Canvas 2D), so the on-screen text matches the production reference.
+// ---------------------------------------------------------------------
+export type FontSpec = {
+  id: string;
+  name: string;
+  /** CSS font-family stack, used verbatim by both HTML and Canvas. */
+  stack: string;
+  weight: number;
+};
+
+export const FONTS: FontSpec[] = [
+  { id: "archivo", name: "Archivo (site)", stack: "Archivo, Arial, sans-serif", weight: 800 },
+  { id: "grotesk", name: "Grotesk", stack: "'Arial Narrow', Arial, sans-serif", weight: 700 },
+  { id: "mono", name: "Mono", stack: "'IBM Plex Mono', ui-monospace, monospace", weight: 700 },
+  { id: "serif", name: "Serif", stack: "Georgia, 'Times New Roman', serif", weight: 700 },
+  { id: "rounded", name: "Rounded", stack: "'Trebuchet MS', Verdana, sans-serif", weight: 700 },
+];
+
+export function getFontById(id: string): FontSpec {
+  return FONTS.find((f) => f.id === id) ?? FONTS[0];
+}
+
+// ---------------------------------------------------------------------
+// Placement presets — position a layer inside a named print area. Sets
+// an initial spot/size; the user can still drag/scale/rotate freely.
+// rx/ry are 0–1 within the referenced area; sizeIn is a printed size hint.
 // ---------------------------------------------------------------------
 export type Placement = {
   id: string;
   name: string;
   view: ViewId;
-  /** centre position, relative to the print zone (0–1) */
-  cx: number;
-  cy: number;
-  /** printed artwork width, inches */
-  widthIn: number;
+  areaId: string;
+  rx: number;
+  ry: number;
+  /** printed width hint, inches (image layers) */
+  sizeIn: number;
+  /** which garments this preset suits (undefined = all) */
+  only?: string[];
 };
 
 export const PLACEMENTS: Placement[] = [
-  { id: "left-chest", name: "Left chest", view: "front", cx: 0.73, cy: 0.14, widthIn: 3.5 },
-  { id: "centre-chest", name: "Centre chest", view: "front", cx: 0.5, cy: 0.2, widthIn: 8 },
-  { id: "large-front", name: "Large front", view: "front", cx: 0.5, cy: 0.42, widthIn: 11 },
-  { id: "upper-back", name: "Upper back", view: "back", cx: 0.5, cy: 0.12, widthIn: 10 },
-  { id: "large-back", name: "Large back", view: "back", cx: 0.5, cy: 0.45, widthIn: 11.5 },
+  { id: "left-chest", name: "Left chest", view: "front", areaId: "torso", rx: 0.74, ry: 0.14, sizeIn: 3.5 },
+  { id: "right-chest", name: "Right chest", view: "front", areaId: "torso", rx: 0.26, ry: 0.14, sizeIn: 3.5 },
+  { id: "front-centre", name: "Centre chest", view: "front", areaId: "torso", rx: 0.5, ry: 0.22, sizeIn: 8 },
+  { id: "full-front", name: "Full front", view: "front", areaId: "torso", rx: 0.5, ry: 0.5, sizeIn: 11 },
+  { id: "left-sleeve", name: "Left sleeve", view: "front", areaId: "left-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
+  { id: "right-sleeve", name: "Right sleeve", view: "front", areaId: "right-sleeve", rx: 0.5, ry: 0.5, sizeIn: 3 },
+  { id: "upper-back", name: "Upper back", view: "back", areaId: "torso", rx: 0.5, ry: 0.12, sizeIn: 10 },
+  { id: "full-back", name: "Full back", view: "back", areaId: "torso", rx: 0.5, ry: 0.46, sizeIn: 11.5 },
 ];
+
+export function placementsFor(product: Product, view: ViewId): Placement[] {
+  const areaIds = new Set(areasForView(product, view).map((a) => a.id));
+  return PLACEMENTS.filter((p) => p.view === view && areaIds.has(p.areaId) && (!p.only || p.only.includes(product.id)));
+}
 
 // ---------------------------------------------------------------------
 // Upload + quality rules (prototype values, based on common DTG guidance)

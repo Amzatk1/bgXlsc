@@ -1,48 +1,59 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Eye, EyeOff, RotateCw, Shrink, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
-import type { PrintZone, ViewId } from "../../studio/catalog";
-import { PREVIEW_DISCLAIMER } from "../../studio/catalog";
-import { clampArtwork, fitArtworkToZone, isOutOfZone, type Artwork } from "../../studio/state";
+import { areasForView, getFontById, PREVIEW_DISCLAIMER, type ViewId } from "../../studio/catalog";
+import {
+  clampLayer,
+  fitLayerToArea,
+  homeArea,
+  isLayerOutOfArea,
+  layerBox,
+  snapRotation,
+  type Layer,
+} from "../../studio/state";
+import { PRODUCTS } from "../../studio/catalog";
 import { GARMENT_IMG, layerTuning, STAGE_H, STAGE_W } from "../../studio/garment";
 
 type Props = {
   productId: string;
   view: ViewId;
   colorHex: string;
-  zone: PrintZone;
-  artwork?: Artwork;
-  onArtworkChange: (art: Artwork) => void;
-  compact?: boolean; // hides workspace toolbar (colour step)
+  layers: Layer[]; // layers for THIS view
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onChange: (layer: Layer) => void;
+  compact?: boolean; // hides toolbar + interaction (colour step preview)
 };
 
 type Gesture =
   | { kind: "drag"; startX: number; startY: number; cx0: number; cy0: number }
-  | { kind: "scale"; d0: number; w0: number }
+  | { kind: "scale"; d0: number; s0: number }
   | { kind: "rotate"; a0: number; r0: number }
-  | { kind: "pinch"; d0: number; a0: number; w0: number; r0: number };
+  | { kind: "pinch"; d0: number; a0: number; s0: number; r0: number };
 
 const ZOOMS = [1, 1.4, 1.8];
+const SNAP = 0.014; // stage-normalised snap threshold (~8px)
 
-// Photoreal garment stage: real photographed tee (colour-masked, multiply
-// folds + screen highlights) with a live artwork layer. Gestures write to a
-// ref and paint via requestAnimationFrame; React state commits on release.
-export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkChange, compact = false }: Props) {
+export function TeeStage({ productId, view, colorHex, layers, selectedId, onSelect, onChange, compact = false }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const artRef = useRef<HTMLDivElement>(null);
+  const elRefs = useRef(new Map<string, HTMLDivElement>());
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
-  const live = useRef<Artwork | null>(null);
+  const live = useRef<Layer | null>(null);
   const raf = useRef(0);
-  const [k, setK] = useState(1); // rendered px per stage unit
+  const [k, setK] = useState(1);
   const [zoomI, setZoomI] = useState(0);
   const [zoneVisible, setZoneVisible] = useState(true);
   const [fabricMode, setFabricMode] = useState(true);
   const [dragOut, setDragOut] = useState(false);
+  const [guides, setGuides] = useState<{ x: boolean; y: boolean } | null>(null);
 
+  const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? PRODUCTS[0], [productId]);
   const img = (GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view];
   const tuning = useMemo(() => layerTuning(colorHex, productId), [colorHex, productId]);
   const zoom = ZOOMS[zoomI];
+  const areas = useMemo(() => areasForView(product, view), [product, view]);
+  const selected = layers.find((l) => l.id === selectedId) ?? null;
 
   useEffect(() => {
     const el = stageRef.current;
@@ -53,43 +64,37 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  const committedOut = artwork ? isOutOfZone(artwork, zone) : false;
+  const committedOut = selected ? isLayerOutOfArea(selected, product) : false;
   const out = gesture.current ? dragOut : committedOut;
 
-  // ---- geometry (stage units) ----
-  function artBox(a: Artwork) {
-    const ppi = zone.w / zone.widthIn;
-    const w = a.widthIn * ppi;
-    return {
-      w,
-      h: w * (a.naturalH / a.naturalW),
-      x: zone.x + a.cx * zone.w,
-      y: zone.y + a.cy * zone.h,
-    };
+  // ---- geometry ----
+  function boxPx(l: Layer) {
+    const b = layerBox(l); // stage px
+    return { x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k };
   }
 
-  // Position via transform (compositor-only during drags); width/height are
-  // rewritten with identical strings on move-only frames, so they invalidate
-  // layout only when a resize gesture actually changes them.
-  function paint(a: Artwork) {
-    const el = artRef.current;
+  function paint(l: Layer) {
+    const el = elRefs.current.get(l.id);
     if (!el) return;
-    const b = artBox(a);
-    el.style.width = b.w * k + "px";
-    el.style.height = b.h * k + "px";
-    el.style.transform = `translate(${b.x * k}px, ${b.y * k}px) translate(-50%, -50%) rotate(${a.rotation}deg)`;
+    const b = boxPx(l);
+    el.style.width = b.w + "px";
+    el.style.height = b.h + "px";
+    el.style.transform = `translate(${b.x}px, ${b.y}px) translate(-50%, -50%) rotate(${l.rotation}deg)`;
+    if (l.kind === "text") {
+      const span = el.firstElementChild as HTMLElement | null;
+      if (span) span.style.fontSize = b.h + "px";
+    }
   }
 
-  function schedule(a: Artwork) {
-    live.current = a;
+  function schedule(l: Layer) {
+    live.current = l;
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
       if (live.current) {
         paint(live.current);
-        setDragOut(isOutOfZone(live.current, zone));
+        setDragOut(isLayerOutOfArea(live.current, product));
       }
     });
   }
@@ -100,18 +105,19 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
   }
 
   // ---- gestures ----
-  function onPointerDown(e: React.PointerEvent, mode: "move" | "scale" | "rotate") {
-    if (!artwork) return;
+  function onPointerDown(e: React.PointerEvent, layer: Layer, mode: "move" | "scale" | "rotate") {
+    if (compact) return;
     e.preventDefault();
     e.stopPropagation();
+    if (layer.id !== selectedId) onSelect(layer.id);
     try {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     } catch {
-      /* synthetic or already-released pointer — gesture still works via bubbling */
+      /* fine */
     }
     const p = stagePoint(e);
     pointers.current.set(e.pointerId, p);
-    const a = live.current ?? artwork;
+    const a = live.current && live.current.id === layer.id ? live.current : layer;
 
     if (pointers.current.size === 2) {
       const [m, n] = [...pointers.current.values()];
@@ -119,50 +125,58 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
         kind: "pinch",
         d0: Math.hypot(n.x - m.x, n.y - m.y),
         a0: Math.atan2(n.y - m.y, n.x - m.x),
-        w0: a.widthIn,
+        s0: a.size,
         r0: a.rotation,
       };
+      live.current = a;
       return;
     }
-    const b = artBox(a);
+    const b = layerBox(a);
     if (mode === "move") gesture.current = { kind: "drag", startX: p.x, startY: p.y, cx0: a.cx, cy0: a.cy };
-    else if (mode === "scale") gesture.current = { kind: "scale", d0: Math.hypot(p.x - b.x, p.y - b.y), w0: a.widthIn };
+    else if (mode === "scale") gesture.current = { kind: "scale", d0: Math.hypot(p.x - b.x, p.y - b.y), s0: a.size };
     else gesture.current = { kind: "rotate", a0: Math.atan2(p.y - b.y, p.x - b.x), r0: a.rotation };
     live.current = a;
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!artwork || !gesture.current || !pointers.current.has(e.pointerId)) return;
+    if (!gesture.current || !live.current || !pointers.current.has(e.pointerId)) return;
     e.preventDefault();
     const p = stagePoint(e);
     pointers.current.set(e.pointerId, p);
     const g = gesture.current;
-    const a = live.current ?? artwork;
+    const a = live.current;
 
     if (g.kind === "pinch" && pointers.current.size >= 2) {
       const [m, n] = [...pointers.current.values()];
       const d = Math.hypot(n.x - m.x, n.y - m.y);
       const ang = Math.atan2(n.y - m.y, n.x - m.x);
       schedule(
-        clampArtwork(
-          { ...a, widthIn: g.w0 * (d / Math.max(1, g.d0)), rotation: g.r0 + ((ang - g.a0) * 180) / Math.PI },
-          zone,
-        ),
+        clampLayer({ ...a, size: g.s0 * (d / Math.max(1, g.d0)), rotation: snapRotation(g.r0 + ((ang - g.a0) * 180) / Math.PI) }),
       );
       return;
     }
     if (g.kind === "drag") {
-      schedule(clampArtwork({ ...a, cx: g.cx0 + (p.x - g.startX) / zone.w, cy: g.cy0 + (p.y - g.startY) / zone.h }, zone));
+      let cx = g.cx0 + (p.x - g.startX) / STAGE_W;
+      let cy = g.cy0 + (p.y - g.startY) / STAGE_H;
+      // snap to stage vertical centre + home-area centre lines
+      const area = homeArea({ ...a, cx, cy }, product);
+      const areaCx = (area.x + area.w / 2) / STAGE_W;
+      const areaCy = (area.y + area.h / 2) / STAGE_H;
+      let snapX = false;
+      let snapY = false;
+      if (Math.abs(cx - 0.5) < SNAP) { cx = 0.5; snapX = true; }
+      else if (Math.abs(cx - areaCx) < SNAP) { cx = areaCx; snapX = true; }
+      if (Math.abs(cy - areaCy) < SNAP) { cy = areaCy; snapY = true; }
+      setGuides({ x: snapX, y: snapY });
+      schedule(clampLayer({ ...a, cx, cy }));
     } else if (g.kind === "scale") {
-      const b = artBox(a);
+      const b = layerBox(a);
       const d = Math.hypot(p.x - b.x, p.y - b.y);
-      schedule(clampArtwork({ ...a, widthIn: g.w0 * (d / Math.max(1, g.d0)) }, zone));
+      schedule(clampLayer({ ...a, size: g.s0 * (d / Math.max(1, g.d0)) }));
     } else if (g.kind === "rotate") {
-      const b = artBox(a);
+      const b = layerBox(a);
       const ang = Math.atan2(p.y - b.y, p.x - b.x);
-      let rot = g.r0 + ((ang - g.a0) * 180) / Math.PI;
-      for (const snap of [0, 90, 180, 270, 360]) if (Math.abs((((rot % 360) + 360) % 360) - snap) < 4) rot = snap;
-      schedule(clampArtwork({ ...a, rotation: rot }, zone));
+      schedule(clampLayer({ ...a, rotation: snapRotation(g.r0 + ((ang - g.a0) * 180) / Math.PI) }));
     }
   }
 
@@ -170,34 +184,90 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
     pointers.current.delete(e.pointerId);
     if (pointers.current.size === 0 && gesture.current) {
       gesture.current = null;
-      if (live.current) onArtworkChange(live.current);
+      setGuides(null);
+      if (live.current) onChange(live.current);
       live.current = null;
     }
   }
 
-  // keyboard: arrows move · +/- scale · [ ] rotate
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (!artwork) return;
-    const step = e.shiftKey ? 0.05 : 0.012;
-    const map: Record<string, () => Artwork> = {
-      ArrowLeft: () => ({ ...artwork, cx: artwork.cx - step }),
-      ArrowRight: () => ({ ...artwork, cx: artwork.cx + step }),
-      ArrowUp: () => ({ ...artwork, cy: artwork.cy - step }),
-      ArrowDown: () => ({ ...artwork, cy: artwork.cy + step }),
-      "+": () => ({ ...artwork, widthIn: artwork.widthIn + 0.25 }),
-      "=": () => ({ ...artwork, widthIn: artwork.widthIn + 0.25 }),
-      "-": () => ({ ...artwork, widthIn: artwork.widthIn - 0.25 }),
-      "[": () => ({ ...artwork, rotation: artwork.rotation - (e.shiftKey ? 15 : 2) }),
-      "]": () => ({ ...artwork, rotation: artwork.rotation + (e.shiftKey ? 15 : 2) }),
+  function onKeyDown(e: React.KeyboardEvent, layer: Layer) {
+    const step = e.shiftKey ? 0.03 : 0.008;
+    const map: Record<string, () => Layer> = {
+      ArrowLeft: () => ({ ...layer, cx: layer.cx - step }),
+      ArrowRight: () => ({ ...layer, cx: layer.cx + step }),
+      ArrowUp: () => ({ ...layer, cy: layer.cy - step }),
+      ArrowDown: () => ({ ...layer, cy: layer.cy + step }),
+      "+": () => ({ ...layer, size: layer.size * 1.06 }),
+      "=": () => ({ ...layer, size: layer.size * 1.06 }),
+      "-": () => ({ ...layer, size: layer.size * 0.94 }),
+      "[": () => ({ ...layer, rotation: layer.rotation - (e.shiftKey ? 15 : 2) }),
+      "]": () => ({ ...layer, rotation: layer.rotation + (e.shiftKey ? 15 : 2) }),
     };
     const fn = map[e.key];
     if (fn) {
       e.preventDefault();
-      onArtworkChange(clampArtwork(fn(), zone));
+      onChange(clampLayer(fn()));
     }
   }
 
-  const box = artwork ? artBox(live.current ?? artwork) : null;
+  function renderLayer(l: Layer) {
+    const isSel = l.id === selectedId && !compact;
+    const b = boxPx(l);
+    const common: React.CSSProperties = {
+      width: b.w,
+      height: b.h,
+      transform: `translate(${b.x}px, ${b.y}px) translate(-50%, -50%) rotate(${l.rotation}deg)`,
+    };
+    return (
+      <div
+        key={l.id}
+        ref={(el) => {
+          if (el) elRefs.current.set(l.id, el);
+          else elRefs.current.delete(l.id);
+        }}
+        className={"stage__art" + (isSel ? " is-sel" : "") + (isSel && out ? " is-out" : "")}
+        role={compact ? undefined : "button"}
+        aria-label={
+          l.kind === "image"
+            ? `Design ${l.fileName}. Arrow keys move, plus and minus resize, square brackets rotate.`
+            : `Text ${l.text}. Arrow keys move, plus and minus resize, square brackets rotate.`
+        }
+        tabIndex={compact ? -1 : 0}
+        onKeyDown={compact ? undefined : (e) => onKeyDown(e, l)}
+        onPointerDown={(e) => onPointerDown(e, l, "move")}
+        style={common}
+      >
+        {l.kind === "image" ? (
+          <img src={l.src} alt="" draggable={false} />
+        ) : (
+          <span
+            className="stage__text"
+            style={{
+              fontSize: b.h,
+              fontFamily: getFontById(l.fontId).stack,
+              fontWeight: getFontById(l.fontId).weight,
+              color: l.color,
+              WebkitTextStroke: l.outline && l.outlineWidth > 0 ? `${l.outlineWidth * b.h}px ${l.outline}` : undefined,
+              paintOrder: "stroke fill",
+            }}
+          >
+            {l.text}
+          </span>
+        )}
+        {isSel && (
+          <>
+            <span className="stage__box" aria-hidden="true" />
+            <button type="button" className="stage__handle stage__handle--rotate" aria-label="Rotate" onPointerDown={(e) => onPointerDown(e, l, "rotate")}>
+              <RotateCw size={13} aria-hidden="true" />
+            </button>
+            <button type="button" className="stage__handle stage__handle--scale" aria-label="Resize" onPointerDown={(e) => onPointerDown(e, l, "scale")} />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const sel = live.current && selected && live.current.id === selected.id ? live.current : selected;
 
   return (
     <div className="stage-wrap">
@@ -211,7 +281,7 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
           </button>
           <span className="gtool__sep" aria-hidden="true" />
           <button type="button" className={"gtool gtool--label" + (zoneVisible ? " is-on" : "")} aria-pressed={zoneVisible} onClick={() => setZoneVisible((v) => !v)}>
-            {zoneVisible ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />} Print area
+            {zoneVisible ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />} Print areas
           </button>
           <button type="button" className={"gtool gtool--label" + (fabricMode ? " is-on" : "")} aria-pressed={fabricMode} onClick={() => setFabricMode((v) => !v)}>
             <Sparkles size={15} aria-hidden="true" /> Fabric preview
@@ -227,84 +297,40 @@ export function TeeStage({ productId, view, colorHex, zone, artwork, onArtworkCh
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onPointerDown={compact ? undefined : () => onSelect(null)}
         >
-          {/* 1 — flat colour masked to the garment silhouette */}
-          <div
-            className="gstage__color"
-            style={{
-              backgroundColor: colorHex,
-              WebkitMaskImage: `url(${img})`,
-              maskImage: `url(${img})`,
-            }}
-            aria-hidden="true"
-          />
-          {/* 2 — artwork (clipped to the garment in fabric mode) */}
-          <div
-            className="gstage__artclip"
-            style={
-              fabricMode
-                ? { WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }
-                : undefined
-            }
-          >
-            {artwork && box && (
-              <div
-                ref={artRef}
-                className={"stage__art" + (out ? " is-out" : "")}
-                role="img"
-                aria-label={`Artwork ${artwork.fileName}. Use arrow keys to move, plus and minus to resize, square brackets to rotate.`}
-                tabIndex={0}
-                onKeyDown={onKeyDown}
-                onPointerDown={(e) => onPointerDown(e, "move")}
-                style={{
-                  width: box.w * k,
-                  height: box.h * k,
-                  transform: `translate(${box.x * k}px, ${box.y * k}px) translate(-50%, -50%) rotate(${(live.current ?? artwork).rotation}deg)`,
-                }}
-              >
-                <img src={artwork.src} alt="" draggable={false} />
-                <span className="stage__box" aria-hidden="true" />
-                <button type="button" className="stage__handle stage__handle--rotate" aria-label="Rotate artwork" onPointerDown={(e) => onPointerDown(e, "rotate")}>
-                  <RotateCw size={13} aria-hidden="true" />
-                </button>
-                <button type="button" className="stage__handle stage__handle--scale" aria-label="Resize artwork" onPointerDown={(e) => onPointerDown(e, "scale")} />
-              </div>
-            )}
+          <div className="gstage__color" style={{ backgroundColor: colorHex, WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }} aria-hidden="true" />
+          <div className="gstage__artclip" style={fabricMode ? { WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` } : undefined}>
+            {layers.map(renderLayer)}
           </div>
-          {/* 3 — real fabric folds (multiply) */}
-          <img
-            className="gstage__shade"
-            src={img}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }}
-          />
-          {/* 4 — highlights for dark fabric (screen) */}
-          <img
-            className="gstage__light"
-            src={img}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }}
-          />
-          {/* overlay: print zone */}
-          {zoneVisible && (
+          <img className="gstage__shade" src={img} alt="" aria-hidden="true" draggable={false} style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }} />
+          <img className="gstage__light" src={img} alt="" aria-hidden="true" draggable={false} style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }} />
+
+          {zoneVisible && !compact && (
             <svg className="gstage__overlay" viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} aria-hidden="true">
-              <rect className="stage__zone" x={zone.x} y={zone.y} width={zone.w} height={zone.h} rx={6} />
-              <text className="gstage__zonelabel" x={zone.x + 8} y={zone.y - 8}>
-                PRINT AREA · {zone.widthIn}″ × {zone.heightIn}″
-              </text>
+              {areas.map((a) => (
+                <g key={a.id}>
+                  <rect className={"stage__zone" + (sel && homeArea(sel, product).id === a.id ? " is-home" : "")} x={a.x} y={a.y} width={a.w} height={a.h} rx={6} />
+                </g>
+              ))}
+              {sel && (
+                <text className="gstage__zonelabel" x={homeArea(sel, product).x + 6} y={homeArea(sel, product).y - 7}>
+                  {homeArea(sel, product).name.toUpperCase()} · {homeArea(sel, product).widthIn}″ × {homeArea(sel, product).heightIn}″
+                </text>
+              )}
+              {guides?.x && <line className="stage__guide" x1={STAGE_W / 2} y1={0} x2={STAGE_W / 2} y2={STAGE_H} />}
+              {guides?.y && sel && (
+                <line className="stage__guide" x1={0} y1={sel.cy * STAGE_H} x2={STAGE_W} y2={sel.cy * STAGE_H} />
+              )}
             </svg>
           )}
 
-          {out && artwork && (
+          {out && selected && !compact && (
             <div className="stage__warn" role="status">
               <AlertTriangle size={14} aria-hidden="true" />
-              <span>Part of your design is outside the print area.</span>
-              <button type="button" className="stage__fix" onClick={() => onArtworkChange(fitArtworkToZone(artwork, zone))}>
-                <Shrink size={13} aria-hidden="true" /> Fit to print area
+              <span>Part of this design is outside the {homeArea(selected, product).name.toLowerCase()} print area.</span>
+              <button type="button" className="stage__fix" onClick={() => onChange(fitLayerToArea(selected, product))}>
+                <Shrink size={13} aria-hidden="true" /> Fit to area
               </button>
             </div>
           )}

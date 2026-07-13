@@ -8,6 +8,78 @@
 
 ---
 
+# v4 — Jersey creator + multi-layer, place-anywhere editor + text/number tool
+
+**What changed:** the single-artwork-per-side model became a **layer stack** —
+add as many image layers (logo, sponsor, crest) and **text layers** (custom
+text, player name, player number) as you like, positioned **anywhere** on the
+garment in stage-normalised coordinates (not confined to one box). A new
+**Sports jersey** garment joins the library.
+
+## New Higgsfield asset — Sports jersey
+- Generated with `marketing_studio_image` (front+back in one frame, grey on
+  white), two candidates. **Candidate B kept** (clean white, no drop shadow,
+  matched front/back, symmetric); candidate A rejected (drop shadow, softer
+  key). Jobs `2da9ac52…` / `b634549a…`.
+- Processed with the existing ImageMagick pipeline: split halves → corner
+  flood-fill key (fuzz 12%, interior highlights preserved) → trim → normalise
+  to 1200×1400 → alpha WebP (`jersey-front/back/thumb.webp`, ~42–45 KB).
+  Whole-garment alpha-weighted luma measured **0.505** (identical to the tees →
+  `FABRIC_LUMA.jersey = 0.505`). Front torso + left/right sleeve print areas
+  measured from the render.
+
+## Multi-layer model (`state.ts`)
+- `DesignState.artworks` (one per view) → **`layers: Layer[]` + `selectedId`**.
+  A `Layer` is an `ImageLayer` or `TextLayer`, each with stage-normalised
+  centre `cx,cy`, a `size` (image = fraction of stage width; text = fraction of
+  stage height), and `rotation`.
+- Print areas per view (`catalog.areasForView`): a **torso** zone plus
+  **sleeve** areas (measured on the front render of every short-sleeve garment).
+  A layer's warnings check its **nearest** area, so a sleeve logo isn't flagged
+  for leaving the chest.
+- Placement presets are area-aware: left/right chest, centre, full front,
+  **left/right sleeve**, upper/full back.
+- Text is measured (`measureTextAspect`) and rendered with the **same
+  convention in the HTML editor and Canvas exports** (font-size = size × stageH),
+  so on-screen text matches the production reference. Fonts, text colour and a
+  configurable **outline** (fraction of cap height) are supported; numbers get a
+  default outline.
+
+## Editor (`TeeStage.tsx` + `StudioExperiment.tsx`)
+- Renders N layers; tap to select, drag/pinch/rotate the selected one,
+  keyboard nudge/resize/rotate. **Alignment guides + snap-to-centre** appear
+  only while dragging; **rotation snaps** to right angles and a **Straighten**
+  action resets to 0°. **Fit to area**, **Duplicate**, per-layer **delete**.
+- Three clear zones (desktop) / bottom-sheet tabs **Add · Edit · Garment**
+  (mobile): Add (upload + Custom text / Player name / Player number + a
+  **Layers panel** with reorder/delete), Edit (selected-layer controls), Garment
+  (garment/colour/fabric + live summary).
+
+## Exports & factory reference (`exporter.ts`, `referenceSheet.ts`, `messages.ts`)
+- Canvas compositor draws **all** image + text layers (outlined text included)
+  at export scale. The reference PNG lists **every layer per side** with printed
+  size/DPI (images), text height + font + colour + outline, placement area and
+  rotation; original uploaded artwork is still preserved on separate panels.
+- WhatsApp message + JSON brief enumerate all layers.
+
+## Verified (Chromium, dev server)
+- End-to-end jersey build: front left-chest crest + back **ADEYEMI** name +
+  outlined **number 9**, 12-item S/M/L/XL order → send step → **reference sheet
+  renders the text + outline correctly** and lists all layers. Colour masking
+  of the jersey verified (white + purple render). Sleeve print areas visible on
+  the front. Mobile (390×844): no overflow, Add/Edit/Garment sheet, sticky
+  actions. **Zero console errors.** Tests **37 passing** (layer geometry,
+  sleeves/placements, factories, message/spec). Build clean, **95.8 KB gzip JS**.
+
+## Known limits (v4)
+- Jersey renders as an athletic **crew-neck** performance top (blank, ideal for
+  customisation) — not a v-neck/collared club kit; true left/right **side**
+  garment views for wrap-around sleeve prints were not generated (sleeves are
+  positioned on the visible sleeve of the front render). Firefox/Safari not
+  directly tested.
+
+---
+
 # v3.1 — Final polish pass (Studio rename + UI refinement)
 
 - **Renamed to Studio** across nav (desktop/mobile/footer), page title, hero

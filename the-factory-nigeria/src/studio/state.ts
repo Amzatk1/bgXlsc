@@ -1,25 +1,40 @@
 // =====================================================================
-// CUSTOM TEE STUDIO — design state (pure, framework-free, unit-tested)
+// STUDIO — design state (pure, framework-free, unit-tested)
+//
+// A design is a stack of LAYERS placed anywhere on the garment. Each layer
+// is either an uploaded image (logo, sponsor, artwork) or editable text
+// (custom text, player name, player number). Layers live in stage-normalised
+// coordinates (0–1 over the 600×700 stage), so designs can be positioned
+// freely — chest, full front/back, sleeves — not confined to one box.
+// Printable-area guides and per-area warnings are advisory; the team always
+// confirms placement, size and method before production.
 // =====================================================================
 
 import {
+  areasForView,
   DPI_THRESHOLDS,
+  getFontById,
   MIN_ORDER,
   PLACEMENTS,
   PRODUCTS,
+  productPpi,
   type Placement,
+  type PrintArea,
   type PrintZone,
   type Product,
   type QualityLevel,
   type ShirtColor,
   type ViewId,
 } from "./catalog";
+import { STAGE_H, STAGE_W } from "./garment";
 
 // ---------------------------------------------------------------------
-// Types
+// Layer model
 // ---------------------------------------------------------------------
+export type TextRole = "text" | "name" | "number";
+
+/** Fields captured when an image is taken in locally (see imageFile.ts). */
 export type Artwork = {
-  /** object URL / data URL, kept local to the browser */
   src: string;
   fileName: string;
   fileKB: number;
@@ -28,14 +43,40 @@ export type Artwork = {
   hasAlpha: boolean;
   /** average tone of the artwork (0–1), used for legibility warnings */
   avgLuma?: number;
-  /** centre of the artwork, relative to the print zone (0–1) */
+};
+
+type LayerBase = {
+  id: string;
+  view: ViewId;
+  /** centre, stage-normalised (0–1 across the whole garment) */
   cx: number;
   cy: number;
-  /** printed width in inches */
-  widthIn: number;
+  /**
+   * size — images: fraction of stage WIDTH the artwork spans.
+   * text: fraction of stage HEIGHT the cap height spans.
+   */
+  size: number;
   /** degrees, clockwise */
   rotation: number;
 };
+
+export type ImageLayer = LayerBase & { kind: "image" } & Artwork;
+
+export type TextLayer = LayerBase & {
+  kind: "text";
+  role: TextRole;
+  text: string;
+  fontId: string;
+  color: string;
+  /** outline colour; "" = no outline */
+  outline: string;
+  /** outline width as a fraction of cap height (0 = none) */
+  outlineWidth: number;
+  /** measured width÷height of the rendered text (kept fresh by the editor) */
+  aspect: number;
+};
+
+export type Layer = ImageLayer | TextLayer;
 
 export type ColorChoice = ShirtColor & { custom?: boolean };
 
@@ -50,10 +91,9 @@ export function emptySizes(): SizeBreakdown {
 export type OrderDetails = {
   quantity: string;
   sizes: SizeBreakdown;
-  otherSizes: string; // custom sizing — flagged for manual confirmation
+  otherSizes: string;
   sameDesign: "yes" | "no" | "";
-  method: string; // print/embroidery preference (confirmed by the factory)
-  /** Selected fabric id from FABRICS ("" = let the team advise). Availability always confirmed by the team. */
+  method: string;
   fabricId: string;
   deadline: string;
   deliveryLocation: string;
@@ -67,7 +107,8 @@ export type DesignState = {
   productId: string;
   view: ViewId;
   color: ColorChoice;
-  artworks: Partial<Record<ViewId, Artwork>>;
+  layers: Layer[];
+  selectedId: string | null;
   details: OrderDetails;
   reference: string;
 };
@@ -79,12 +120,19 @@ export function makeReference(now: number = Date.now()): string {
   return "TFN-DS-" + now.toString(36).toUpperCase().slice(-6);
 }
 
+let layerSeq = 0;
+export function makeLayerId(): string {
+  layerSeq += 1;
+  return "L" + Date.now().toString(36) + "-" + layerSeq;
+}
+
 export function initialState(): DesignState {
   return {
     productId: PRODUCTS[0].id,
     view: "front",
     color: { id: "white", name: "White", hex: "#f4f2ee", status: "standard" },
-    artworks: {},
+    layers: [],
+    selectedId: null,
     details: {
       quantity: "",
       sizes: emptySizes(),
@@ -107,97 +155,223 @@ export function getProduct(state: DesignState): Product {
   return PRODUCTS.find((p) => p.id === state.productId) ?? PRODUCTS[0];
 }
 
+/** Primary (torso) print zone for the current view. */
 export function getZone(state: DesignState): PrintZone {
   return getProduct(state).zones[state.view];
 }
 
+export function layersForView(state: DesignState, view: ViewId): Layer[] {
+  return state.layers.filter((l) => l.view === view);
+}
+
+export function getSelected(state: DesignState): Layer | undefined {
+  return state.layers.find((l) => l.id === state.selectedId);
+}
+
+export function hasAnyDesign(state: DesignState): boolean {
+  return state.layers.length > 0;
+}
+
+export function viewsWithDesign(state: DesignState): ViewId[] {
+  const out: ViewId[] = [];
+  for (const v of ["front", "back"] as ViewId[]) if (state.layers.some((l) => l.view === v)) out.push(v);
+  return out;
+}
+
 // ---------------------------------------------------------------------
-// Artwork placement + constraints (all in inch-space of the print zone)
+// Layer geometry — everything in stage pixels (600×700)
 // ---------------------------------------------------------------------
-export function defaultArtworkPlacement(
-  zone: PrintZone,
-  naturalW: number,
-  naturalH: number,
-): Pick<Artwork, "cx" | "cy" | "widthIn" | "rotation"> {
-  // Start at ~70% of zone width, capped so the height also fits
-  let widthIn = zone.widthIn * 0.7;
-  const aspect = naturalH / naturalW;
-  const maxByHeight = (zone.heightIn * 0.7) / aspect;
-  widthIn = Math.min(widthIn, maxByHeight);
-  return { cx: 0.5, cy: 0.32, widthIn: round2(widthIn), rotation: 0 };
+/** Text aspect fallback when the editor hasn't measured yet. */
+export function textAspectGuess(text: string): number {
+  const n = Math.max(1, text.trim().length);
+  return clamp(n * 0.62, 0.6, 12);
 }
 
-export function applyPlacement(art: Artwork, placement: Placement, zone: PrintZone): Artwork {
-  const aspect = art.naturalH / art.naturalW;
-  let widthIn = Math.min(placement.widthIn, zone.widthIn);
-  // keep height inside the zone too
-  const maxByHeight = zone.heightIn / aspect;
-  widthIn = Math.min(widthIn, maxByHeight);
-  return { ...art, cx: placement.cx, cy: placement.cy, widthIn: round2(widthIn), rotation: 0 };
+export function layerAspect(layer: Layer): number {
+  if (layer.kind === "image") return layer.naturalW / layer.naturalH;
+  return layer.aspect > 0 ? layer.aspect : textAspectGuess(layer.text);
 }
 
-export function placementsForView(view: ViewId): Placement[] {
-  return PLACEMENTS.filter((p) => p.view === view);
+/** Bounding box in stage pixels: centre (x,y) + width/height. */
+export function layerBox(layer: Layer): { x: number; y: number; w: number; h: number } {
+  let w: number;
+  let h: number;
+  if (layer.kind === "image") {
+    w = layer.size * STAGE_W;
+    h = w * (layer.naturalH / layer.naturalW);
+  } else {
+    h = layer.size * STAGE_H;
+    w = h * layerAspect(layer);
+  }
+  return { x: layer.cx * STAGE_W, y: layer.cy * STAGE_H, w, h };
 }
 
-/** Clamp scale + keep the artwork centre inside the zone (with margin). */
-export function clampArtwork(art: Artwork, zone: PrintZone): Artwork {
-  const widthIn = clamp(art.widthIn, 0.75, zone.widthIn * 1.15);
-  const cx = clamp(art.cx, 0.02, 0.98);
-  const cy = clamp(art.cy, 0.02, 0.98);
-  const rotation = ((art.rotation % 360) + 360) % 360;
-  return { ...art, widthIn: round2(widthIn), cx, cy, rotation };
-}
-
-/** Corners of the (rotated) artwork in inch-space, zone origin top-left. */
-export function artworkCornersIn(art: Artwork, zone: PrintZone): { x: number; y: number }[] {
-  const w = art.widthIn;
-  const h = art.widthIn * (art.naturalH / art.naturalW);
-  const cx = art.cx * zone.widthIn;
-  const cy = art.cy * zone.heightIn;
-  const rad = (art.rotation * Math.PI) / 180;
+/** Rotated corners of a layer, in stage pixels. */
+export function layerCorners(layer: Layer): { x: number; y: number }[] {
+  const b = layerBox(layer);
+  const rad = (layer.rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   return [
-    { x: -w / 2, y: -h / 2 },
-    { x: w / 2, y: -h / 2 },
-    { x: w / 2, y: h / 2 },
-    { x: -w / 2, y: h / 2 },
-  ].map((p) => ({ x: cx + p.x * cos - p.y * sin, y: cy + p.x * sin + p.y * cos }));
+    { x: -b.w / 2, y: -b.h / 2 },
+    { x: b.w / 2, y: -b.h / 2 },
+    { x: b.w / 2, y: b.h / 2 },
+    { x: -b.w / 2, y: b.h / 2 },
+  ].map((p) => ({ x: b.x + p.x * cos - p.y * sin, y: b.y + p.x * sin + p.y * cos }));
 }
 
-/** True when any part of the artwork leaves the recommended print zone. */
-export function isOutOfZone(art: Artwork, zone: PrintZone, toleranceIn = 0.06): boolean {
-  return artworkCornersIn(art, zone).some(
-    (c) =>
-      c.x < -toleranceIn ||
-      c.y < -toleranceIn ||
-      c.x > zone.widthIn + toleranceIn ||
-      c.y > zone.heightIn + toleranceIn,
+/** The print area (torso / sleeve / …) whose centre is nearest the layer. */
+export function homeArea(layer: Layer, product: Product): PrintArea {
+  const areas = areasForView(product, layer.view);
+  const b = layerBox(layer);
+  let best = areas[0];
+  let bestD = Infinity;
+  for (const a of areas) {
+    const d = Math.hypot(a.x + a.w / 2 - b.x, a.y + a.h / 2 - b.y);
+    if (d < bestD) {
+      bestD = d;
+      best = a;
+    }
+  }
+  return best;
+}
+
+/** True when the layer extends beyond its nearest print area. */
+export function isLayerOutOfArea(layer: Layer, product: Product, tolPx = 10): boolean {
+  const a = homeArea(layer, product);
+  return layerCorners(layer).some(
+    (c) => c.x < a.x - tolPx || c.y < a.y - tolPx || c.x > a.x + a.w + tolPx || c.y > a.y + a.h + tolPx,
   );
 }
 
-/** One-click remedy: centre the artwork and shrink until fully inside. */
-export function fitArtworkToZone(art: Artwork, zone: PrintZone): Artwork {
-  let next: Artwork = { ...art, cx: 0.5, cy: 0.5 };
-  const aspect = art.naturalH / art.naturalW;
-  const maxW = Math.min(zone.widthIn, zone.heightIn / aspect) * 0.96;
-  if (next.widthIn > maxW) next = { ...next, widthIn: round2(maxW) };
-  for (let i = 0; i < 24 && isOutOfZone(next, zone); i++) {
-    next = { ...next, widthIn: round2(next.widthIn * 0.95) };
+/** Clamp centre onto the stage and size/rotation into sane bounds. */
+export function clampLayer(layer: Layer): Layer {
+  const cx = clamp(layer.cx, 0.02, 0.98);
+  const cy = clamp(layer.cy, 0.02, 0.98);
+  const rotation = ((layer.rotation % 360) + 360) % 360;
+  const size =
+    layer.kind === "image" ? clamp(layer.size, 0.04, 1.25) : clamp(layer.size, 0.02, 0.55);
+  return { ...layer, cx, cy, size, rotation };
+}
+
+/** One-click remedy: centre in the home area and shrink until it fits. */
+export function fitLayerToArea(layer: Layer, product: Product): Layer {
+  const a = homeArea(layer, product);
+  let next: Layer = { ...layer, cx: (a.x + a.w / 2) / STAGE_W, cy: (a.y + a.h / 2) / STAGE_H };
+  for (let i = 0; i < 40 && isLayerOutOfArea(next, product, 2); i++) {
+    next = { ...next, size: next.size * 0.95 };
   }
-  return clampArtwork(next, zone);
+  return clampLayer(next);
+}
+
+/** Snap rotation to the nearest right angle when within `within` degrees. */
+export function snapRotation(rotation: number, within = 4): number {
+  const norm = ((rotation % 360) + 360) % 360;
+  for (const snap of [0, 90, 180, 270, 360]) {
+    if (Math.abs(norm - snap) < within) return snap % 360;
+  }
+  return rotation;
+}
+
+/** Straighten: reset rotation to 0. */
+export function straightenLayer(layer: Layer): Layer {
+  return { ...layer, rotation: 0 };
+}
+
+export function applyPlacement(layer: Layer, placement: Placement, product: Product): Layer {
+  const area = areasForView(product, layer.view).find((a) => a.id === placement.areaId);
+  if (!area) return layer;
+  const cx = (area.x + placement.rx * area.w) / STAGE_W;
+  const cy = (area.y + placement.ry * area.h) / STAGE_H;
+  let size = layer.size;
+  if (layer.kind === "image") {
+    const ppi = productPpi(product);
+    size = Math.min(placement.sizeIn, area.widthIn) * ppi / STAGE_W;
+  }
+  return clampLayer({ ...layer, cx, cy, size, rotation: 0 });
+}
+
+export function placementsForLayer(product: Product, view: ViewId): Placement[] {
+  const areaIds = new Set(areasForView(product, view).map((a) => a.id));
+  return PLACEMENTS.filter((p) => p.view === view && areaIds.has(p.areaId));
 }
 
 // ---------------------------------------------------------------------
-// Print-quality estimate (approximate, never a hard block)
+// Layer factories
 // ---------------------------------------------------------------------
-export function estimatedDpi(art: Artwork): number {
-  return Math.round(art.naturalW / art.widthIn);
+export function newImageLayer(art: Artwork, product: Product, view: ViewId): ImageLayer {
+  const ppi = productPpi(product);
+  const zone = product.zones[view];
+  // default width ≈ 60% of the torso zone, height-capped
+  let widthIn = zone.widthIn * 0.6;
+  const aspect = art.naturalH / art.naturalW;
+  const maxByH = (zone.heightIn * 0.6) / aspect;
+  widthIn = Math.min(widthIn, maxByH);
+  const size = (widthIn * ppi) / STAGE_W;
+  const cx = (zone.x + zone.w / 2) / STAGE_W;
+  const cy = (zone.y + zone.h * 0.34) / STAGE_H;
+  return clampLayer({
+    id: makeLayerId(),
+    kind: "image",
+    view,
+    cx,
+    cy,
+    size,
+    rotation: 0,
+    ...art,
+  }) as ImageLayer;
 }
 
-export function qualityLevel(art: Artwork): QualityLevel {
-  const dpi = estimatedDpi(art);
+const TEXT_DEFAULT_SIZE: Record<TextRole, number> = { text: 0.06, name: 0.05, number: 0.16 };
+const TEXT_DEFAULT: Record<TextRole, { text: string; outlineWidth: number }> = {
+  text: { text: "YOUR TEXT", outlineWidth: 0 },
+  name: { text: "PLAYER", outlineWidth: 0 },
+  number: { text: "10", outlineWidth: 0.08 },
+};
+
+export function newTextLayer(role: TextRole, product: Product, view: ViewId): TextLayer {
+  const zone = product.zones[view];
+  const def = TEXT_DEFAULT[role];
+  // sensible spots: name high, number centred, text upper-third
+  const ry = role === "name" ? 0.16 : role === "number" ? 0.5 : 0.28;
+  const cx = (zone.x + zone.w / 2) / STAGE_W;
+  const cy = (zone.y + zone.h * ry) / STAGE_H;
+  return clampLayer({
+    id: makeLayerId(),
+    kind: "text",
+    view,
+    cx,
+    cy,
+    size: TEXT_DEFAULT_SIZE[role],
+    rotation: 0,
+    role,
+    text: def.text,
+    fontId: "archivo",
+    color: "#ffffff",
+    outline: role === "number" ? "#211f1e" : "",
+    outlineWidth: def.outlineWidth,
+    aspect: textAspectGuess(def.text),
+  }) as TextLayer;
+}
+
+// ---------------------------------------------------------------------
+// Printed size + quality (image layers)
+// ---------------------------------------------------------------------
+export function layerWidthIn(layer: Layer, product: Product): number {
+  return round2(layerBox(layer).w / productPpi(product));
+}
+export function layerHeightIn(layer: Layer, product: Product): number {
+  return round2(layerBox(layer).h / productPpi(product));
+}
+
+export function estimatedDpi(layer: Layer, product: Product): number {
+  if (layer.kind !== "image") return 0;
+  const widthIn = layerBox(layer).w / productPpi(product);
+  return Math.round(layer.naturalW / Math.max(0.1, widthIn));
+}
+
+export function qualityLevel(layer: Layer, product: Product): QualityLevel {
+  const dpi = estimatedDpi(layer, product);
   if (dpi >= DPI_THRESHOLDS.good) return "good";
   if (dpi >= DPI_THRESHOLDS.soft) return "soft";
   return "low";
@@ -222,7 +396,6 @@ export function sizeTotal(sizes: SizeBreakdown): number {
 
 export type SizeIssue = { level: "error" | "note"; message: string };
 
-/** Verify the size breakdown against the requested quantity. */
 export function sizeIssue(details: OrderDetails): SizeIssue | null {
   const qty = parseQuantity(details.quantity);
   const total = sizeTotal(details.sizes);
@@ -256,11 +429,11 @@ export type ValidationIssue = { field: string; message: string };
 export function validateForSubmit(state: DesignState): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const d = state.details;
-  if (!state.artworks.front && !state.artworks.back) {
-    issues.push({ field: "artwork", message: "Add at least one design (front or back) before submitting." });
+  if (!hasAnyDesign(state)) {
+    issues.push({ field: "artwork", message: "Add at least one design or text (front or back) before submitting." });
   }
   if (!parseQuantity(d.quantity)) {
-    issues.push({ field: "quantity", message: "Enter how many shirts you need (a best estimate is fine)." });
+    issues.push({ field: "quantity", message: "Enter how many items you need (a best estimate is fine)." });
   }
   const sizes = sizeIssue(d);
   if (sizes && sizes.level === "error") issues.push({ field: "sizes", message: sizes.message });
@@ -271,6 +444,18 @@ export function validateForSubmit(state: DesignState): ValidationIssue[] {
     issues.push({ field: "phone", message: "Add a phone/WhatsApp number (or email) so the team can reply with your quote." });
   }
   return issues;
+}
+
+/** Human label for a layer (used in summaries, layers panel, exports). */
+export function layerLabel(layer: Layer): string {
+  if (layer.kind === "image") return layer.fileName;
+  if (layer.role === "name") return `Name “${layer.text}”`;
+  if (layer.role === "number") return `Number “${layer.text}”`;
+  return `Text “${layer.text}”`;
+}
+
+export function fontOf(layer: TextLayer) {
+  return getFontById(layer.fontId);
 }
 
 // ---------------------------------------------------------------------

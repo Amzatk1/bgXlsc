@@ -26,6 +26,7 @@ export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
   "oversized-tee": { front: `${A}/tee-os-front.webp`, back: `${A}/tee-os-back.webp` },
   polo: { front: `${A}/polo-front.webp`, back: `${A}/polo-back.webp` },
   hoodie: { front: `${A}/hoodie-front.webp`, back: `${A}/hoodie-back.webp` },
+  jersey: { front: `${A}/jersey-front.webp`, back: `${A}/jersey-back.webp` },
 };
 
 /**
@@ -38,6 +39,7 @@ export const FABRIC_LUMA: Record<string, number> = {
   "oversized-tee": 0.505,
   polo: 0.507,
   hoodie: 0.506,
+  jersey: 0.505,
 };
 
 export const DEFAULT_FABRIC_LUMA = 0.505;
@@ -78,6 +80,66 @@ export function layerTuning(colorHex: string, productId?: string) {
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+// ---------------------------------------------------------------------
+// Text rendering — the SAME convention drives the HTML editor and the
+// Canvas exports, so on-screen text matches the production reference:
+//   font-size (px) = `size` × STAGE_H × scale
+//   aspect = measured text width ÷ font-size
+// ---------------------------------------------------------------------
+let measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx(): CanvasRenderingContext2D | null {
+  if (measureCtx) return measureCtx;
+  if (typeof document === "undefined") return null;
+  measureCtx = document.createElement("canvas").getContext("2d");
+  return measureCtx;
+}
+
+/** width ÷ font-size of the rendered text (used to size the layer box). */
+export function measureTextAspect(text: string, fontStack: string, weight = 700): number {
+  const t = text || " ";
+  const ctx = getMeasureCtx();
+  if (!ctx) return Math.max(0.6, t.length * 0.62);
+  ctx.font = `${weight} 100px ${fontStack}`;
+  const w = ctx.measureText(t).width;
+  return Math.max(0.2, w / 100);
+}
+
+export type TextDraw = {
+  text: string;
+  fontStack: string;
+  weight: number;
+  color: string;
+  outline: string;
+  outlineWidth: number; // fraction of font size
+};
+
+/** Draw text centred at (cx,cy) with a given font-size, optional outline. */
+export function drawText(
+  ctx: CanvasRenderingContext2D,
+  t: TextDraw,
+  cx: number,
+  cy: number,
+  fontSizePx: number,
+  rotationDeg: number,
+): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((rotationDeg * Math.PI) / 180);
+  ctx.font = `${t.weight} ${fontSizePx}px ${t.fontStack}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.miterLimit = 2;
+  if (t.outline && t.outlineWidth > 0) {
+    ctx.strokeStyle = t.outline;
+    ctx.lineWidth = Math.max(1, t.outlineWidth * fontSizePx * 2);
+    ctx.strokeText(t.text, 0, 0);
+  }
+  ctx.fillStyle = t.color;
+  ctx.fillText(t.text, 0, 0);
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------

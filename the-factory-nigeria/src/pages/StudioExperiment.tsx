@@ -3,18 +3,25 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Download,
   FlaskConical,
   HelpCircle,
+  Hash,
+  Image as ImageIcon,
   Info,
   Minus,
+  MoveDiagonal,
   Paperclip,
   Pencil,
   Plus,
+  RotateCcw,
   Share2,
   Trash2,
-  Upload,
+  Type as TypeIcon,
+  User,
 } from "lucide-react";
 import {
   AVAILABILITY_LABEL,
@@ -22,8 +29,11 @@ import {
   CUSTOM_COLOR_NOTICE,
   FABRIC_VISUAL_NOTICE,
   FABRICS,
+  FONTS,
+  getFontById,
   MARKET_SOURCING_NOTICE,
   PRODUCTS,
+  productPpi,
   QUALITY_COPY,
   STANDARD_COLORS,
   type AvailabilityStatus,
@@ -31,22 +41,32 @@ import {
 } from "../studio/catalog";
 import {
   applyPlacement,
-  clampArtwork,
-  defaultArtworkPlacement,
+  clampLayer,
   emptySizes,
   estimatedDpi,
+  fitLayerToArea,
   getProduct,
-  getZone,
+  hasAnyDesign,
   initialState,
-  placementsForView,
+  layerBox,
+  layerHeightIn,
+  layerLabel,
+  layersForView,
+  layerWidthIn,
+  newImageLayer,
+  newTextLayer,
+  placementsForLayer,
   qualityLevel,
   round2,
   SIZE_KEYS,
   sizeIssue,
   sizeTotal,
+  straightenLayer,
   validateForSubmit,
-  type Artwork,
   type DesignState,
+  type Layer,
+  type TextLayer,
+  type TextRole,
 } from "../studio/state";
 import { intakeFile } from "../studio/imageFile";
 import { buildStudioMessage, getFabric, studioWaLink, summaryRows } from "../studio/messages";
@@ -57,10 +77,11 @@ import {
   downloadOriginalArtwork,
   downloadPreview,
   downloadSpec,
+  imageLayers,
   shareFiles,
 } from "../studio/exporter";
 import { downloadReferenceSheet, exportReferenceSheet } from "../studio/referenceSheet";
-import { GARMENT_IMG, hexLuma, layerTuning, STAGE_H, STAGE_W } from "../studio/garment";
+import { GARMENT_IMG, hexLuma, layerTuning, measureTextAspect, STAGE_H, STAGE_W } from "../studio/garment";
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
@@ -72,27 +93,56 @@ function AvailabilityBadge({ status }: { status: AvailabilityStatus }) {
   return <span className={"avail avail--" + status}>{AVAILABILITY_LABEL[status]}</span>;
 }
 
+/** One read-only layer (image or text), positioned by % of the stage. */
+function PreviewLayer({ layer }: { layer: Layer }) {
+  const b = layerBox(layer);
+  const style: React.CSSProperties = {
+    left: `${(b.x / STAGE_W) * 100}%`,
+    top: `${(b.y / STAGE_H) * 100}%`,
+    width: `${(b.w / STAGE_W) * 100}%`,
+    height: `${(b.h / STAGE_H) * 100}%`,
+    transform: `translate(-50%, -50%) rotate(${layer.rotation}deg)`,
+  };
+  if (layer.kind === "image") {
+    return (
+      <div className="tprev__art" style={style}>
+        <img src={layer.src} alt="" draggable={false} />
+      </div>
+    );
+  }
+  const f = getFontById(layer.fontId);
+  return (
+    <div className="tprev__art" style={style}>
+      <span
+        className="tprev__text"
+        style={{
+          fontSize: `${(b.h / STAGE_H) * 100}cqh`,
+          fontFamily: f.stack,
+          fontWeight: f.weight,
+          color: layer.color,
+          WebkitTextStroke: layer.outline && layer.outlineWidth > 0 ? `${layer.outlineWidth * b.h}cqh` : undefined,
+          paintOrder: "stroke fill",
+        }}
+      >
+        {layer.text}
+      </span>
+    </div>
+  );
+}
+
 // Read-only photoreal mockup used on review/confirm screens (no handles).
 function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
   const product = getProduct(state);
-  const zone = product.zones[view];
-  const art = state.artworks[view];
   const img = (GARMENT_IMG[product.id] ?? GARMENT_IMG["unisex-tee"])[view];
   const tuning = useMemo(() => layerTuning(state.color.hex, product.id), [state.color.hex, product.id]);
-  const box = art
-    ? {
-        w: (art.widthIn * zone.w) / zone.widthIn,
-        x: zone.x + art.cx * zone.w,
-        y: zone.y + art.cy * zone.h,
-      }
-    : null;
+  const layers = layersForView(state, view);
   return (
     <figure className="tprev">
       <div
         className="tprev__stage gstage mode-fabric"
         role="img"
         aria-label={`${view} preview — ${state.color.name} ${product.name}`}
-        style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}
+        style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}`, containerType: "size" }}
       >
         <div
           className="gstage__color"
@@ -100,24 +150,14 @@ function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
           aria-hidden="true"
         />
         <div className="gstage__artclip" style={{ WebkitMaskImage: `url(${img})`, maskImage: `url(${img})` }}>
-          {art && box && (
-            <div
-              className="tprev__art"
-              style={{
-                left: `${(box.x / STAGE_W) * 100}%`,
-                top: `${(box.y / STAGE_H) * 100}%`,
-                width: `${(box.w / STAGE_W) * 100}%`,
-                transform: `translate(-50%, -50%) rotate(${art.rotation}deg)`,
-              }}
-            >
-              <img src={art.src} alt="" draggable={false} />
-            </div>
-          )}
+          {layers.map((l) => (
+            <PreviewLayer key={l.id} layer={l} />
+          ))}
         </div>
         <img className="gstage__shade" src={img} alt="" aria-hidden="true" style={{ filter: `grayscale(1) brightness(${tuning.shadeBrightness})` }} />
         <img className="gstage__light" src={img} alt="" aria-hidden="true" style={{ opacity: tuning.lightOpacity, filter: "grayscale(1) contrast(1.15)" }} />
       </div>
-      <figcaption className="mono">{view}{art ? "" : " · no design added"}</figcaption>
+      <figcaption className="mono">{view}{layers.length ? "" : " · no design added"}</figcaption>
     </figure>
   );
 }
@@ -140,63 +180,89 @@ export function StudioExperiment() {
   const topRef = useRef<HTMLDivElement>(null);
 
   const product = getProduct(state);
-  const zone = getZone(state);
-  const art = state.artworks[state.view];
   const fabric = getFabric(state);
+  const ppi = productPpi(product);
+  const viewLayers = layersForView(state, state.view);
+  const selected = state.layers.find((l) => l.id === state.selectedId) ?? null;
 
   const set = (patch: Partial<DesignState>) => setState((s) => ({ ...s, ...patch }));
   const setDetails = (patch: Partial<DesignState["details"]>) =>
     setState((s) => ({ ...s, details: { ...s.details, ...patch } }));
 
-  /** Switch garment; keep artwork but re-clamp it to the new print zones. */
   function setProductId(id: string) {
-    setState((s) => {
-      const next = PRODUCTS.find((p) => p.id === id);
-      if (!next) return s;
-      const artworks = { ...s.artworks };
-      (Object.keys(artworks) as ViewId[]).forEach((v) => {
-        const a = artworks[v];
-        if (a) artworks[v] = clampArtwork(a, next.zones[v]);
-      });
-      return { ...s, productId: id, artworks };
-    });
+    setState((s) => ({ ...s, productId: id }));
   }
 
-  // ---- artwork history (undo / redo) ----
-  // Mutations happen OUTSIDE setState updaters (StrictMode double-invokes
-  // updaters, so side effects inside them corrupt the stacks).
-  const history = useRef<{ past: DesignState["artworks"][]; future: DesignState["artworks"][] }>({
-    past: [],
-    future: [],
-  });
-  const artworksRef = useRef(state.artworks);
-  artworksRef.current = state.artworks;
+  // ---- layer history (undo / redo) ----
+  // Snapshots of the whole layer stack + selection. Mutations happen OUTSIDE
+  // setState updaters (StrictMode double-invokes those, corrupting the stack).
+  type Snap = { layers: Layer[]; selectedId: string | null };
+  const history = useRef<{ past: Snap[]; future: Snap[] }>({ past: [], future: [] });
+  const snapRef = useRef<Snap>({ layers: state.layers, selectedId: state.selectedId });
+  snapRef.current = { layers: state.layers, selectedId: state.selectedId };
   const [historyTick, setHistoryTick] = useState(0);
-  const setArtwork = (view: ViewId, a: Artwork | undefined) => {
-    history.current.past.push(artworksRef.current);
-    if (history.current.past.length > 40) history.current.past.shift();
+
+  function commit(next: Snap) {
+    history.current.past.push(snapRef.current);
+    if (history.current.past.length > 60) history.current.past.shift();
     history.current.future = [];
     setHistoryTick((t) => t + 1);
-    const artworks = { ...artworksRef.current };
-    if (a) artworks[view] = a;
-    else delete artworks[view];
-    setState((s) => ({ ...s, artworks }));
-  };
+    setState((s) => ({ ...s, layers: next.layers, selectedId: next.selectedId }));
+  }
   const undo = () => {
     const prev = history.current.past.pop();
     if (!prev) return;
-    history.current.future.push(artworksRef.current);
+    history.current.future.push(snapRef.current);
     setHistoryTick((t) => t + 1);
-    setState((s) => ({ ...s, artworks: prev }));
+    setState((s) => ({ ...s, layers: prev.layers, selectedId: prev.selectedId }));
   };
   const redo = () => {
     const next = history.current.future.pop();
     if (!next) return;
-    history.current.past.push(artworksRef.current);
+    history.current.past.push(snapRef.current);
     setHistoryTick((t) => t + 1);
-    setState((s) => ({ ...s, artworks: next }));
+    setState((s) => ({ ...s, layers: next.layers, selectedId: next.selectedId }));
   };
-  void historyTick; // re-render trigger for button disabled states
+  void historyTick;
+
+  // ---- layer operations ----
+  function selectLayer(id: string | null) {
+    setState((s) => ({ ...s, selectedId: id }));
+  }
+  function addLayer(layer: Layer) {
+    commit({ layers: [...snapRef.current.layers, layer], selectedId: layer.id });
+  }
+  function replaceLayer(layer: Layer) {
+    commit({ layers: snapRef.current.layers.map((l) => (l.id === layer.id ? layer : l)), selectedId: layer.id });
+  }
+  function patchText(id: string, patch: Partial<TextLayer>) {
+    const l = snapRef.current.layers.find((x) => x.id === id);
+    if (!l || l.kind !== "text") return;
+    const merged = { ...l, ...patch } as TextLayer;
+    if (patch.text !== undefined || patch.fontId !== undefined) {
+      const f = getFontById(merged.fontId);
+      merged.aspect = measureTextAspect(merged.text, f.stack, f.weight);
+    }
+    replaceLayer(clampLayer(merged));
+  }
+  function removeLayer(id: string) {
+    const layers = snapRef.current.layers.filter((l) => l.id !== id);
+    commit({ layers, selectedId: layers.length ? layers[layers.length - 1].id : null });
+  }
+  function duplicateLayer(id: string) {
+    const l = snapRef.current.layers.find((x) => x.id === id);
+    if (!l) return;
+    const copy = clampLayer({ ...l, id: "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), cx: l.cx + 0.04, cy: l.cy + 0.04 });
+    commit({ layers: [...snapRef.current.layers, copy], selectedId: copy.id });
+  }
+  function reorderLayer(id: string, dir: -1 | 1) {
+    const arr = [...snapRef.current.layers];
+    const i = arr.findIndex((l) => l.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    commit({ layers: arr, selectedId: id });
+  }
 
   useEffect(() => {
     if (step !== 2) return;
@@ -227,9 +293,20 @@ export function StudioExperiment() {
       setUploadError(res.error);
       return;
     }
-    const placement = defaultArtworkPlacement(zone, res.naturalW, res.naturalH);
-    setArtwork(state.view, { ...res, ...placement });
+    addLayer(
+      newImageLayer(
+        { src: res.src, fileName: res.fileName, fileKB: res.fileKB, naturalW: res.naturalW, naturalH: res.naturalH, hasAlpha: res.hasAlpha, avgLuma: res.avgLuma },
+        product,
+        state.view,
+      ),
+    );
+    setMtab("adjust");
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function addText(role: TextRole) {
+    addLayer(newTextLayer(role, product, state.view));
+    setMtab("adjust");
   }
 
   function trySend() {
@@ -264,9 +341,8 @@ export function StudioExperiment() {
     try {
       const files: File[] = [];
       if (sheetUrl) files.push(await dataUrlToFile(sheetUrl, `${state.reference}-studio-reference.png`));
-      for (const v of ["front", "back"] as ViewId[]) {
-        const a = state.artworks[v];
-        if (a) files.push(await dataUrlToFile(a.src, `${state.reference}-${v}-original-${a.fileName}`));
+      for (const l of imageLayers(state)) {
+        files.push(await dataUrlToFile(l.src, `${state.reference}-${l.view}-original-${l.fileName}`));
       }
       const result = await shareFiles(state, files, buildStudioMessage(state));
       setShareState(result);
@@ -297,52 +373,70 @@ export function StudioExperiment() {
     setDetails({ sizes: next });
   }
 
-  /** Legibility guard: artwork tone vs shirt tone (approximate, non-blocking). */
-  const lowContrast =
-    art && typeof art.avgLuma === "number" && Math.abs(art.avgLuma - hexLuma(state.color.hex)) < 0.16;
+  /** Legibility guard: image tone vs shirt tone (approximate, non-blocking). */
+  const selLowContrast =
+    selected && selected.kind === "image" && typeof selected.avgLuma === "number" &&
+    Math.abs(selected.avgLuma - hexLuma(state.color.hex)) < 0.16;
+
+  function setSelectedSizeIn(inches: number) {
+    if (!selected) return;
+    const size = selected.kind === "image" ? (inches * ppi) / STAGE_W : (inches * ppi) / STAGE_H;
+    replaceLayer(clampLayer({ ...selected, size }));
+  }
+
+  const layerIcon = (l: Layer) =>
+    l.kind === "image" ? <ImageIcon size={15} aria-hidden="true" /> : l.role === "number" ? <Hash size={15} aria-hidden="true" /> : l.role === "name" ? <User size={15} aria-hidden="true" /> : <TypeIcon size={15} aria-hidden="true" />;
 
   // ---- shared editor control fragments (rendered once, re-arranged by CSS) ----
 
-  const uploadControls = (
+  const addControls = (
     <>
-      <div
-        className="field dropzone"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.currentTarget.classList.add("is-over");
-        }}
-        onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.currentTarget.classList.remove("is-over");
-          onFile(e.dataTransfer.files);
-        }}
-      >
-        <label htmlFor="art-upload">
-          {art ? "Replace" : "Upload"} {state.view} artwork
-        </label>
-        <input
-          ref={fileRef}
-          id="art-upload"
-          className="upload"
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={(e) => onFile(e.target.files)}
-        />
-        <p className="field__note">
-          Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Transparent PNGs keep their transparency.
-        </p>
-        {uploadError && (
-          <p className="field__error" role="alert">
-            {uploadError}
-          </p>
-        )}
+      <div className="field">
+        <span className="field__legend mono">Add a design</span>
+        <div
+          className="dropzone"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add("is-over");
+          }}
+          onDragLeave={(e) => e.currentTarget.classList.remove("is-over")}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("is-over");
+            onFile(e.dataTransfer.files);
+          }}
+        >
+          <label htmlFor="art-upload">Upload a logo or design</label>
+          <input ref={fileRef} id="art-upload" className="upload" type="file" accept="image/png,image/jpeg" onChange={(e) => onFile(e.target.files)} />
+          <p className="field__note">Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Add as many as you like. Transparent PNGs keep their transparency.</p>
+          {uploadError && (
+            <p className="field__error" role="alert">
+              {uploadError}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="field">
+        <span className="field__legend mono">Add text</span>
+        <div className="addtext">
+          <button type="button" className="btn btn--outline" onClick={() => addText("text")}>
+            <TypeIcon size={16} aria-hidden="true" /> Custom text
+          </button>
+          <button type="button" className="btn btn--outline" onClick={() => addText("name")}>
+            <User size={16} aria-hidden="true" /> Player name
+          </button>
+          <button type="button" className="btn btn--outline" onClick={() => addText("number")}>
+            <Hash size={16} aria-hidden="true" /> Player number
+          </button>
+        </div>
+        <p className="field__note">Great for jerseys — add a team name, player name, number and sponsor text, each editable on its own.</p>
       </div>
 
       {(history.current.past.length > 0 || history.current.future.length > 0) && (
         <div className="editactions" aria-label="History">
           <button type="button" className="btn btn--outline" onClick={undo} disabled={!history.current.past.length} aria-label="Undo (Ctrl+Z)">
-            Undo
+            <RotateCcw size={15} aria-hidden="true" /> Undo
           </button>
           <button type="button" className="btn btn--outline" onClick={redo} disabled={!history.current.future.length} aria-label="Redo (Ctrl+Shift+Z)">
             Redo
@@ -350,44 +444,112 @@ export function StudioExperiment() {
         </div>
       )}
 
-      {art && (
-        <div className="editactions">
-          <button type="button" className="btn btn--outline" onClick={() => fileRef.current?.click()}>
-            <Upload size={16} aria-hidden="true" /> Replace
-          </button>
-          <button
-            type="button"
-            className="btn btn--outline editactions__remove"
-            onClick={() => setArtwork(state.view, undefined)}
-          >
-            <Trash2 size={16} aria-hidden="true" /> Remove
-          </button>
-        </div>
-      )}
-
-      {!art && (
+      {viewLayers.length === 0 && (
         <ol className="emptysteps" aria-label="How it works">
-          <li>Upload a logo or design</li>
-          <li>Position it on the garment</li>
-          <li>Review the preview</li>
+          <li>Add a logo, or add text</li>
+          <li>Drag it anywhere on the garment</li>
+          <li>Resize, rotate and align it</li>
           <li>Send it to The Factory for a quote</li>
         </ol>
       )}
     </>
   );
 
-  const adjustControls = art ? (
+  const layersPanel = (
+    <div className="field">
+      <span className="field__legend mono">Layers on the {state.view} · {viewLayers.length}</span>
+      {viewLayers.length === 0 ? (
+        <p className="field__note">Nothing added to the {state.view} yet.</p>
+      ) : (
+        <ul className="layerlist">
+          {[...viewLayers].reverse().map((l) => {
+            const idx = state.layers.findIndex((x) => x.id === l.id);
+            return (
+              <li key={l.id} className={"layeritem" + (l.id === state.selectedId ? " is-sel" : "")}>
+                <button type="button" className="layeritem__main" onClick={() => selectLayer(l.id)}>
+                  <span className="layeritem__icon">{layerIcon(l)}</span>
+                  <span className="layeritem__label">{layerLabel(l)}</span>
+                </button>
+                <span className="layeritem__ops">
+                  <button type="button" aria-label="Bring forward" disabled={idx >= state.layers.length - 1} onClick={() => reorderLayer(l.id, 1)}>
+                    <ChevronUp size={14} aria-hidden="true" />
+                  </button>
+                  <button type="button" aria-label="Send backward" disabled={idx <= 0} onClick={() => reorderLayer(l.id, -1)}>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </button>
+                  <button type="button" aria-label="Delete layer" className="layeritem__del" onClick={() => removeLayer(l.id)}>
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
+  const editControls = !selected ? (
+    <p className="field__note">Select a design or text layer to edit it here — or add one from the “Add” tab.</p>
+  ) : (
     <>
       <div className="field">
-        <span className="field__legend mono">Placement presets</span>
+        <span className="field__legend mono">
+          {layerIcon(selected)} Editing: {layerLabel(selected)}
+        </span>
+      </div>
+
+      {selected.kind === "text" && (
+        <>
+          <div className="field">
+            <label htmlFor="t-text">{selected.role === "number" ? "Number" : selected.role === "name" ? "Player name" : "Text"}</label>
+            <input
+              id="t-text"
+              type="text"
+              value={selected.text}
+              inputMode={selected.role === "number" ? "numeric" : "text"}
+              onChange={(e) => patchText(selected.id, { text: selected.role === "number" ? e.target.value.replace(/[^\d]/g, "").slice(0, 3) : e.target.value.slice(0, 24) })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="t-font">Font</label>
+            <select id="t-font" value={selected.fontId} onChange={(e) => patchText(selected.id, { fontId: e.target.value })}>
+              {FONTS.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-grid2">
+            <div className="field">
+              <label htmlFor="t-color">Text colour</label>
+              <input id="t-color" type="color" className="colorin" value={selected.color} onChange={(e) => patchText(selected.id, { color: e.target.value })} />
+            </div>
+            <div className="field">
+              <label htmlFor="t-outline">Outline</label>
+              <div className="outlinerow">
+                <input
+                  id="t-outline"
+                  type="color"
+                  className="colorin"
+                  value={selected.outline || "#211f1e"}
+                  onChange={(e) => patchText(selected.id, { outline: e.target.value, outlineWidth: selected.outlineWidth || 0.08 })}
+                />
+                <button type="button" className="btn btn--ghost" onClick={() => patchText(selected.id, { outline: selected.outline ? "" : "#211f1e", outlineWidth: selected.outline ? 0 : 0.08 })}>
+                  <span className="btn-underline">{selected.outline ? "Remove" : "Add"} outline</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="field">
+        <span className="field__legend mono">Placement</span>
         <div className="presetrow">
-          {placementsForView(state.view).map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className="preset"
-              onClick={() => setArtwork(state.view, applyPlacement(art, p, zone))}
-            >
+          {placementsForLayer(product, state.view).map((p) => (
+            <button key={p.id} type="button" className="preset" onClick={() => replaceLayer(applyPlacement(selected, p, product))}>
               {p.name}
             </button>
           ))}
@@ -395,67 +557,66 @@ export function StudioExperiment() {
       </div>
 
       <div className="field">
-        <label htmlFor="art-size">
-          Printed width — {art.widthIn}″
-          <span className="field__opt"> (~{estimatedDpi(art)} DPI)</span>
+        <label htmlFor="l-size">
+          {selected.kind === "image" ? (
+            <>
+              Printed width — {layerWidthIn(selected, product)}″<span className="field__opt"> (~{estimatedDpi(selected, product)} DPI)</span>
+            </>
+          ) : (
+            <>Text height — {layerHeightIn(selected, product)}″</>
+          )}
         </label>
         <input
-          id="art-size"
+          id="l-size"
           type="range"
-          min={1}
-          max={round2(zone.widthIn * 1.15)}
-          step={0.25}
-          value={art.widthIn}
-          onChange={(e) =>
-            setArtwork(state.view, clampArtwork({ ...art, widthIn: Number(e.target.value) }, zone))
-          }
+          min={selected.kind === "image" ? 1 : 0.5}
+          max={selected.kind === "image" ? round2(product.zones[state.view].widthIn * 1.4) : 12}
+          step={selected.kind === "image" ? 0.25 : 0.25}
+          value={selected.kind === "image" ? layerWidthIn(selected, product) : layerHeightIn(selected, product)}
+          onChange={(e) => setSelectedSizeIn(Number(e.target.value))}
         />
-        <p className={"quality quality--" + qualityLevel(art)} role="status">
-          {QUALITY_COPY[qualityLevel(art)]} <em>Approximate guide, not a final decision.</em>
-        </p>
-        {lowContrast && (
+        {selected.kind === "image" && (
+          <p className={"quality quality--" + qualityLevel(selected, product)} role="status">
+            {QUALITY_COPY[qualityLevel(selected, product)]} <em>Approximate guide, not a final decision.</em>
+          </p>
+        )}
+        {selLowContrast && (
           <p className="quality quality--soft" role="status">
-            Low contrast: your design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
+            Low contrast: this design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
             <em>We never change your colours — the team confirms legibility before printing.</em>
           </p>
         )}
       </div>
 
       <div className="field">
-        <label htmlFor="art-rot">Rotation — {Math.round(art.rotation)}°</label>
+        <label htmlFor="l-rot">Rotation — {Math.round(selected.rotation > 180 ? selected.rotation - 360 : selected.rotation)}°</label>
         <input
-          id="art-rot"
+          id="l-rot"
           type="range"
           min={-180}
           max={180}
           step={1}
-          value={((art.rotation + 180) % 360) - 180}
-          onChange={(e) =>
-            setArtwork(state.view, clampArtwork({ ...art, rotation: Number(e.target.value) }, zone))
-          }
+          value={selected.rotation > 180 ? selected.rotation - 360 : selected.rotation}
+          onChange={(e) => replaceLayer(clampLayer({ ...selected, rotation: Number(e.target.value) }))}
         />
       </div>
 
       <div className="editactions">
-        <button
-          type="button"
-          className="btn btn--outline"
-          onClick={() =>
-            setArtwork(
-              state.view,
-              clampArtwork({ ...art, ...defaultArtworkPlacement(zone, art.naturalW, art.naturalH) }, zone),
-            )
-          }
-        >
-          Centre &amp; reset
+        <button type="button" className="btn btn--outline" onClick={() => replaceLayer(straightenLayer(selected))}>
+          <MoveDiagonal size={15} aria-hidden="true" /> Straighten
+        </button>
+        <button type="button" className="btn btn--outline" onClick={() => replaceLayer(fitLayerToArea(selected, product))}>
+          Fit to area
+        </button>
+        <button type="button" className="btn btn--outline" onClick={() => duplicateLayer(selected.id)}>
+          <Copy size={15} aria-hidden="true" /> Duplicate
+        </button>
+        <button type="button" className="btn btn--outline editactions__remove" onClick={() => removeLayer(selected.id)}>
+          <Trash2 size={16} aria-hidden="true" /> Remove
         </button>
       </div>
-      <p className="field__note">
-        Tip: drag to move · pinch or use the corner handle to resize · keyboard arrows, + − and [ ] also work.
-      </p>
+      <p className="field__note">Tip: drag to move · pinch or use the corner handle to resize · arrows, + − and [ ] work too. Designs snap to the centre lines as you drag.</p>
     </>
-  ) : (
-    <p className="field__note">Upload artwork first — position and size controls appear here.</p>
   );
 
   const styleControls = (
@@ -532,7 +693,8 @@ export function StudioExperiment() {
           )}
         </li>
         <li>
-          Front design: {state.artworks.front ? "added" : "—"} · Back design: {state.artworks.back ? "added" : "—"}
+          Front: {layersForView(state, "front").length} layer{layersForView(state, "front").length === 1 ? "" : "s"} · Back:{" "}
+          {layersForView(state, "back").length} layer{layersForView(state, "back").length === 1 ? "" : "s"}
         </li>
       </ul>
       <p className="ed__summarynote">{MARKET_SOURCING_NOTICE}</p>
@@ -754,9 +916,10 @@ export function StudioExperiment() {
                 productId={product.id}
                 view={state.view}
                 colorHex={state.color.hex}
-                zone={zone}
-                artwork={art}
-                onArtworkChange={(a) => setArtwork(state.view, a)}
+                layers={viewLayers}
+                selectedId={null}
+                onSelect={() => {}}
+                onChange={() => {}}
                 compact
               />
               <p className="studio__colorstate mono">
@@ -769,7 +932,7 @@ export function StudioExperiment() {
 
         {/* STEP 3 — DESIGN (three-zone workspace on desktop, tabbed sheet on mobile) */}
         {step === 2 && (
-          <section className="studio__panel ed" aria-label="Add and position artwork">
+          <section className="studio__panel ed" aria-label="Add and position your design">
             <div className="ed__stagecol">
               <div className="viewtabs" role="tablist" aria-label="Garment view">
                 {(["front", "back"] as ViewId[]).map((v) => (
@@ -781,7 +944,7 @@ export function StudioExperiment() {
                     onClick={() => set({ view: v })}
                   >
                     {v === "front" ? "Front" : "Back"}
-                    {state.artworks[v] ? <Check size={13} aria-hidden="true" /> : null}
+                    {layersForView(state, v).length ? <Check size={13} aria-hidden="true" /> : null}
                   </button>
                 ))}
               </div>
@@ -789,9 +952,10 @@ export function StudioExperiment() {
                 productId={product.id}
                 view={state.view}
                 colorHex={state.color.hex}
-                zone={zone}
-                artwork={art}
-                onArtworkChange={(a) => setArtwork(state.view, a)}
+                layers={viewLayers}
+                selectedId={state.selectedId}
+                onSelect={selectLayer}
+                onChange={replaceLayer}
               />
             </div>
 
@@ -799,9 +963,9 @@ export function StudioExperiment() {
             <div className="ed__sheettabs" role="tablist" aria-label="Editor controls">
               {(
                 [
-                  ["artwork", "Artwork"],
-                  ["adjust", "Position"],
-                  ["style", "Garment & colour"],
+                  ["artwork", "Add"],
+                  ["adjust", "Edit"],
+                  ["style", "Garment"],
                 ] as const
               ).map(([id, name]) => (
                 <button
@@ -820,10 +984,11 @@ export function StudioExperiment() {
               {styleControls}
             </div>
             <div className={"ed__rail ed__rail--work" + (mtab === "artwork" ? " is-mtab" : "")}>
-              {uploadControls}
+              {addControls}
+              {layersPanel}
             </div>
             <div className={"ed__rail ed__rail--adjust" + (mtab === "adjust" ? " is-mtab" : "")}>
-              {adjustControls}
+              {editControls}
               {liveSummary}
             </div>
           </section>
@@ -1139,20 +1304,13 @@ export function StudioExperiment() {
                     <Paperclip size={14} aria-hidden="true" /> Mockup preview (PNG)
                   </li>
                   <li>
-                    <Paperclip size={14} aria-hidden="true" /> Design brief (JSON, includes placement data)
+                    <Paperclip size={14} aria-hidden="true" /> Design brief (JSON — every layer, placement &amp; rotation)
                   </li>
-                  {state.artworks.front && (
-                    <li>
-                      <Paperclip size={14} aria-hidden="true" /> Original front artwork —{" "}
-                      {state.artworks.front.fileName} (untouched)
+                  {imageLayers(state).map((l) => (
+                    <li key={l.id}>
+                      <Paperclip size={14} aria-hidden="true" /> Original {l.view} artwork — {l.fileName} (untouched)
                     </li>
-                  )}
-                  {state.artworks.back && (
-                    <li>
-                      <Paperclip size={14} aria-hidden="true" /> Original back artwork —{" "}
-                      {state.artworks.back.fileName} (untouched)
-                    </li>
-                  )}
+                  ))}
                 </ul>
               </div>
               <div>
@@ -1253,16 +1411,11 @@ export function StudioExperiment() {
                   <button type="button" className="btn btn--outline" onClick={() => downloadSpec(state)}>
                     <Download size={16} aria-hidden="true" /> Design brief (JSON)
                   </button>
-                  {state.artworks.front && (
-                    <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "front")}>
-                      <Download size={16} aria-hidden="true" /> Front original
+                  {imageLayers(state).map((l) => (
+                    <button key={l.id} type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, l)}>
+                      <Download size={16} aria-hidden="true" /> {l.view} — {l.fileName}
                     </button>
-                  )}
-                  {state.artworks.back && (
-                    <button type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, "back")}>
-                      <Download size={16} aria-hidden="true" /> Back original
-                    </button>
-                  )}
+                  ))}
                 </div>
                 <p className="field__note">
                   The complete reference already includes the mockups, placement, colour and production
@@ -1318,8 +1471,8 @@ export function StudioExperiment() {
                 type="button"
                 className="btn btn--primary"
                 onClick={() => {
-                  if (step === 2 && !state.artworks.front && !state.artworks.back) {
-                    setUploadError("Add at least one design (front or back) to continue.");
+                  if (step === 2 && !hasAnyDesign(state)) {
+                    setUploadError("Add at least one design or text (front or back) to continue.");
                     setMtab("artwork");
                     return;
                   }

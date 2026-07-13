@@ -4,11 +4,11 @@
 // nothing is uploaded anywhere. Exports contain NO editor UI.
 // =====================================================================
 
-import type { ViewId } from "./catalog";
+import { type ViewId } from "./catalog";
 import { PREVIEW_DISCLAIMER } from "./catalog";
 import { buildDesignSpec } from "./messages";
-import { getProduct, type DesignState } from "./state";
-import { drawGarment, STAGE_H, STAGE_W } from "./garment";
+import { fontOf, getProduct, layerBox, layersForView, type DesignState, type ImageLayer, type Layer } from "./state";
+import { drawGarment, drawText, STAGE_H, STAGE_W } from "./garment";
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -19,14 +19,13 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Compose one garment view (photoreal tee + artwork, no UI) onto a canvas. */
+/** Compose one garment view (photoreal garment + all design layers, no UI). */
 export async function composeViewCanvas(
   state: DesignState,
   view: ViewId,
   scale = 2,
 ): Promise<HTMLCanvasElement> {
   const product = getProduct(state);
-  const zone = product.zones[view];
   const canvas = document.createElement("canvas");
   canvas.width = STAGE_W * scale;
   canvas.height = STAGE_H * scale;
@@ -36,23 +35,42 @@ export async function composeViewCanvas(
   ctx.fillStyle = "#f7f3ec";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const art = state.artworks[view];
-  const artImg = art ? await loadImage(art.src) : null;
+  // Preload image layers for this view (in z-order, bottom → top).
+  const layers = layersForView(state, view);
+  const imgs = new Map<string, HTMLImageElement>();
+  for (const l of layers) {
+    if (l.kind === "image") imgs.set(l.id, await loadImage(l.src));
+  }
 
   await drawGarment(ctx, product.id, view, state.color.hex, 0, 0, canvas.width, canvas.height, (lc) => {
-    if (!art || !artImg) return;
-    const pxPerIn = (zone.w / zone.widthIn) * scale;
-    const wPx = art.widthIn * pxPerIn;
-    const hPx = wPx * (art.naturalH / art.naturalW);
-    const cx = (zone.x + art.cx * zone.w) * scale;
-    const cy = (zone.y + art.cy * zone.h) * scale;
-    lc.save();
-    lc.translate(cx, cy);
-    lc.rotate((art.rotation * Math.PI) / 180);
-    lc.drawImage(artImg, -wPx / 2, -hPx / 2, wPx, hPx);
-    lc.restore();
+    for (const l of layers) drawLayer(lc, l, imgs.get(l.id), scale);
   });
   return canvas;
+}
+
+/** Draw one layer at stage×scale coordinates (mirrors the editor exactly). */
+function drawLayer(lc: CanvasRenderingContext2D, l: Layer, img: HTMLImageElement | undefined, scale: number) {
+  const b = layerBox(l);
+  const cx = b.x * scale;
+  const cy = b.y * scale;
+  if (l.kind === "image") {
+    if (!img) return;
+    lc.save();
+    lc.translate(cx, cy);
+    lc.rotate((l.rotation * Math.PI) / 180);
+    lc.drawImage(img, (-b.w * scale) / 2, (-b.h * scale) / 2, b.w * scale, b.h * scale);
+    lc.restore();
+  } else {
+    const f = fontOf(l);
+    drawText(
+      lc,
+      { text: l.text, fontStack: f.stack, weight: f.weight, color: l.color, outline: l.outline, outlineWidth: l.outlineWidth },
+      cx,
+      cy,
+      b.h * scale,
+      l.rotation,
+    );
+  }
 }
 
 /** Simple side-by-side preview PNG (front + back when designed). */
@@ -72,7 +90,7 @@ export async function exportPreviewPng(state: DesignState): Promise<string> {
     ctx.drawImage(v, i * STAGE_W * scale, 0);
     ctx.fillStyle = "rgba(20,17,15,0.75)";
     ctx.font = "600 26px Archivo, Arial, sans-serif";
-    ctx.fillText(views[i].toUpperCase() + (state.artworks[views[i]] ? '' : ' — NO DESIGN ADDED'), i * STAGE_W * scale + 24, 44);
+    ctx.fillText(views[i].toUpperCase() + (layersForView(state, views[i]).length ? '' : ' — NO DESIGN ADDED'), i * STAGE_W * scale + 24, 44);
   }
   ctx.fillStyle = "#14110f";
   ctx.fillRect(0, h - 72, w, 72);
@@ -108,11 +126,14 @@ export function downloadSpec(state: DesignState): void {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-/** Preserve the customer's ORIGINAL artwork bytes (no re-encoding). */
-export function downloadOriginalArtwork(state: DesignState, view: ViewId): void {
-  const art = state.artworks[view];
-  if (!art) return;
-  download(art.src, `${state.reference}-${view}-original-${art.fileName}`);
+/** All uploaded image layers (originals preserved separately from the mockup). */
+export function imageLayers(state: DesignState): ImageLayer[] {
+  return state.layers.filter((l): l is ImageLayer => l.kind === "image");
+}
+
+/** Preserve one uploaded artwork's ORIGINAL bytes (no re-encoding). */
+export function downloadOriginalArtwork(state: DesignState, layer: ImageLayer): void {
+  download(layer.src, `${state.reference}-${layer.view}-original-${layer.fileName}`);
 }
 
 /** Can this browser share files through the native share sheet? */

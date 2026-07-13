@@ -17,9 +17,17 @@ import {
   QUALITY_COPY,
   type ViewId,
 } from "./catalog";
-import { composeViewCanvas, download, loadImage } from "./exporter";
-import { fabricLine, sizesLine } from "./messages";
-import { estimatedDpi, getProduct, qualityLevel, round2, SIZE_KEYS, sizeTotal, type Artwork, type DesignState } from "./state";
+import { composeViewCanvas, download, imageLayers, loadImage } from "./exporter";
+import { fabricLine, layerLine, sizesLine } from "./messages";
+import {
+  getProduct,
+  layersForView,
+  qualityLevel,
+  SIZE_KEYS,
+  sizeTotal,
+  type DesignState,
+  type ImageLayer,
+} from "./state";
 import { hexLuma, hexToRgb, STAGE_H, STAGE_W } from "./garment";
 
 const W = 2200;
@@ -76,7 +84,7 @@ async function mockupPanel(ctx: CanvasRenderingContext2D, state: DesignState, vi
   ctx.fillStyle = PAPER;
   ctx.font = "700 22px Archivo, Arial, sans-serif";
   ctx.fillText(view.toUpperCase(), x + 18, y + 27);
-  if (!state.artworks[view]) {
+  if (!layersForView(state, view).length) {
     ctx.fillStyle = "rgba(20,17,15,0.55)";
     ctx.fillRect(x, y + h - 44, w, 44);
     ctx.fillStyle = PAPER;
@@ -111,63 +119,50 @@ async function closeupPanel(ctx: CanvasRenderingContext2D, state: DesignState, v
   ctx.fillText(`${view.toUpperCase()} PRINT AREA`, x + 16, y + 27);
 }
 
-/** Original artwork panel: untouched image, aspect preserved, checkerboard
- *  behind transparency. Never stretched, never recoloured. */
-async function originalPanel(ctx: CanvasRenderingContext2D, art: Artwork | undefined, viewName: string, x: number, y: number, w: number, h: number) {
+/** Original artwork panel: untouched uploaded image, aspect preserved,
+ *  checkerboard behind transparency. Never stretched, never recoloured. */
+async function originalPanel(ctx: CanvasRenderingContext2D, layer: ImageLayer | undefined, title: string, x: number, y: number, w: number, h: number) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x, y, w, h);
-  // checkerboard (signals preserved transparency)
   ctx.fillStyle = "#ececea";
   const c = 14;
   for (let yy = 0; yy < h; yy += c)
     for (let xx = yy % (c * 2) === 0 ? 0 : c; xx < w; xx += c * 2)
       ctx.fillRect(x + xx, y + yy, Math.min(c, w - xx), Math.min(c, h - yy));
-  if (art) {
-    const img = await loadImage(art.src);
+  if (layer) {
+    const img = await loadImage(layer.src);
     const k = Math.min((w - 24) / img.naturalWidth, (h - 56) / img.naturalHeight);
     const dw = img.naturalWidth * k;
     const dh = img.naturalHeight * k;
     ctx.drawImage(img, x + (w - dw) / 2, y + 40 + (h - 56 - dh) / 2, dw, dh);
   } else {
     ctx.fillStyle = SOFT;
-    ctx.font = "600 24px Archivo, Arial, sans-serif";
-    ctx.fillText("No design added", x + 20, y + h / 2 + 8);
+    ctx.font = "600 22px Archivo, Arial, sans-serif";
+    ctx.fillText("Text layers only", x + 20, y + h / 2 + 8);
   }
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = INK;
-  ctx.fillRect(x, y, 300, 34);
+  ctx.fillRect(x, y, Math.min(w, 320), 34);
   ctx.fillStyle = PAPER;
-  ctx.font = "700 18px Archivo, Arial, sans-serif";
-  ctx.fillText(`ORIGINAL ${viewName.toUpperCase()} ARTWORK`, x + 14, y + 24);
-}
-
-function artworkDetail(state: DesignState, view: ViewId): string[] {
-  const art = state.artworks[view];
-  if (!art) return [];
-  const zone = getProduct(state).zones[view];
-  const hIn = round2(art.widthIn * (art.naturalH / art.naturalW));
-  const lines = [
-    `${art.fileName} — ${art.widthIn}″ × ${hIn}″ (~${estimatedDpi(art)} DPI, ${qualityLevel(art)})${art.rotation ? `, rotated ${Math.round(art.rotation)}°` : ""}`,
-    `Placement: centre ${round2(art.cx * zone.widthIn)}″ across, ${round2(art.cy * zone.heightIn)}″ down within the ${view} print area (${zone.widthIn}″ × ${zone.heightIn}″)`,
-  ];
-  return lines;
+  ctx.font = "700 17px Archivo, Arial, sans-serif";
+  ctx.fillText(title.toUpperCase(), x + 14, y + 23);
 }
 
 function warnings(state: DesignState): string[] {
   const out: string[] = [];
+  const product = getProduct(state);
   const shirtLuma = hexLuma(state.color.hex);
-  (["front", "back"] as ViewId[]).forEach((v) => {
-    const a = state.artworks[v];
-    if (!a) return;
-    const q = qualityLevel(a);
-    if (q !== "good") out.push(`${v === "front" ? "Front" : "Back"} artwork: ${QUALITY_COPY[q]}`);
-    if (typeof a.avgLuma === "number" && Math.abs(a.avgLuma - shirtLuma) < 0.16)
-      out.push(
-        `${v === "front" ? "Front" : "Back"} artwork: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`,
-      );
-  });
+  for (const l of state.layers) {
+    const side = l.view === "front" ? "Front" : "Back";
+    if (l.kind === "image") {
+      const q = qualityLevel(l, product);
+      if (q !== "good") out.push(`${side} “${l.fileName}”: ${QUALITY_COPY[q]}`);
+      if (typeof l.avgLuma === "number" && Math.abs(l.avgLuma - shirtLuma) < 0.16)
+        out.push(`${side} “${l.fileName}”: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`);
+    }
+  }
   return out;
 }
 
@@ -246,11 +241,11 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   iy = value(ctx, fabricLine(state) || "No preference — team to advise", ix, iy + 48, colW);
 
   for (const v of views) {
-    const lines = artworkDetail(state, v);
-    if (!lines.length) continue;
-    label(ctx, `${v} artwork`, ix, iy + 14);
-    iy = value(ctx, lines[0], ix, iy + 48, colW);
-    iy = value(ctx, lines[1], ix, iy + 2, colW, SOFT, 22);
+    const ls = layersForView(state, v);
+    if (!ls.length) continue;
+    label(ctx, `${v} design — ${ls.length} layer${ls.length === 1 ? "" : "s"}`, ix, iy + 14);
+    iy += 42;
+    for (const l of ls) iy = value(ctx, "• " + layerLine(l, product), ix, iy + 6, colW, INK, 22);
   }
 
   label(ctx, "Quantity", ix, iy + 14);
@@ -304,12 +299,15 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
 
   // Original artwork panels — anchored to the column bottom, shrinking
   // (never overlapping the text above) if the column ran long.
+  const originals = imageLayers(state);
   const thumbW = Math.floor((colW - 20) / 2);
   const ty = Math.max(iy + 18, H - FOOT - 20 - 250);
   const thumbH = Math.max(160, H - FOOT - 20 - ty);
   if (ty + thumbH <= H - FOOT - 10) {
-    await originalPanel(ctx, state.artworks.front, "front", ix, ty, thumbW, thumbH);
-    await originalPanel(ctx, state.artworks.back, "back", ix + thumbW + 20, ty, thumbW, thumbH);
+    const t0 = originals[0] ? `Original — ${originals[0].fileName}` : "Uploaded artwork";
+    const t1 = originals.length > 2 ? `Original — ${originals[1].fileName} (+${originals.length - 2} more)` : originals[1] ? `Original — ${originals[1].fileName}` : "Uploaded artwork";
+    await originalPanel(ctx, originals[0], t0, ix, ty, thumbW, thumbH);
+    await originalPanel(ctx, originals[1], t1, ix + thumbW + 20, ty, thumbW, thumbH);
   }
 
   // Footer disclaimers

@@ -1,5 +1,5 @@
 // =====================================================================
-// CUSTOM TEE STUDIO — structured enquiry summary, WhatsApp text, JSON spec
+// STUDIO — structured enquiry summary, WhatsApp text, JSON spec
 // Test mode: nothing is ever sent automatically.
 // =====================================================================
 
@@ -9,29 +9,45 @@ import {
   CUSTOM_COLOR_NOTICE,
   getFabricById,
   MARKET_SOURCING_NOTICE,
-  MIN_ORDER,
   PREVIEW_DISCLAIMER,
   type Fabric,
+  type Product,
+  type ViewId,
 } from "./catalog";
 import {
   estimatedDpi,
+  fontOf,
   getProduct,
+  homeArea,
+  layerHeightIn,
+  layerLabel,
+  layersForView,
+  layerWidthIn,
   qualityLevel,
   round2,
   SIZE_KEYS,
   sizeTotal,
-  type Artwork,
+  viewsWithDesign,
   type DesignState,
+  type Layer,
 } from "./state";
 import { BRAND } from "../data/brand";
 
 export type SummaryRow = { label: string; value: string; step?: number };
 
-export function artworkLine(art: Artwork): string {
-  const hIn = round2(art.widthIn * (art.naturalH / art.naturalW));
-  return `${art.fileName} — ${art.widthIn}″ × ${hIn}″ (~${estimatedDpi(art)} DPI, ${qualityLevel(art)})${
-    art.rotation ? `, rotated ${Math.round(art.rotation)}°` : ""
-  }`;
+/** One production line describing an image or text layer. */
+export function layerLine(layer: Layer, product: Product): string {
+  const area = homeArea(layer, product).name;
+  const rot = layer.rotation ? `, ${Math.round(layer.rotation)}°` : "";
+  if (layer.kind === "image") {
+    const w = layerWidthIn(layer, product);
+    const h = layerHeightIn(layer, product);
+    return `${layer.fileName} — ${w}″ × ${h}″ (~${estimatedDpi(layer, product)} DPI, ${qualityLevel(layer, product)})${rot} · ${area}`;
+  }
+  const h = layerHeightIn(layer, product);
+  const roleName = layer.role === "name" ? "Name" : layer.role === "number" ? "Number" : "Text";
+  const outline = layer.outline ? ` / outline ${layer.outline}` : "";
+  return `${roleName} “${layer.text}” — ${h}″ tall, ${fontOf(layer).name}, ${layer.color}${outline}${rot} · ${area}`;
 }
 
 export function sizesLine(state: DesignState): string {
@@ -43,8 +59,9 @@ export function sizesLine(state: DesignState): string {
 
 /** "Front and back" | "Front only" | "Back only" | "" */
 export function designSidesLine(state: DesignState): string {
-  const f = !!state.artworks.front;
-  const b = !!state.artworks.back;
+  const v = viewsWithDesign(state);
+  const f = v.includes("front");
+  const b = v.includes("back");
   return f && b ? "Front and back" : f ? "Front only" : b ? "Back only" : "";
 }
 
@@ -52,7 +69,6 @@ export function getFabric(state: DesignState): Fabric | undefined {
   return getFabricById(state.details.fabricId);
 }
 
-/** "Midweight cotton (Mid weight) — Commonly available (confirmed by the team)" */
 export function fabricLine(state: DesignState): string {
   const f = getFabric(state);
   if (!f) return "";
@@ -64,24 +80,24 @@ export function summaryRows(state: DesignState): SummaryRow[] {
   const product = getProduct(state);
   const rows: SummaryRow[] = [
     { label: "Reference", value: state.reference },
-    {
-      label: "Product",
-      value: `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`,
-      step: 0,
-    },
+    { label: "Product", value: `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`, step: 0 },
     {
       label: "Garment colour",
       value: `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
       step: 1,
     },
-    {
-      label: "Fabric",
-      value: fabricLine(state) || "No preference — the team will advise",
-      step: 1,
-    },
+    { label: "Fabric", value: fabricLine(state) || "No preference — the team will advise", step: 1 },
   ];
-  if (state.artworks.front) rows.push({ label: "Front design", value: artworkLine(state.artworks.front), step: 2 });
-  if (state.artworks.back) rows.push({ label: "Back design", value: artworkLine(state.artworks.back), step: 2 });
+  for (const v of ["front", "back"] as ViewId[]) {
+    const ls = layersForView(state, v);
+    if (ls.length) {
+      rows.push({
+        label: `${v === "front" ? "Front" : "Back"} design`,
+        value: ls.map(layerLabel).join(", "),
+        step: 2,
+      });
+    }
+  }
   if (d.quantity.trim()) rows.push({ label: "Quantity", value: d.quantity.trim(), step: 4 });
   if (sizeTotal(d.sizes) > 0 || d.otherSizes.trim()) rows.push({ label: "Sizes", value: sizesLine(state), step: 4 });
   if (d.sameDesign) rows.push({ label: "Same design on all", value: d.sameDesign === "yes" ? "Yes" : "No — see notes", step: 4 });
@@ -95,21 +111,18 @@ export function summaryRows(state: DesignState): SummaryRow[] {
   return rows;
 }
 
-/**
- * Structured WhatsApp enquiry (test mode — opened only by explicit user
- * action, never automatically; contains no image data).
- */
 export function buildStudioMessage(state: DesignState): string {
   const d = state.details;
-  const line = (label: string, value: string) => (value.trim() ? `*${label}:* ${value.trim()}` : "");
-  const placement = (v: "front" | "back") => {
-    const a = state.artworks[v];
-    if (!a) return "";
-    return `${v === "front" ? "Front" : "Back"} — ${a.fileName}, ${a.widthIn}″ wide`;
-  };
-  const printing = [placement("front"), placement("back")].filter(Boolean).join("\n");
-
   const product = getProduct(state);
+  const line = (label: string, value: string) => (value.trim() ? `*${label}:* ${value.trim()}` : "");
+  const printBlocks: string[] = [];
+  for (const v of ["front", "back"] as ViewId[]) {
+    const ls = layersForView(state, v);
+    if (!ls.length) continue;
+    printBlocks.push(`${v === "front" ? "Front" : "Back"}:`);
+    for (const l of ls) printBlocks.push(`• ${layerLine(l, product)}`);
+  }
+
   const parts = [
     "*New Studio enquiry* 👕",
     "",
@@ -118,21 +131,18 @@ export function buildStudioMessage(state: DesignState): string {
     line("Phone", d.phone),
     d.email.trim() ? line("Email", d.email) : "",
     line("Product", `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`),
-    line(
-      "Colour",
-      `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
-    ),
+    line("Colour", `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`),
     line("Fabric", fabricLine(state) || "No preference — please advise"),
     line("Design", designSidesLine(state)),
     line("Quantity", d.quantity),
     line("Sizes", sizesLine(state)),
-    printing ? `*Printing:*\n${printing}` : "",
+    printBlocks.length ? `*Design layers:*\n${printBlocks.join("\n")}` : "",
     d.method.trim() ? line("Print preference", d.method) : "",
     line("Required date", d.deadline),
     line("Delivery", d.deliveryLocation),
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
-    "The shared reference file contains the complete front and back design, artwork placement, colour reference and production information.",
+    "The shared reference file shows every design layer, its placement, size and rotation, the colour reference and production information.",
     "Please confirm garment and fabric availability, final artwork size and placement, printing method, price and production time.",
     `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms everything (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
   ].filter((l) => l !== "");
@@ -144,26 +154,44 @@ export function studioWaLink(state: DesignState): string {
   return `${BRAND.whatsapp.base}?text=${encodeURIComponent(buildStudioMessage(state))}`;
 }
 
-/** Machine-readable design brief. Original artwork preserved separately. */
+/** Machine-readable design brief. Original uploaded artwork preserved separately. */
 export function buildDesignSpec(state: DesignState, includeArtworkData = false): object {
-  const artSpec = (a?: Artwork) =>
-    a
-      ? {
-          fileName: a.fileName,
-          fileKB: a.fileKB,
-          naturalPx: { w: a.naturalW, h: a.naturalH },
-          hasAlpha: a.hasAlpha,
-          printedInches: { width: a.widthIn, height: round2(a.widthIn * (a.naturalH / a.naturalW)) },
-          centreWithinZone: { x: round2(a.cx), y: round2(a.cy) },
-          rotationDeg: Math.round(a.rotation * 10) / 10,
-          estimatedDpi: estimatedDpi(a),
-          quality: qualityLevel(a),
-          ...(includeArtworkData ? { originalDataUrl: a.src } : {}),
-        }
-      : undefined;
+  const product = getProduct(state);
+  const layerSpec = (l: Layer) => {
+    const common = {
+      id: l.id,
+      view: l.view,
+      area: homeArea(l, product).name,
+      centreOnGarment: { x: round2(l.cx), y: round2(l.cy) },
+      rotationDeg: Math.round(l.rotation * 10) / 10,
+    };
+    if (l.kind === "image") {
+      return {
+        ...common,
+        kind: "image",
+        fileName: l.fileName,
+        fileKB: l.fileKB,
+        naturalPx: { w: l.naturalW, h: l.naturalH },
+        hasAlpha: l.hasAlpha,
+        printedInches: { width: layerWidthIn(l, product), height: layerHeightIn(l, product) },
+        estimatedDpi: estimatedDpi(l, product),
+        quality: qualityLevel(l, product),
+        ...(includeArtworkData ? { originalDataUrl: l.src } : {}),
+      };
+    }
+    return {
+      ...common,
+      kind: "text",
+      role: l.role,
+      text: l.text,
+      font: fontOf(l).name,
+      color: l.color,
+      outline: l.outline || null,
+      heightInches: layerHeightIn(l, product),
+    };
+  };
 
   const d = state.details;
-  const product = getProduct(state);
   const fabric = getFabric(state);
   return {
     prototype: true,
@@ -172,12 +200,8 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
     availabilityNotice: MARKET_SOURCING_NOTICE,
     reference: state.reference,
     createdAt: new Date().toISOString(),
-    status: "draft", // future statuses: submitted, awaiting-review, quoted, approved, in-production, completed, cancelled
-    product: {
-      id: state.productId,
-      name: product.name,
-      availability: AVAILABILITY_LABEL[product.availability],
-    },
+    status: "draft",
+    product: { id: state.productId, name: product.name, availability: AVAILABILITY_LABEL[product.availability] },
     color: {
       name: state.color.name,
       hex: state.color.hex,
@@ -186,16 +210,10 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
       ...(state.color.status === "confirm" ? { notice: CUSTOM_COLOR_NOTICE } : {}),
     },
     fabric: fabric
-      ? {
-          id: fabric.id,
-          name: fabric.name,
-          weight: fabric.weight,
-          availability: AVAILABILITY_LABEL[fabric.availability],
-        }
-      : { id: "", name: "No preference — team to advise" },
-    artworks: { front: artSpec(state.artworks.front), back: artSpec(state.artworks.back) },
+      ? { id: fabric.id, name: fabric.name, weight: fabric.weight, availability: AVAILABILITY_LABEL[fabric.availability] }
+      : null,
+    layers: state.layers.map(layerSpec),
     order: {
-      minimumOrder: MIN_ORDER,
       quantity: d.quantity,
       sizes: d.sizes,
       otherSizes: d.otherSizes,
