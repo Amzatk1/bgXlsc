@@ -679,7 +679,9 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 }
 .ed__sheettab.is-active { background: var(--ink); color: var(--paper); }
 /* Breathing room so the sticky tab bar + nav never crowd panel content */
-.ed__rail.is-mtab { padding-bottom: 6px; }
+/* Design step: the active mobile rail must clear BOTH the sticky Add/Edit/
+   Garment tab bar (bottom: 74px) and the sticky nav below it. */
+.ed__rail.is-mtab { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 
 /* Mini pickers (editor style rail) — calm rows, no cramped caps */
 .minigarments { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -819,6 +821,12 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
     border-top: 1px solid var(--line, #e4e0da);
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     margin-top: 8px;
+  }
+  /* Reserve space so the last content is never hidden behind the sticky
+     action bar (Continue/Back). The design step handles its own clearance
+     below, because it also has the sticky Add/Edit/Garment tab bar. */
+  .studio__panel:not(.ed) {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 }
 

@@ -43,9 +43,19 @@ function PageLoading() {
 export default function App() {
   const path = useHashRoute();
 
+  // Take over scroll handling from the browser: its automatic restoration
+  // otherwise fights our scroll-to-top and jumps the page down once a route's
+  // lazy-loaded media finishes loading and changes the page height.
+  useEffect(() => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  }, []);
+
   useEffect(() => {
     document.title = TITLES[path];
     window.scrollTo({ top: 0, behavior: "auto" });
+    // Re-assert after layout settles (lazy pages/media can shift height).
+    const raf = requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+    return () => cancelAnimationFrame(raf);
   }, [path]);
 
   const Page = PAGES[path];
