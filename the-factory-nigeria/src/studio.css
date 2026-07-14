@@ -148,9 +148,7 @@
   transition: opacity var(--dur-fast) var(--ease-out);
 }
 .stage__art:hover .stage__box,
-.stage__art:focus-visible .stage__box,
-.stage__art.is-out .stage__box { opacity: 1; }
-.stage__art.is-out .stage__box { border-color: #b02a20; }
+.stage__art:focus-visible .stage__box { opacity: 1; }
 .stage__art:focus-visible { outline: 2px solid var(--purple); outline-offset: 3px; }
 .stage__handle {
   position: absolute;
@@ -173,21 +171,6 @@
 }
 .stage__handle--scale::after { content: ""; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; }
 .stage__handle--rotate { left: 50%; top: -38px; transform: translateX(-50%); cursor: grab; }
-.stage__warn {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  padding: 9px 12px;
-  background: rgba(176, 42, 32, 0.95);
-  color: #fff;
-  border-radius: var(--radius-sm);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
 .stage__note { font-size: 0.76rem; color: var(--text-faint); }
 
 /* View tabs */
@@ -374,6 +357,10 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   font-weight: 600;
   color: var(--text-soft);
 }
+/* Touch devices need a full-size tap target (must follow the base rule to win). */
+@media (pointer: coarse) {
+  .gtool { min-height: 44px; min-width: 44px; }
+}
 .gtool:disabled { opacity: 0.4; }
 .gtool.is-on { border-color: var(--purple); color: var(--purple-700); background: var(--lilac-tint); }
 .gtool__sep { width: 1.5px; height: 22px; background: var(--line-strong); margin: 0 4px; }
@@ -413,22 +400,6 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   fill: var(--purple-700);
   opacity: 0.8;
 }
-.stage__fix {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  padding: 5px 10px;
-  min-height: 30px;
-  border-radius: 7px;
-  background: #fff;
-  color: #b02a20;
-  font-size: 0.76rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.stage__warn { align-items: center; flex-wrap: wrap; gap: 8px; }
-
 /* Empty state + dropzone */
 .emptysteps {
   counter-reset: es;
@@ -836,18 +807,16 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 /* Selected layer: show its box + handles */
 .stage__art.is-sel { z-index: 4; }
 .stage__art.is-sel .stage__box { opacity: 1; border-color: var(--purple); }
-.stage__art.is-sel.is-out .stage__box { border-color: #b02a20; }
 
-/* Editor text layer */
+/* Editor text layer.
+   `white-space: pre` keeps the customer's line breaks; the element's height is
+   exactly lines × line-height × font-size, which is how the canvas export
+   measures the same block. Line-height and text-align come from the layer. */
 .stage__text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 100%;
   height: 100%;
-  white-space: nowrap;
-  line-height: 1;
-  letter-spacing: 0.01em;
+  white-space: pre;
   pointer-events: none;
   user-select: none;
   text-transform: none;
@@ -862,22 +831,134 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 }
 .stage__zone.is-home { stroke-opacity: 0.9; stroke-width: 2; }
 
-/* Read-only preview text (review/confirmation) */
+/* Read-only preview text (review/confirmation) — same block model as the editor */
 .tprev__text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 100%;
   height: 100%;
-  white-space: nowrap;
-  line-height: 1;
+  white-space: pre;
   text-transform: none;
 }
 
 /* Add-text buttons */
 .addtext { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .addtext .btn { min-height: 44px; padding: 0 10px; font-size: 0.76rem; }
-.addtext .btn:first-child { grid-column: 1 / -1; }
+
+/* Primary "add" actions — text is as easy to reach as an image, by design. */
+.addbig { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.addbig__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 88px;
+  padding: 12px;
+  text-align: left;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.1s ease;
+}
+.addbig__btn:hover { border-color: var(--purple); background: var(--paper2, var(--paper)); }
+.addbig__btn:active { transform: scale(0.985); }
+.addbig__btn--text { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 7%, transparent); }
+.addbig__label { font-weight: 800; font-size: 0.95rem; }
+.addbig__hint { font-size: 0.72rem; color: var(--text-soft); line-height: 1.3; }
+
+/* Multi-line text input */
+.textin {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--text);
+}
+
+/* Segmented control (text alignment) */
+.segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.segmented__opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.segmented__opt input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented__opt.is-active { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 10%, transparent); color: var(--purple-700); }
+
+/* Full-surface (sublimation) designer */
+.patterns { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.pattern {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.pattern input { position: absolute; opacity: 0; pointer-events: none; }
+.pattern.is-active { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 10%, transparent); color: var(--purple-700); }
+.patterncolors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.patterncolors label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Two-kinds-of-T-shirt explainer on the product step */
+.prodnote {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  border: 1.5px solid var(--line-strong);
+  border-left: 3px solid var(--purple);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+.prodnote svg { flex: none; margin-top: 2px; color: var(--purple); }
+
+/* How a garment is produced — shown on every product card */
+.prodcard__prod {
+  align-self: start;
+  padding: 3px 8px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--purple) 12%, transparent);
+  color: var(--purple-700);
+}
+
+.preset--wide { flex-basis: 100%; }
+.stage__note--guides { color: var(--text-soft); }
 
 /* Layers panel */
 .layerlist { display: grid; gap: 6px; }

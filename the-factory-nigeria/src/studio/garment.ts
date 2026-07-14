@@ -22,7 +22,10 @@ export const STAGE_H = 700;
 const A = ASSET_BASE;
 
 export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
-  "unisex-tee": { front: `${A}/tee-std-front.webp`, back: `${A}/tee-std-back.webp` },
+  // The two T-shirt options differ by how they are MADE, not by silhouette —
+  // they legitimately share the same photographed tee.
+  "tee-custom": { front: `${A}/tee-std-front.webp`, back: `${A}/tee-std-back.webp` },
+  "tee-readymade": { front: `${A}/tee-std-front.webp`, back: `${A}/tee-std-back.webp` },
   "oversized-tee": { front: `${A}/tee-os-front.webp`, back: `${A}/tee-os-back.webp` },
   polo: { front: `${A}/polo-front.webp`, back: `${A}/polo-back.webp` },
   hoodie: { front: `${A}/hoodie-front.webp`, back: `${A}/hoodie-back.webp` },
@@ -39,7 +42,8 @@ export const GARMENT_IMG: Record<string, Record<ViewId, string>> = {
  * multiply-normalisation correct as the library grows.
  */
 export const FABRIC_LUMA: Record<string, number> = {
-  "unisex-tee": 0.505,
+  "tee-custom": 0.505,
+  "tee-readymade": 0.505,
   "oversized-tee": 0.505,
   polo: 0.507,
   hoodie: 0.506,
@@ -51,6 +55,13 @@ export const FABRIC_LUMA: Record<string, number> = {
 };
 
 export const DEFAULT_FABRIC_LUMA = 0.505;
+
+/** Fallback garment when an unknown product id turns up (e.g. an old saved design). */
+export const DEFAULT_PRODUCT_ID = "tee-readymade";
+
+export function garmentImg(productId: string, view: ViewId): string {
+  return (GARMENT_IMG[productId] ?? GARMENT_IMG[DEFAULT_PRODUCT_ID])[view];
+}
 
 // ---------------------------------------------------------------------
 // Colour math
@@ -106,27 +117,48 @@ function getMeasureCtx(): CanvasRenderingContext2D | null {
 
 type CtxLS = CanvasRenderingContext2D & { letterSpacing?: string };
 
-/** width ÷ font-size of the rendered text (used to size the layer box). */
-export function measureTextAspect(text: string, fontStack: string, weight = 700, letterSpacing = 0): number {
-  const t = text || " ";
+/**
+ * Block width ÷ block height of the rendered text, where the block is every
+ * line stacked at `lineHeight`. Used to size the layer's bounding box, so a
+ * two-line name occupies twice the height of a one-line name.
+ */
+export function measureTextAspect(
+  text: string,
+  fontStack: string,
+  weight = 700,
+  letterSpacing = 0,
+  lineHeight = 1,
+): number {
+  const lines = (text || " ").split("\n");
+  const lh = lineHeight > 0 ? lineHeight : 1;
+  const blockH = lines.length * lh * 100; // at a 100px reference font size
   const ctx = getMeasureCtx() as CtxLS | null;
-  if (!ctx) return Math.max(0.6, t.length * (0.62 + letterSpacing));
+  if (!ctx) {
+    const longest = Math.max(1, ...lines.map((l) => l.length));
+    return Math.max(0.15, (longest * (0.62 + letterSpacing) * 100) / blockH);
+  }
   ctx.font = `${weight} 100px ${fontStack}`;
   try {
     ctx.letterSpacing = `${letterSpacing * 100}px`;
   } catch {
     /* older engines: fall back to metric width only */
   }
-  const w = ctx.measureText(t).width + (ctx.letterSpacing ? 0 : letterSpacing * 100 * Math.max(0, t.length - 1));
+  let maxW = 0;
+  for (const line of lines) {
+    const t = line || " ";
+    const w = ctx.measureText(t).width + (ctx.letterSpacing ? 0 : letterSpacing * 100 * Math.max(0, t.length - 1));
+    if (w > maxW) maxW = w;
+  }
   try {
     ctx.letterSpacing = "0px";
   } catch {
     /* noop */
   }
-  return Math.max(0.2, w / 100);
+  return Math.max(0.15, maxW / blockH);
 }
 
 export type TextDraw = {
+  /** may contain newlines */
   text: string;
   fontStack: string;
   weight: number;
@@ -134,9 +166,15 @@ export type TextDraw = {
   outline: string;
   outlineWidth: number; // fraction of font size
   letterSpacing?: number; // fraction of font size
+  lineHeight?: number; // multiple of font size
+  align?: "left" | "center" | "right";
 };
 
-/** Draw text centred at (cx,cy) with a given font-size, optional outline. */
+/**
+ * Draw a text block centred at (cx,cy). `fontSizePx` is the size of ONE line;
+ * the block grows downward/upward around the centre as lines are added. The
+ * geometry matches the CSS the editor uses, so the export is what you saw.
+ */
 export function drawText(
   ctx: CanvasRenderingContext2D,
   t: TextDraw,
@@ -146,11 +184,16 @@ export function drawText(
   rotationDeg: number,
 ): void {
   const c = ctx as CtxLS;
+  const lines = (t.text || " ").split("\n");
+  const lh = (t.lineHeight && t.lineHeight > 0 ? t.lineHeight : 1) * fontSizePx;
+  const blockH = lines.length * lh;
+  const align = t.align ?? "center";
+
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate((rotationDeg * Math.PI) / 180);
   ctx.font = `${t.weight} ${fontSizePx}px ${t.fontStack}`;
-  ctx.textAlign = "center";
+  ctx.textAlign = align;
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   ctx.miterLimit = 2;
@@ -159,13 +202,24 @@ export function drawText(
   } catch {
     /* noop */
   }
-  if (t.outline && t.outlineWidth > 0) {
-    ctx.strokeStyle = t.outline;
-    ctx.lineWidth = Math.max(1, t.outlineWidth * fontSizePx * 2);
-    ctx.strokeText(t.text, 0, 0);
-  }
-  ctx.fillStyle = t.color;
-  ctx.fillText(t.text, 0, 0);
+
+  // Left/right alignment is relative to the widest line, which is what the
+  // layer's bounding box is measured from — same as the CSS box in the editor.
+  let maxW = 0;
+  for (const line of lines) maxW = Math.max(maxW, ctx.measureText(line || " ").width);
+  const x = align === "left" ? -maxW / 2 : align === "right" ? maxW / 2 : 0;
+
+  lines.forEach((line, i) => {
+    const y = -blockH / 2 + lh * (i + 0.5);
+    if (t.outline && t.outlineWidth > 0) {
+      ctx.strokeStyle = t.outline;
+      ctx.lineWidth = Math.max(1, t.outlineWidth * fontSizePx * 2);
+      ctx.strokeText(line, x, y);
+    }
+    ctx.fillStyle = t.color;
+    ctx.fillText(line, x, y);
+  });
+
   try {
     c.letterSpacing = "0px";
   } catch {
@@ -222,7 +276,7 @@ export async function drawGarment(
   h: number,
   drawArtwork?: (ctx: CanvasRenderingContext2D) => void,
 ): Promise<void> {
-  const photo = await loadGarmentImage((GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view]);
+  const photo = await loadGarmentImage(garmentImg(productId, view));
   const { shadeBrightness, lightOpacity } = layerTuning(colorHex, productId);
 
   // Work on an offscreen layer so blend modes stay contained

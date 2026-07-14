@@ -65,10 +65,21 @@ function drawLayer(lc: CanvasRenderingContext2D, l: Layer, img: HTMLImageElement
     const f = fontOf(l);
     drawText(
       lc,
-      { text: l.text, fontStack: f.stack, weight: f.weight, color: l.color, outline: l.outline, outlineWidth: l.outlineWidth, letterSpacing: l.letterSpacing },
+      {
+        text: l.text,
+        fontStack: f.stack,
+        weight: f.weight,
+        color: l.color,
+        outline: l.outline,
+        outlineWidth: l.outlineWidth,
+        letterSpacing: l.letterSpacing,
+        lineHeight: l.lineHeight,
+        align: l.align,
+      },
       cx,
       cy,
-      b.h * scale,
+      // ONE line's font size — not the box height, which spans every line.
+      l.size * STAGE_H * scale,
       l.rotation,
     );
   }

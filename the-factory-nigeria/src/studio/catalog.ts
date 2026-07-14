@@ -33,6 +33,97 @@ export const MARKET_SOURCING_NOTICE =
 export const FABRIC_VISUAL_NOTICE =
   "Fabric visuals are approximate references. The exact material, weight, texture and colour will be confirmed using available market samples before production.";
 
+// ---------------------------------------------------------------------
+// Production methods — HOW a garment is actually made.
+//
+// This is not a styling detail. Sublimation, printing onto a ready-made
+// garment, and cutting-and-sewing a garment from fabric are different
+// processes with different creative freedom, and the customer must know
+// which one applies to the thing they are designing. Every method here is
+// still confirmed by The Factory Nigeria before an order is accepted.
+// ---------------------------------------------------------------------
+export type ProductionMethodId = "sublimation" | "ready-made-print" | "custom-made" | "headwear-print";
+
+export type ProductionMethod = {
+  id: ProductionMethodId;
+  /** exact phrase used on the review screen and the production reference */
+  label: string;
+  /** short badge for product cards */
+  badge: string;
+  /** one plain sentence for the customer */
+  summary: string;
+  /** what the method means for the design itself (shown in the editor) */
+  designNote: string;
+};
+
+export const PRODUCTION_METHODS: Record<ProductionMethodId, ProductionMethod> = {
+  sublimation: {
+    id: "sublimation",
+    label: "Sublimation",
+    badge: "Sublimated",
+    summary:
+      "Jerseys are sublimated — the design is printed into the fabric panels before the jersey is sewn, not printed on top of a finished garment.",
+    designNote:
+      "This jersey is sublimated, so your design is not limited to a print box. Colour, patterns and artwork can cover the whole garment, edge to edge and across seams.",
+  },
+  "ready-made-print": {
+    id: "ready-made-print",
+    label: "Print on a ready-made garment",
+    badge: "Ready-made + print",
+    summary: "A finished garment is bought and your design is printed onto it.",
+    designNote:
+      "Your design is printed onto a finished garment. Place it anywhere you like — The Factory Nigeria will review the placement and confirm how it can be produced.",
+  },
+  "custom-made": {
+    id: "custom-made",
+    label: "Custom-made (cut and sewn for you)",
+    badge: "Custom-made",
+    summary: "The garment is sewn specifically for you, then your design is applied.",
+    designNote:
+      "This garment is made for you from fabric, so the cut, the fabric and the design can all be discussed with the team.",
+  },
+  "headwear-print": {
+    id: "headwear-print",
+    label: "Print or embroidery on a ready-made cap",
+    badge: "Cap + print",
+    summary: "A finished cap is bought and your design is printed or embroidered onto it.",
+    designNote:
+      "Caps are decorated panel by panel. Place your design anywhere — the team will confirm whether it is printed or embroidered.",
+  },
+};
+
+export function getProductionMethod(product: Product): ProductionMethod {
+  return PRODUCTION_METHODS[product.production];
+}
+
+export function isSublimated(product: Product): boolean {
+  return product.production === "sublimation";
+}
+
+/**
+ * The most important message in the editor. Guides help you line things up —
+ * they do NOT limit where a design may go. Wording approved by the manager;
+ * do not soften it into "print area" language.
+ */
+export const GUIDES_NOTICE =
+  "Guides are provided to help with alignment. You can place your design anywhere on the visible garment. The Factory Nigeria will review the final placement and confirm how it can be produced.";
+
+/** Soft, never-blocking note when a design crosses a seam/pocket/zip/collar/hem. */
+export const DIFFICULT_AREA_NOTICE =
+  "This design crosses an area that may require special production handling. You can continue with your idea, and The Factory Nigeria will review and confirm how it can be produced.";
+
+/**
+ * The Factory's own words for the custom-made T-shirt fabric. Kept verbatim.
+ * (Externally this reads like a loopback / French-terry style knit — loops on
+ * the reverse, like a towel — but the team's term is the one that ships, and
+ * the exact fabric is a confirmation item, not an assumption.)
+ */
+export const TOWEL_BACK_NOTE =
+  "Custom-made T-shirts are usually sewn using The Factory's towel-back fabric option. The exact fabric is confirmed with you before production.";
+
+export const SUBLIMATION_NOTE =
+  "Sublimated garments are produced on polyester-based sports fabric — that is what allows the design to run across the whole garment.";
+
 export type PrintZone = {
   /** Stage coordinates (SVG viewBox units, 600×700 stage) */
   x: number;
@@ -60,6 +151,15 @@ export type Product = {
   /** Material reference (visual/feel reference only, not a stock claim) */
   material: string;
   availability: AvailabilityStatus;
+  /** How this garment is actually produced — drives the copy everywhere downstream. */
+  production: ProductionMethodId;
+  /**
+   * T-shirts only. The Factory makes T-shirts two genuinely different ways and
+   * the customer must consciously choose — never merged into one vague "T-shirt".
+   */
+  tshirtOption?: "custom-made" | "ready-made";
+  /** The exact line written onto the review screen and the production reference. */
+  tshirtOptionLabel?: string;
   /** Garment family — decides which placement presets apply (chest/back vs cap panels). */
   family?: "top" | "headwear";
   /** Product-card thumbnail (real processed studio asset) */
@@ -106,32 +206,59 @@ export function productPpi(product: Product): number {
   return product.zones.front.w / product.zones.front.widthIn;
 }
 
+/** Shared tee geometry — the two T-shirt options differ by HOW they are made, not by shape. */
+const TEE_ZONES: Record<ViewId, PrintZone> = {
+  front: { x: 185, y: 205, w: 230, h: 288, widthIn: 12, heightIn: 15 },
+  back: { x: 185, y: 185, w: 230, h: 307, widthIn: 12, heightIn: 16 },
+};
+const TEE_EXTRA: Partial<Record<ViewId, PrintArea[]>> = {
+  front: [
+    { id: "left-sleeve", name: "Left sleeve", x: 96, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
+    { id: "right-sleeve", name: "Right sleeve", x: 432, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
+  ],
+};
+const TEE_AVOID: Partial<Record<ViewId, PrintArea[]>> = {
+  front: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
+  back: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
+};
+
 export const PRODUCTS: Product[] = [
   {
-    id: "unisex-tee",
-    name: "Standard unisex T-shirt",
-    note: "Classic fit, crew neck",
-    fit: "Classic fit",
-    description: "The everyday crew-neck tee with a clean, regular cut.",
-    use: "Events, teams, merch drops, everyday branding",
-    material: "Midweight cotton jersey (reference)",
-    availability: "common",
+    id: "tee-custom",
+    name: "Custom-made T-shirt",
+    note: "Sewn for you — towel-back fabric option",
+    fit: "Made to your specification",
+    description:
+      "A T-shirt made specifically for you rather than bought ready-made. It is usually sewn using The Factory's towel-back fabric option.",
+    use: "Brands wanting their own fit and fabric, premium drops, uniforms",
+    material: "Towel-back fabric option (reference — confirmed by the team)",
+    availability: "confirm",
+    production: "custom-made",
+    tshirtOption: "custom-made",
+    tshirtOptionLabel: "Custom-made (towel-back fabric option, subject to Factory confirmation)",
     thumb: `${ASSET_BASE}/tee-std-thumb.webp`,
     cut: "regular",
-    zones: {
-      front: { x: 185, y: 205, w: 230, h: 288, widthIn: 12, heightIn: 15 },
-      back: { x: 185, y: 185, w: 230, h: 307, widthIn: 12, heightIn: 16 },
-    },
-    extraAreas: {
-      front: [
-        { id: "left-sleeve", name: "Left sleeve", x: 96, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
-        { id: "right-sleeve", name: "Right sleeve", x: 432, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
-      ],
-    },
-    avoidAreas: {
-      front: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
-      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
-    },
+    zones: TEE_ZONES,
+    extraAreas: TEE_EXTRA,
+    avoidAreas: TEE_AVOID,
+  },
+  {
+    id: "tee-readymade",
+    name: "Ready-made T-shirt (100% cotton)",
+    note: "Bought ready-made, then printed",
+    fit: "Classic fit",
+    description: "A ready-made 100% cotton T-shirt, purchased and then customised with your requested print.",
+    use: "Events, teams, merch drops, everyday branding",
+    material: "100% cotton jersey (reference)",
+    availability: "common",
+    production: "ready-made-print",
+    tshirtOption: "ready-made",
+    tshirtOptionLabel: "Ready-made 100% cotton",
+    thumb: `${ASSET_BASE}/tee-std-thumb.webp`,
+    cut: "regular",
+    zones: TEE_ZONES,
+    extraAreas: TEE_EXTRA,
+    avoidAreas: TEE_AVOID,
   },
   {
     id: "oversized-tee",
@@ -142,6 +269,7 @@ export const PRODUCTS: Product[] = [
     use: "Streetwear lines, statement prints, creator merch",
     material: "Heavier cotton jersey (reference)",
     availability: "common",
+    production: "ready-made-print",
     thumb: `${ASSET_BASE}/tee-os-thumb.webp`,
     cut: "oversized",
     zones: {
@@ -168,6 +296,7 @@ export const PRODUCTS: Product[] = [
     use: "Uniforms, corporate branding, hospitality teams",
     material: "Cotton piqué knit (reference)",
     availability: "confirm",
+    production: "ready-made-print",
     thumb: `${ASSET_BASE}/polo-thumb.webp`,
     cut: "regular",
     zones: {
@@ -199,6 +328,7 @@ export const PRODUCTS: Product[] = [
     use: "Crews, colder-season merch, premium drops",
     material: "Brushed fleece, cotton-rich (reference)",
     availability: "confirm",
+    production: "ready-made-print",
     thumb: `${ASSET_BASE}/hoodie-thumb.webp`,
     cut: "oversized",
     zones: {
@@ -226,10 +356,12 @@ export const PRODUCTS: Product[] = [
     name: "Sports jersey",
     note: "Athletic crew neck, short sleeves",
     fit: "Athletic fit",
-    description: "A lightweight performance jersey with a ribbed crew neck — built for team names, numbers and sponsor logos.",
+    description:
+      "A sublimated performance jersey with a ribbed crew neck. The design is printed into the fabric, so colour, patterns and artwork can cover the whole jersey — not just a chest box.",
     use: "Football/soccer teams, sports clubs, five-a-side, fan merch",
-    material: "Breathable performance knit (reference)",
+    material: "Breathable polyester performance knit (reference)",
     availability: "confirm",
+    production: "sublimation",
     thumb: `${ASSET_BASE}/jersey-thumb.webp`,
     cut: "regular",
     zones: {
@@ -254,10 +386,12 @@ export const PRODUCTS: Product[] = [
     name: "Basketball jersey",
     note: "Sleeveless tank, V-neck, mesh",
     fit: "Loose athletic fit",
-    description: "A sleeveless mesh basketball tank with a ribbed V-neck — big front and back numbers, team name and sponsors.",
+    description:
+      "A sublimated sleeveless basketball tank with a ribbed V-neck. Full-surface colour, patterns, big numbers, team name and sponsors — printed into the fabric.",
     use: "Basketball teams, 3×3, leagues, training squads, fan jerseys",
-    material: "Breathable basketball mesh (reference)",
+    material: "Breathable polyester basketball mesh (reference)",
     availability: "confirm",
+    production: "sublimation",
     thumb: `${ASSET_BASE}/basketball-thumb.webp`,
     cut: "regular",
     zones: {
@@ -284,6 +418,7 @@ export const PRODUCTS: Product[] = [
     use: "Streetwear, team caps, merch, events",
     material: "Structured cotton twill (reference)",
     availability: "confirm",
+    production: "headwear-print",
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-snapback-thumb.webp`,
     cut: "regular",
@@ -304,6 +439,7 @@ export const PRODUCTS: Product[] = [
     use: "Everyday caps, casual merch, giveaways",
     material: "Washed cotton twill (reference)",
     availability: "confirm",
+    production: "headwear-print",
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-baseball-thumb.webp`,
     cut: "regular",
@@ -324,6 +460,7 @@ export const PRODUCTS: Product[] = [
     use: "Streetwear, festivals, summer merch, teams",
     material: "Foam front + polyester mesh (reference)",
     availability: "confirm",
+    production: "headwear-print",
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-trucker-thumb.webp`,
     cut: "regular",
@@ -519,7 +656,7 @@ export type FontSpec = {
   /** the primary family name (for canvas font loading + @font-face) */
   family: string;
   weight: number;
-  category: string;
+  category: FontCategory;
   /** licence recorded in the production reference so the team can reuse it */
   license: string;
   /** where the team can obtain the exact font (internal production note) */
@@ -531,16 +668,38 @@ export type FontSpec = {
  * /assets/the-factory-nigeria/fonts and recorded (with licence + source) in the
  * generated reference, so The Factory can obtain and reuse the exact font.
  */
-export const FONTS: FontSpec[] = [
-  { id: "teko", name: "Teko (jersey number)", family: "Teko", stack: "'Teko', 'Arial Narrow', sans-serif", weight: 600, category: "Athletic / numbers", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Teko" },
-  { id: "anton", name: "Anton (display)", family: "Anton", stack: "'Anton', Impact, sans-serif", weight: 400, category: "Display / block", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Anton" },
-  { id: "bebas", name: "Bebas Neue (athletic)", family: "Bebas Neue", stack: "'Bebas Neue', 'Arial Narrow', sans-serif", weight: 400, category: "Condensed athletic", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Bebas+Neue" },
-  { id: "oswald", name: "Oswald (condensed)", family: "Oswald", stack: "'Oswald', 'Arial Narrow', sans-serif", weight: 600, category: "Condensed sans", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Oswald" },
-  { id: "graduate", name: "Graduate (varsity)", family: "Graduate", stack: "'Graduate', Georgia, serif", weight: 400, category: "Varsity / collegiate", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Graduate" },
-  { id: "pacifico", name: "Pacifico (script)", family: "Pacifico", stack: "'Pacifico', 'Segoe Script', cursive", weight: 400, category: "Script", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Pacifico" },
-  { id: "archivo", name: "Archivo (clean sans)", family: "Archivo", stack: "Archivo, Arial, sans-serif", weight: 800, category: "General purpose", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Archivo" },
-  { id: "mono", name: "Mono", family: "IBM Plex Mono", stack: "'IBM Plex Mono', ui-monospace, monospace", weight: 700, category: "Monospace", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/IBM+Plex+Mono" },
+export type FontCategory = "Athletic" | "Jersey" | "Varsity" | "Bold" | "Condensed" | "Modern" | "Script" | "General";
+
+/** Order the categories are shown in the font picker. */
+export const FONT_CATEGORIES: FontCategory[] = [
+  "Athletic",
+  "Jersey",
+  "Varsity",
+  "Bold",
+  "Condensed",
+  "Modern",
+  "Script",
+  "General",
 ];
+
+export const FONTS: FontSpec[] = [
+  { id: "bebas", name: "Bebas Neue", family: "Bebas Neue", stack: "'Bebas Neue', 'Arial Narrow', sans-serif", weight: 400, category: "Athletic", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Bebas+Neue" },
+  { id: "teko", name: "Teko", family: "Teko", stack: "'Teko', 'Arial Narrow', sans-serif", weight: 600, category: "Jersey", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Teko" },
+  { id: "graduate", name: "Graduate", family: "Graduate", stack: "'Graduate', Georgia, serif", weight: 400, category: "Varsity", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Graduate" },
+  { id: "anton", name: "Anton", family: "Anton", stack: "'Anton', Impact, sans-serif", weight: 400, category: "Bold", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Anton" },
+  { id: "oswald", name: "Oswald", family: "Oswald", stack: "'Oswald', 'Arial Narrow', sans-serif", weight: 600, category: "Condensed", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Oswald" },
+  { id: "archivo", name: "Archivo", family: "Archivo", stack: "Archivo, Arial, sans-serif", weight: 800, category: "Modern", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Archivo" },
+  { id: "pacifico", name: "Pacifico", family: "Pacifico", stack: "'Pacifico', 'Segoe Script', cursive", weight: 400, category: "Script", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/Pacifico" },
+  { id: "mono", name: "Mono", family: "IBM Plex Mono", stack: "'IBM Plex Mono', ui-monospace, monospace", weight: 700, category: "General", license: "SIL Open Font License 1.1", source: "fonts.google.com/specimen/IBM+Plex+Mono" },
+];
+
+/** Fonts grouped for the picker — categories with no fonts are dropped. */
+export function fontsByCategory(): { category: FontCategory; fonts: FontSpec[] }[] {
+  return FONT_CATEGORIES.map((category) => ({
+    category,
+    fonts: FONTS.filter((f) => f.category === category),
+  })).filter((g) => g.fonts.length > 0);
+}
 
 /** Font families that ship as bundled WebFonts (need loading before canvas export). */
 export const BUNDLED_FONT_FAMILIES = ["Teko", "Anton", "Bebas Neue", "Oswald", "Graduate", "Pacifico"];

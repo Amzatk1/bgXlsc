@@ -15,6 +15,7 @@ import {
   avoidAreasForView,
   DPI_THRESHOLDS,
   getFontById,
+  getProductionMethod,
   MIN_ORDER,
   placementsFor,
   PRODUCTS,
@@ -23,11 +24,13 @@ import {
   type PrintArea,
   type PrintZone,
   type Product,
+  type ProductionMethod,
   type QualityLevel,
   type ShirtColor,
   type ViewId,
 } from "./catalog";
 import { STAGE_H, STAGE_W } from "./garment";
+import { getPatternDef, patternDataUrl, PATTERN_H, PATTERN_W, renderPatternSvg, type PatternSpec } from "./patterns";
 
 // ---------------------------------------------------------------------
 // Layer model
@@ -67,11 +70,19 @@ type LayerBase = {
   rotation: number;
 };
 
-export type ImageLayer = LayerBase & { kind: "image" } & Artwork;
+export type ImageLayer = LayerBase & { kind: "image" } & Artwork & {
+    /** Studio generated this image (a full-surface jersey design) — not a customer upload. */
+    generated?: boolean;
+    /** the pattern spec that produced it, so The Factory can reproduce it exactly */
+    pattern?: PatternSpec;
+  };
+
+export type TextAlign = "left" | "center" | "right";
 
 export type TextLayer = LayerBase & {
   kind: "text";
   role: TextRole;
+  /** may contain newlines — text is a block, not a single line */
   text: string;
   fontId: string;
   color: string;
@@ -81,7 +92,11 @@ export type TextLayer = LayerBase & {
   outlineWidth: number;
   /** letter spacing as a fraction of cap height (can be negative) */
   letterSpacing: number;
-  /** measured width÷height of the rendered text (kept fresh by the editor) */
+  /** line spacing as a multiple of the font size (1 = tight) */
+  lineHeight: number;
+  /** how multiple lines line up against each other */
+  align: TextAlign;
+  /** measured width÷height of the whole rendered block (kept fresh by the editor) */
   aspect: number;
 };
 
@@ -164,6 +179,19 @@ export function getProduct(state: DesignState): Product {
   return PRODUCTS.find((p) => p.id === state.productId) ?? PRODUCTS[0];
 }
 
+/** How the selected garment is actually made — surfaced everywhere downstream. */
+export function productionOf(state: DesignState): ProductionMethod {
+  return getProductionMethod(getProduct(state));
+}
+
+/**
+ * The T-shirt option line, exactly as it must appear on the review screen and
+ * the production reference. Empty for garments that are not T-shirts.
+ */
+export function tshirtOptionLine(product: Product): string {
+  return product.tshirtOptionLabel ?? "";
+}
+
 /** Primary (torso) print zone for the current view. */
 export function getZone(state: DesignState): PrintZone {
   return getProduct(state).zones[state.view];
@@ -207,15 +235,28 @@ export function viewSummary(state: DesignState, view: ViewId): string {
 // ---------------------------------------------------------------------
 // Layer geometry — everything in stage pixels (600×700)
 // ---------------------------------------------------------------------
-/** Text aspect fallback when the editor hasn't measured yet. */
-export function textAspectGuess(text: string): number {
-  const n = Math.max(1, text.trim().length);
-  return clamp(n * 0.62, 0.6, 12);
+/** Text is a block: one entry per line. */
+export function textLines(text: string): string[] {
+  return (text || " ").split("\n");
+}
+
+/** Block height as a multiple of the font size (lines × line spacing). */
+export function textBlockScale(layer: TextLayer): number {
+  const lh = layer.lineHeight > 0 ? layer.lineHeight : 1;
+  return textLines(layer.text).length * lh;
+}
+
+/** Text aspect fallback when the editor hasn't measured yet (block width ÷ block height). */
+export function textAspectGuess(text: string, lineHeight = 1): number {
+  const lines = textLines(text);
+  const longest = Math.max(1, ...lines.map((l) => l.trim().length));
+  const blockH = lines.length * (lineHeight > 0 ? lineHeight : 1);
+  return clamp((longest * 0.62) / blockH, 0.15, 12);
 }
 
 export function layerAspect(layer: Layer): number {
   if (layer.kind === "image") return layer.naturalW / layer.naturalH;
-  return layer.aspect > 0 ? layer.aspect : textAspectGuess(layer.text);
+  return layer.aspect > 0 ? layer.aspect : textAspectGuess(layer.text, layer.lineHeight);
 }
 
 /** Bounding box in stage pixels: centre (x,y) + width/height. */
@@ -226,7 +267,8 @@ export function layerBox(layer: Layer): { x: number; y: number; w: number; h: nu
     w = layer.size * STAGE_W;
     h = w * (layer.naturalH / layer.naturalW);
   } else {
-    h = layer.size * STAGE_H;
+    // `size` is the FONT size; the block grows with the number of lines.
+    h = layer.size * STAGE_H * textBlockScale(layer);
     w = h * layerAspect(layer);
   }
   return { x: layer.cx * STAGE_W, y: layer.cy * STAGE_H, w, h };
@@ -246,7 +288,7 @@ export function layerCorners(layer: Layer): { x: number; y: number }[] {
   ].map((p) => ({ x: b.x + p.x * cos - p.y * sin, y: b.y + p.x * sin + p.y * cos }));
 }
 
-/** The print area (torso / sleeve / …) whose centre is nearest the layer. */
+/** The alignment guide (torso / sleeve / …) whose centre is nearest the layer. */
 export function homeArea(layer: Layer, product: Product): PrintArea {
   const areas = areasForView(product, layer.view);
   const b = layerBox(layer);
@@ -262,13 +304,23 @@ export function homeArea(layer: Layer, product: Product): PrintArea {
   return best;
 }
 
-/** True when the layer extends beyond its nearest print area. */
+/**
+ * True when the layer extends beyond its nearest alignment guide.
+ *
+ * This is INFORMATION, not a verdict. A design that sits outside a guide is a
+ * perfectly valid design — the guides exist to help people line things up, and
+ * The Factory reviews the real placement before production. Nothing in the app
+ * may use this to move, resize, block or reject a design; see validateForSubmit.
+ */
 export function isLayerOutOfArea(layer: Layer, product: Product, tolPx = 10): boolean {
   const a = homeArea(layer, product);
   return layerCorners(layer).some(
     (c) => c.x < a.x - tolPx || c.y < a.y - tolPx || c.x > a.x + a.w + tolPx || c.y > a.y + a.h + tolPx,
   );
 }
+
+/** Reads better at the call sites that only want to show an advisory hint. */
+export const isOutsideGuide = isLayerOutOfArea;
 
 /** Names of difficult regions (collar/pocket/placket…) a layer overlaps. */
 export function difficultCrossings(layer: Layer, product: Product): string[] {
@@ -285,17 +337,29 @@ export function difficultCrossings(layer: Layer, product: Product): string[] {
   return out;
 }
 
-/** Clamp centre onto the stage and size/rotation into sane bounds. */
+/**
+ * Keep a layer on the stage, and its size and rotation finite.
+ *
+ * This is the ONLY positional constraint in the editor. It never pulls a design
+ * back into a guide, never shrinks it to fit a preset, and never refuses an
+ * unusual placement — a design may sit anywhere on the visible garment, at any
+ * size, at any angle.
+ */
 export function clampLayer(layer: Layer): Layer {
   const cx = clamp(layer.cx, 0.02, 0.98);
   const cy = clamp(layer.cy, 0.02, 0.98);
   const rotation = ((layer.rotation % 360) + 360) % 360;
-  const size =
-    layer.kind === "image" ? clamp(layer.size, 0.04, 1.25) : clamp(layer.size, 0.02, 0.55);
+  // Images reach 3× the stage width so a full-surface (sublimated) design can
+  // cover the whole garment and bleed off every edge.
+  const size = layer.kind === "image" ? clamp(layer.size, 0.04, 3) : clamp(layer.size, 0.02, 0.6);
   return { ...layer, cx, cy, size, rotation };
 }
 
-/** One-click remedy: centre in the home area and shrink until it fits. */
+/**
+ * An OPTIONAL convenience the customer can trigger from the panel ("Fit to
+ * guide"). Nothing calls this automatically — no design is ever moved or
+ * resized on the customer's behalf.
+ */
 export function fitLayerToArea(layer: Layer, product: Product): Layer {
   const a = homeArea(layer, product);
   let next: Layer = { ...layer, cx: (a.x + a.w / 2) / STAGE_W, cy: (a.y + a.h / 2) / STAGE_H };
@@ -362,6 +426,67 @@ export function newImageLayer(art: Artwork, product: Product, view: ViewId): Ima
   }) as ImageLayer;
 }
 
+// ---------------------------------------------------------------------
+// Full-surface layers (how a sublimated jersey is actually designed)
+// ---------------------------------------------------------------------
+/** The size (fraction of stage width) at which an image covers the whole garment. */
+export function coverSize(naturalW: number, naturalH: number): number {
+  const byHeight = (STAGE_H / STAGE_W) * (naturalW / naturalH);
+  return clamp(Math.max(1, byHeight), 1, 3);
+}
+
+/** An image scaled to cover the entire garment — the base of a sublimated design. */
+export function newBackgroundLayer(art: Artwork, view: ViewId, extra: Partial<ImageLayer> = {}): ImageLayer {
+  return clampLayer({
+    id: makeLayerId(),
+    kind: "image",
+    view,
+    cx: 0.5,
+    cy: 0.5,
+    size: coverSize(art.naturalW, art.naturalH),
+    rotation: 0,
+    ...art,
+    ...extra,
+  } as ImageLayer) as ImageLayer;
+}
+
+/** The generated full-surface design as an ordinary (movable, deletable) image layer. */
+export function patternArtwork(spec: PatternSpec): Artwork {
+  const svg = renderPatternSvg(spec);
+  return {
+    src: patternDataUrl(spec),
+    fileName: `full-surface-${spec.id}.svg`,
+    fileKB: Math.max(1, Math.round(svg.length / 1024)),
+    naturalW: PATTERN_W,
+    naturalH: PATTERN_H,
+    hasAlpha: false,
+  };
+}
+
+export function newPatternLayer(spec: PatternSpec, view: ViewId): ImageLayer {
+  return newBackgroundLayer(patternArtwork(spec), view, {
+    generated: true,
+    pattern: spec,
+    name: `Full surface — ${getPatternDef(spec.id).name}`,
+  });
+}
+
+/** Re-render a generated full-surface layer after its colours or pattern change. */
+export function restylePatternLayer(layer: ImageLayer, spec: PatternSpec): ImageLayer {
+  return {
+    ...layer,
+    ...patternArtwork(spec),
+    generated: true,
+    pattern: spec,
+    name: `Full surface — ${getPatternDef(spec.id).name}`,
+  };
+}
+
+/** The full-surface layer on a view, if the design has one. */
+export function backgroundLayer(state: DesignState, view: ViewId): ImageLayer | undefined {
+  return state.layers.find((l): l is ImageLayer => l.view === view && l.kind === "image" && !!l.generated);
+}
+
 const TEXT_DEFAULT_SIZE: Record<TextRole, number> = { text: 0.06, name: 0.05, number: 0.16 };
 const TEXT_DEFAULT: Record<TextRole, { text: string; outlineWidth: number }> = {
   text: { text: "YOUR TEXT", outlineWidth: 0 },
@@ -391,7 +516,9 @@ export function newTextLayer(role: TextRole, product: Product, view: ViewId): Te
     outline: role === "number" ? "#211f1e" : "",
     outlineWidth: def.outlineWidth,
     letterSpacing: role === "name" ? 0.04 : 0,
-    aspect: textAspectGuess(def.text),
+    lineHeight: 1.1,
+    align: "center",
+    aspect: textAspectGuess(def.text, 1.1),
   }) as TextLayer;
 }
 

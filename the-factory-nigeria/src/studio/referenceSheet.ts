@@ -12,13 +12,18 @@
 import {
   AVAILABILITY_LABEL,
   colorAvailability,
+  DIFFICULT_AREA_NOTICE,
+  GUIDES_NOTICE,
+  isSublimated,
   MARKET_SOURCING_NOTICE,
   PREVIEW_DISCLAIMER,
   QUALITY_COPY,
+  SUBLIMATION_NOTE,
+  TOWEL_BACK_NOTE,
   type ViewId,
 } from "./catalog";
 import { composeViewCanvas, download, imageLayers, loadImage } from "./exporter";
-import { fabricLine, layerLine, sizesLine } from "./messages";
+import { fabricLine, layerLine, productionLine, sizesLine } from "./messages";
 import {
   difficultCrossings,
   fontOf,
@@ -159,15 +164,22 @@ function warnings(state: DesignState): string[] {
   for (const l of state.layers) {
     if (l.hidden) continue;
     const side = l.view === "front" ? "Front" : "Back";
-    const who = l.kind === "image" ? `“${l.fileName}”` : `“${l.text}”`;
+    const who = l.kind === "image" ? `“${l.fileName}”` : `“${l.text.replace(/\n/g, " / ")}”`;
     if (l.kind === "image") {
-      const q = qualityLevel(l, product);
-      if (q !== "good") out.push(`${side} ${who}: ${QUALITY_COPY[q]}`);
+      // A Studio-generated full surface is vector artwork — it has no pixel
+      // resolution to be "low", so a DPI warning on it would be a false alarm.
+      if (!l.generated) {
+        const q = qualityLevel(l, product);
+        if (q !== "good") out.push(`${side} ${who}: ${QUALITY_COPY[q]}`);
+      }
       if (typeof l.avgLuma === "number" && Math.abs(l.avgLuma - shirtLuma) < 0.16)
         out.push(`${side} ${who}: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`);
     }
-    const cross = difficultCrossings(l, product);
-    if (cross.length) out.push(`${side} ${who}: crosses the ${cross.join(" and ")} — may need special production handling; confirm it can be produced accurately.`);
+    // A full-surface sublimated design is MEANT to cover everything — it is not
+    // a "difficult crossing", it is the product.
+    const generated = l.kind === "image" && l.generated;
+    const cross = generated ? [] : difficultCrossings(l, product);
+    if (cross.length) out.push(`${side} ${who}: crosses the ${cross.join(" and ")}. ${DIFFICULT_AREA_NOTICE}`);
   }
   return out;
 }
@@ -235,6 +247,17 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
 
   label(ctx, "Product", ix, iy + 14);
   iy = value(ctx, `${product.name} — ${AVAILABILITY_LABEL[product.availability]}`, ix, iy + 48, colW);
+
+  // HOW it is made — the team reads this before anything else.
+  label(ctx, "Production method", ix, iy + 14);
+  iy = value(ctx, productionLine(product), ix, iy + 48, colW);
+  if (isSublimated(product)) iy = value(ctx, SUBLIMATION_NOTE, ix, iy + 6, colW, SOFT, 21);
+
+  if (product.tshirtOptionLabel) {
+    label(ctx, "T-shirt option", ix, iy + 14);
+    iy = value(ctx, product.tshirtOptionLabel, ix, iy + 48, colW);
+    if (product.tshirtOption === "custom-made") iy = value(ctx, TOWEL_BACK_NOTE, ix, iy + 6, colW, SOFT, 21);
+  }
 
   // Colour: swatch + name/hex/rgb/status + notices
   label(ctx, "Garment colour", ix, iy + 14);
@@ -335,7 +358,8 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
     await originalPanel(ctx, originals[1], t1, ix + thumbW + 20, ty, thumbW, thumbH);
   }
 
-  // Footer disclaimers
+  // Footer disclaimers. The guides notice is here deliberately: the team must
+  // read the placement as the customer's intent, not as a mistake to correct.
   const noticeSplit = MARKET_SOURCING_NOTICE.indexOf("; if not");
   const noticeA = MARKET_SOURCING_NOTICE.slice(0, noticeSplit + 1);
   const noticeB = MARKET_SOURCING_NOTICE.slice(noticeSplit + 2);
@@ -343,11 +367,12 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   ctx.fillRect(0, H - FOOT, W, FOOT);
   ctx.fillStyle = PAPER;
   ctx.globalAlpha = 0.85;
-  ctx.font = "21px Archivo, Arial, sans-serif";
-  ctx.fillText(PREVIEW_DISCLAIMER, 48, H - 108);
-  ctx.fillText(COLOUR_NOTICE, 48, H - 78);
+  ctx.font = "19px Archivo, Arial, sans-serif";
+  ctx.fillText(GUIDES_NOTICE, 48, H - 126);
+  ctx.fillText(PREVIEW_DISCLAIMER, 48, H - 100);
+  ctx.fillText(COLOUR_NOTICE, 48, H - 74);
   ctx.fillText(noticeA, 48, H - 48);
-  ctx.fillText(noticeB, 48, H - 18);
+  ctx.fillText(noticeB, 48, H - 22);
   ctx.globalAlpha = 1;
 
   return canvas.toDataURL("image/png");

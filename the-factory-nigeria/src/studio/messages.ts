@@ -8,12 +8,18 @@ import {
   colorAvailability,
   CUSTOM_COLOR_NOTICE,
   getFabricById,
+  getProductionMethod,
+  GUIDES_NOTICE,
+  isSublimated,
   MARKET_SOURCING_NOTICE,
   PREVIEW_DISCLAIMER,
+  SUBLIMATION_NOTE,
+  TOWEL_BACK_NOTE,
   type Fabric,
   type Product,
   type ViewId,
 } from "./catalog";
+import { patternSummary } from "./patterns";
 import {
   estimatedDpi,
   fontOf,
@@ -35,19 +41,31 @@ import { BRAND } from "../data/brand";
 
 export type SummaryRow = { label: string; value: string; step?: number };
 
+/** The exact production-method line for the review screen and the reference sheet. */
+export function productionLine(product: Product): string {
+  return getProductionMethod(product).label;
+}
+
 /** One production line describing an image or text layer. */
 export function layerLine(layer: Layer, product: Product): string {
+  // The guide is a reference point for the team, never a claim that the design
+  // sits inside a print box — the real coordinates are in the design brief.
   const area = homeArea(layer, product).name;
   const rot = layer.rotation ? `, ${Math.round(layer.rotation)}°` : "";
   if (layer.kind === "image") {
+    if (layer.generated && layer.pattern) {
+      return `Full-surface design (sublimation) — ${patternSummary(layer.pattern)}`;
+    }
     const w = layerWidthIn(layer, product);
     const h = layerHeightIn(layer, product);
-    return `${layer.fileName} — ${w}″ × ${h}″ (~${estimatedDpi(layer, product)} DPI, ${qualityLevel(layer, product)})${rot} · ${area}`;
+    return `${layer.fileName} — ${w}″ × ${h}″ (~${estimatedDpi(layer, product)} DPI, ${qualityLevel(layer, product)})${rot} · near ${area}`;
   }
   const h = layerHeightIn(layer, product);
   const roleName = layer.role === "name" ? "Name" : layer.role === "number" ? "Number" : "Text";
   const outline = layer.outline ? ` / outline ${layer.outline}` : "";
-  return `${roleName} “${layer.text}” — ${h}″ tall, ${fontOf(layer).name}, ${layer.color}${outline}${rot} · ${area}`;
+  const text = layer.text.replace(/\n/g, " ⏎ ");
+  const lines = layer.text.includes("\n") ? `, ${layer.text.split("\n").length} lines (${layer.align})` : "";
+  return `${roleName} “${text}” — ${h}″ tall, ${fontOf(layer).name}, ${layer.color}${outline}${lines}${rot} · near ${area}`;
 }
 
 export function sizesLine(state: DesignState): string {
@@ -81,13 +99,19 @@ export function summaryRows(state: DesignState): SummaryRow[] {
   const rows: SummaryRow[] = [
     { label: "Reference", value: state.reference },
     { label: "Product", value: `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`, step: 0 },
+    { label: "Production method", value: productionLine(product), step: 0 },
+  ];
+  if (product.tshirtOptionLabel) {
+    rows.push({ label: "T-shirt option", value: product.tshirtOptionLabel, step: 0 });
+  }
+  rows.push(
     {
       label: "Garment colour",
       value: `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`,
       step: 1,
     },
     { label: "Fabric", value: fabricLine(state) || "No preference — the team will advise", step: 1 },
-  ];
+  );
   for (const v of ["front", "back"] as ViewId[]) {
     const ls = visibleLayersForView(state, v);
     if (ls.length) {
@@ -131,6 +155,8 @@ export function buildStudioMessage(state: DesignState): string {
     line("Phone", d.phone),
     d.email.trim() ? line("Email", d.email) : "",
     line("Product", `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`),
+    line("Production method", productionLine(product)),
+    product.tshirtOptionLabel ? line("T-shirt option", product.tshirtOptionLabel) : "",
     line("Colour", `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`),
     line("Fabric", fabricLine(state) || "No preference — please advise"),
     line("Design", designSidesLine(state)),
@@ -143,7 +169,10 @@ export function buildStudioMessage(state: DesignState): string {
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
     "The shared reference file shows every design layer, its placement, size and rotation, the colour reference and production information.",
-    "Please confirm garment and fabric availability, final artwork size and placement, printing method, price and production time.",
+    isSublimated(product) ? `_${SUBLIMATION_NOTE}_` : "",
+    product.tshirtOption === "custom-made" ? `_${TOWEL_BACK_NOTE}_` : "",
+    "Please confirm garment and fabric availability, final artwork size and placement, production method, price and production time.",
+    `_Placement guides in Studio are alignment aids only — the design is placed where I want it, and I understand The Factory reviews the final placement and confirms how it can be produced._`,
     `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms everything (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
   ].filter((l) => l !== "");
 
@@ -161,7 +190,8 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
     const common = {
       id: l.id,
       view: l.view,
-      area: homeArea(l, product).name,
+      /** The guide nearest the design. Advisory only — the design is placed where the customer wants it. */
+      nearestGuide: homeArea(l, product).name,
       centreOnGarment: { x: round2(l.cx), y: round2(l.cy) },
       rotationDeg: Math.round(l.rotation * 10) / 10,
     };
@@ -174,8 +204,13 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
         naturalPx: { w: l.naturalW, h: l.naturalH },
         hasAlpha: l.hasAlpha,
         printedInches: { width: layerWidthIn(l, product), height: layerHeightIn(l, product) },
-        estimatedDpi: estimatedDpi(l, product),
-        quality: qualityLevel(l, product),
+        // A Studio-generated full surface is vector: it has no pixel resolution,
+        // so reporting a DPI for it would mislead the team.
+        ...(l.generated
+          ? { vector: true, generatedByStudio: true, fullSurface: true }
+          : { estimatedDpi: estimatedDpi(l, product), quality: qualityLevel(l, product) }),
+        // The exact recipe, so The Factory can rebuild the printed panel precisely.
+        ...(l.pattern ? { pattern: { ...l.pattern, summary: patternSummary(l.pattern) } } : {}),
         ...(includeArtworkData ? { originalDataUrl: l.src } : {}),
       };
     }
@@ -185,11 +220,14 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
       kind: "text",
       role: l.role,
       text: l.text,
-      font: { name: f.name, family: f.family, weight: f.weight, license: f.license, source: f.source ?? null },
+      lines: l.text.split("\n"),
+      font: { name: f.name, family: f.family, weight: f.weight, category: f.category, license: f.license, source: f.source ?? null },
       color: l.color,
       outline: l.outline || null,
       outlineWidth: l.outline ? l.outlineWidth : 0,
       letterSpacing: l.letterSpacing,
+      lineHeight: l.lineHeight,
+      align: l.align,
       heightInches: layerHeightIn(l, product),
     };
   };
@@ -201,10 +239,21 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
     generator: "The Factory Nigeria — Studio preview",
     disclaimer: PREVIEW_DISCLAIMER,
     availabilityNotice: MARKET_SOURCING_NOTICE,
+    placementNotice: GUIDES_NOTICE,
     reference: state.reference,
     createdAt: new Date().toISOString(),
     status: "draft",
-    product: { id: state.productId, name: product.name, availability: AVAILABILITY_LABEL[product.availability] },
+    product: {
+      id: state.productId,
+      name: product.name,
+      availability: AVAILABILITY_LABEL[product.availability],
+      productionMethod: productionLine(product),
+      ...(product.tshirtOption
+        ? { tshirtOption: product.tshirtOption, tshirtOptionLabel: product.tshirtOptionLabel }
+        : {}),
+      ...(product.tshirtOption === "custom-made" ? { fabricNote: TOWEL_BACK_NOTE } : {}),
+      ...(isSublimated(product) ? { sublimationNote: SUBLIMATION_NOTE } : {}),
+    },
     color: {
       name: state.color.name,
       hex: state.color.hex,

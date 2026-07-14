@@ -32,20 +32,35 @@ import {
   AVAILABILITY_LABEL,
   colorAvailability,
   CUSTOM_COLOR_NOTICE,
+  DIFFICULT_AREA_NOTICE,
   FABRIC_VISUAL_NOTICE,
   FABRICS,
-  FONTS,
+  fontsByCategory,
   getFontById,
+  getProductionMethod,
+  GUIDES_NOTICE,
+  isSublimated,
   MARKET_SOURCING_NOTICE,
   PRODUCTS,
   productPpi,
   QUALITY_COPY,
   STANDARD_COLORS,
+  SUBLIMATION_NOTE,
+  TOWEL_BACK_NOTE,
   type AvailabilityStatus,
   type ViewId,
 } from "../studio/catalog";
 import {
+  DEFAULT_PATTERN,
+  JERSEY_PATTERNS,
+  PATTERN_NOTE,
+  patternSummary,
+  type PatternId,
+  type PatternSpec,
+} from "../studio/patterns";
+import {
   applyPlacement,
+  backgroundLayer,
   clampLayer,
   difficultCrossings,
   emptySizes,
@@ -58,6 +73,10 @@ import {
   layerHeightIn,
   layerLabel,
   layersForView,
+  coverSize,
+  newPatternLayer,
+  restylePatternLayer,
+  type ImageLayer,
   layerWidthIn,
   newImageLayer,
   newTextLayer,
@@ -68,6 +87,7 @@ import {
   sizeIssue,
   sizeTotal,
   straightenLayer,
+  textBlockScale,
   validateForSubmit,
   viewSummary,
   type DesignState,
@@ -90,7 +110,7 @@ import {
 import { downloadReferenceSheet, exportReferenceSheet } from "../studio/referenceSheet";
 import { deserializeDesign, isWorthSaving, serializeDesign, type SavedDesign } from "../studio/persist";
 import { clearDesignLocal, loadDesignLocal, saveDesignLocal, savedAgo } from "../studio/deviceStore";
-import { GARMENT_IMG, hexLuma, layerTuning, measureTextAspect, STAGE_H, STAGE_W } from "../studio/garment";
+import { garmentImg, hexLuma, layerTuning, measureTextAspect, STAGE_H, STAGE_W } from "../studio/garment";
 import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
@@ -120,17 +140,24 @@ function PreviewLayer({ layer }: { layer: Layer }) {
     );
   }
   const f = getFontById(layer.fontId);
+  // `size` is ONE line's font size as a fraction of stage height; 1cqh = 1% of
+  // the stage height, so the block grows with the number of lines exactly as it
+  // does in the editor and in the canvas exports.
+  const fontCqh = layer.size * 100;
   return (
     <div className="tprev__art" style={style}>
       <span
         className="tprev__text"
         style={{
-          fontSize: `${(b.h / STAGE_H) * 100}cqh`,
+          fontSize: `${fontCqh}cqh`,
           fontFamily: f.stack,
           fontWeight: f.weight,
           color: layer.color,
-          letterSpacing: `${(layer.letterSpacing || 0) * b.h}cqh`,
-          WebkitTextStroke: layer.outline && layer.outlineWidth > 0 ? `${layer.outlineWidth * b.h}cqh` : undefined,
+          lineHeight: layer.lineHeight > 0 ? layer.lineHeight : 1,
+          textAlign: layer.align,
+          letterSpacing: `${(layer.letterSpacing || 0) * fontCqh}cqh`,
+          WebkitTextStroke:
+            layer.outline && layer.outlineWidth > 0 ? `${layer.outlineWidth * fontCqh}cqh ${layer.outline}` : undefined,
           paintOrder: "stroke fill",
         }}
       >
@@ -143,7 +170,7 @@ function PreviewLayer({ layer }: { layer: Layer }) {
 // Read-only photoreal mockup used on review/confirm screens (no handles).
 function TeePreview({ state, view }: { state: DesignState; view: ViewId }) {
   const product = getProduct(state);
-  const img = (GARMENT_IMG[product.id] ?? GARMENT_IMG["unisex-tee"])[view];
+  const img = garmentImg(product.id, view);
   const tuning = useMemo(() => layerTuning(state.color.hex, product.id), [state.color.hex, product.id]);
   const layers = layersForView(state, view);
   return (
@@ -259,9 +286,15 @@ export function StudioExperiment() {
     const l = snapRef.current.layers.find((x) => x.id === id);
     if (!l || l.kind !== "text") return;
     const merged = { ...l, ...patch } as TextLayer;
-    if (patch.text !== undefined || patch.fontId !== undefined) {
+    // Anything that changes the shape of the text block changes its box.
+    if (
+      patch.text !== undefined ||
+      patch.fontId !== undefined ||
+      patch.letterSpacing !== undefined ||
+      patch.lineHeight !== undefined
+    ) {
       const f = getFontById(merged.fontId);
-      merged.aspect = measureTextAspect(merged.text, f.stack, f.weight);
+      merged.aspect = measureTextAspect(merged.text, f.stack, f.weight, merged.letterSpacing, merged.lineHeight);
     }
     replaceLayer(clampLayer(merged));
   }
@@ -401,6 +434,49 @@ export function StudioExperiment() {
     setMtab("adjust");
   }
 
+  // ---- full-surface design (how a sublimated jersey is actually made) ----
+  const sublimated = isSublimated(product);
+  const bgLayer = backgroundLayer(state, state.view);
+  const [pattern, setPattern] = useState<PatternSpec>(DEFAULT_PATTERN);
+  /** The panel follows whatever is actually on the garment. */
+  const activePattern: PatternSpec = bgLayer?.pattern ?? pattern;
+
+  /** Add — or restyle — the full-surface design on the current view. */
+  function applyPattern(next: Partial<PatternSpec>) {
+    const spec: PatternSpec = { ...activePattern, ...next };
+    setPattern(spec);
+    const layers = snapRef.current.layers;
+    const existing = layers.find(
+      (l): l is ImageLayer => l.view === state.view && l.kind === "image" && !!l.generated,
+    );
+    if (existing) {
+      const updated = restylePatternLayer(existing, spec);
+      commit({
+        layers: layers.map((l) => (l.id === updated.id ? updated : l)),
+        selectedId: snapRef.current.selectedId,
+      });
+      return;
+    }
+    // A full surface sits UNDER every other layer — it is the garment itself.
+    const layer = newPatternLayer(spec, state.view);
+    commit({ layers: [layer, ...layers], selectedId: layer.id });
+    setMtab("adjust");
+  }
+
+  /** Scale an uploaded image up until it covers the whole garment (sublimation). */
+  function coverWithSelected() {
+    if (!selected || selected.kind !== "image") return;
+    replaceLayer(
+      clampLayer({
+        ...selected,
+        cx: 0.5,
+        cy: 0.5,
+        rotation: 0,
+        size: coverSize(selected.naturalW, selected.naturalH),
+      }),
+    );
+  }
+
   function trySend() {
     const issues = validateForSubmit(state);
     if (issues.length) {
@@ -469,13 +545,24 @@ export function StudioExperiment() {
   const selLowContrast =
     selected && selected.kind === "image" && typeof selected.avgLuma === "number" &&
     Math.abs(selected.avgLuma - hexLuma(state.color.hex)) < 0.16;
-  /** Difficult regions (collar/pocket/placket…) the selected layer crosses. */
-  const selCrossings = selected ? difficultCrossings(selected, product) : [];
+  /**
+   * Difficult regions (collar/pocket/placket…) the selected layer crosses.
+   * A full-surface sublimated design covers the whole panel by definition —
+   * flagging it for "crossing the collar" would be a false alarm.
+   */
+  const selCrossings =
+    selected && !(selected.kind === "image" && selected.generated) ? difficultCrossings(selected, product) : [];
 
   function setSelectedSizeIn(inches: number) {
     if (!selected) return;
-    const size = selected.kind === "image" ? (inches * ppi) / STAGE_W : (inches * ppi) / STAGE_H;
-    replaceLayer(clampLayer({ ...selected, size }));
+    if (selected.kind === "image") {
+      replaceLayer(clampLayer({ ...selected, size: (inches * ppi) / STAGE_W }));
+      return;
+    }
+    // The slider shows the height of the whole text BLOCK; `size` is one line's
+    // font size, so divide back out the line count and line spacing.
+    const scale = Math.max(0.1, textBlockScale(selected));
+    replaceLayer(clampLayer({ ...selected, size: (inches * ppi) / (STAGE_H * scale) }));
   }
 
   const layerIcon = (l: Layer) =>
@@ -485,8 +572,94 @@ export function StudioExperiment() {
 
   const addControls = (
     <>
+      {/* Adding text is as important as adding a logo — same weight, same place. */}
       <div className="field">
-        <span className="field__legend mono">Add a design</span>
+        <span className="field__legend mono">Add to the {state.view}</span>
+        <div className="addbig">
+          <button type="button" className="addbig__btn addbig__btn--text" onClick={() => addText("text")}>
+            <TypeIcon size={22} aria-hidden="true" />
+            <span className="addbig__label">Add text</span>
+            <span className="addbig__hint">Type anything — words, a slogan, a name</span>
+          </button>
+          <button type="button" className="addbig__btn" onClick={() => fileRef.current?.click()}>
+            <ImageIcon size={22} aria-hidden="true" />
+            <span className="addbig__label">Add image</span>
+            <span className="addbig__hint">A logo or artwork — PNG or JPEG</span>
+          </button>
+        </div>
+        <div className="addtext">
+          <button type="button" className="btn btn--outline" onClick={() => addText("name")}>
+            <User size={16} aria-hidden="true" /> Player name
+          </button>
+          <button type="button" className="btn btn--outline" onClick={() => addText("number")}>
+            <Hash size={16} aria-hidden="true" /> Player number
+          </button>
+        </div>
+      </div>
+
+      {sublimated && (
+        <div className="field">
+          <span className="field__legend mono">Full surface — {getProductionMethod(product).label.toLowerCase()}</span>
+          <p className="field__note">{getProductionMethod(product).designNote}</p>
+          <div className="patterns" role="radiogroup" aria-label="Full-surface design">
+            {JERSEY_PATTERNS.map((p) => (
+              <label
+                key={p.id}
+                className={"pattern" + (bgLayer && activePattern.id === p.id ? " is-active" : "")}
+                title={p.hint}
+              >
+                <input
+                  type="radio"
+                  name="jersey-pattern"
+                  checked={!!bgLayer && activePattern.id === p.id}
+                  onChange={() => applyPattern({ id: p.id as PatternId })}
+                />
+                <span className="pattern__name">{p.name}</span>
+              </label>
+            ))}
+          </div>
+          <div className="patterncolors">
+            <label>
+              Base
+              <input
+                type="color"
+                className="colorin"
+                value={activePattern.base}
+                onChange={(e) => applyPattern({ base: e.target.value })}
+              />
+            </label>
+            <label>
+              Secondary
+              <input
+                type="color"
+                className="colorin"
+                value={activePattern.secondary}
+                onChange={(e) => applyPattern({ secondary: e.target.value })}
+              />
+            </label>
+            <label>
+              Accent
+              <input
+                type="color"
+                className="colorin"
+                value={activePattern.accent}
+                onChange={(e) => applyPattern({ accent: e.target.value })}
+              />
+            </label>
+          </div>
+          {bgLayer && (
+            <div className="editactions">
+              <button type="button" className="btn btn--outline editactions__remove" onClick={() => removeLayer(bgLayer.id)}>
+                <Trash2 size={16} aria-hidden="true" /> Remove full surface
+              </button>
+            </div>
+          )}
+          <p className="field__note">{PATTERN_NOTE}</p>
+        </div>
+      )}
+
+      <div className="field">
+        <span className="field__legend mono">Upload artwork</span>
         <div
           className="dropzone"
           onDragOver={(e) => {
@@ -509,22 +682,6 @@ export function StudioExperiment() {
             </p>
           )}
         </div>
-      </div>
-
-      <div className="field">
-        <span className="field__legend mono">Add text</span>
-        <div className="addtext">
-          <button type="button" className="btn btn--outline" onClick={() => addText("text")}>
-            <TypeIcon size={16} aria-hidden="true" /> Custom text
-          </button>
-          <button type="button" className="btn btn--outline" onClick={() => addText("name")}>
-            <User size={16} aria-hidden="true" /> Player name
-          </button>
-          <button type="button" className="btn btn--outline" onClick={() => addText("number")}>
-            <Hash size={16} aria-hidden="true" /> Player number
-          </button>
-        </div>
-        <p className="field__note">Great for jerseys — add a team name, player name, number and sponsor text, each editable on its own.</p>
       </div>
 
       {(history.current.past.length > 0 || history.current.future.length > 0) && (
@@ -620,11 +777,10 @@ export function StudioExperiment() {
         )}
       </div>
 
+      {/* Never a block. The customer keeps their idea; the team confirms production. */}
       {selCrossings.length > 0 && (
         <p className="quality quality--soft" role="status">
-          This placement crosses the {selCrossings.join(" and ")}. This may require special production
-          handling — <em>The Factory will review and confirm whether it can be produced accurately. You can
-          still submit it.</em>
+          <strong>Crosses the {selCrossings.join(" and ")}.</strong> {DIFFICULT_AREA_NOTICE}
         </p>
       )}
 
@@ -632,24 +788,44 @@ export function StudioExperiment() {
         <>
           <div className="field">
             <label htmlFor="t-text">{selected.role === "number" ? "Number (1–3 digits)" : selected.role === "name" ? "Player / team name" : "Text"}</label>
-            <input
-              id="t-text"
-              type="text"
-              value={selected.text}
-              inputMode={selected.role === "number" ? "numeric" : "text"}
-              onChange={(e) => patchText(selected.id, { text: selected.role === "number" ? e.target.value.replace(/[^\d]/g, "").slice(0, 3) : e.target.value.slice(0, 24) })}
-            />
+            {selected.role === "number" ? (
+              <input
+                id="t-text"
+                type="text"
+                value={selected.text}
+                inputMode="numeric"
+                onChange={(e) => patchText(selected.id, { text: e.target.value.replace(/[^\d]/g, "").slice(0, 3) })}
+              />
+            ) : (
+              <textarea
+                id="t-text"
+                className="textin"
+                rows={2}
+                value={selected.text}
+                onChange={(e) =>
+                  patchText(selected.id, {
+                    text: e.target.value.split("\n").slice(0, 6).join("\n").slice(0, 120),
+                  })
+                }
+              />
+            )}
             <p className="field__note">
-              {selected.role === "number" ? "1, 2 or 3 digits." : `Up to 24 characters (${selected.text.length}/24). Hyphens and spaces are fine.`}
+              {selected.role === "number"
+                ? "1, 2 or 3 digits."
+                : `Press Enter for a new line — up to 6 lines (${selected.text.length}/120 characters).`}
             </p>
           </div>
           <div className="field">
             <label htmlFor="t-font">Font <span className="field__opt">(production-ready, licensed)</span></label>
             <select id="t-font" value={selected.fontId} onChange={(e) => patchText(selected.id, { fontId: e.target.value })}>
-              {FONTS.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
+              {fontsByCategory().map((g) => (
+                <optgroup key={g.category} label={g.category}>
+                  {g.fonts.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -684,40 +860,84 @@ export function StudioExperiment() {
             <label htmlFor="t-ls">Letter spacing — {Math.round((selected.letterSpacing || 0) * 100)}%</label>
             <input id="t-ls" type="range" min={-0.1} max={0.4} step={0.01} value={selected.letterSpacing || 0} onChange={(e) => patchText(selected.id, { letterSpacing: Number(e.target.value) })} />
           </div>
+          {selected.text.includes("\n") && (
+            <>
+              <div className="field">
+                <label htmlFor="t-lh">Line spacing — {(selected.lineHeight || 1).toFixed(2)}×</label>
+                <input
+                  id="t-lh"
+                  type="range"
+                  min={0.8}
+                  max={2}
+                  step={0.05}
+                  value={selected.lineHeight || 1.1}
+                  onChange={(e) => patchText(selected.id, { lineHeight: Number(e.target.value) })}
+                />
+              </div>
+              <div className="field">
+                <span className="field__legend mono">Align lines</span>
+                <div className="segmented" role="radiogroup" aria-label="Text alignment">
+                  {(["left", "center", "right"] as const).map((a) => (
+                    <label key={a} className={"segmented__opt" + (selected.align === a ? " is-active" : "")}>
+                      <input
+                        type="radio"
+                        name="t-align"
+                        checked={selected.align === a}
+                        onChange={() => patchText(selected.id, { align: a })}
+                      />
+                      {a === "left" ? "Left" : a === "center" ? "Centre" : "Right"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
 
       <div className="field">
-        <span className="field__legend mono">Placement</span>
+        <span className="field__legend mono">Jump to a spot <span className="field__opt">(optional)</span></span>
         <div className="presetrow">
           {placementsForLayer(product, state.view).map((p) => (
             <button key={p.id} type="button" className="preset" onClick={() => replaceLayer(applyPlacement(selected, p, product))}>
               {p.name}
             </button>
           ))}
+          {sublimated && selected.kind === "image" && (
+            <button type="button" className="preset preset--wide" onClick={coverWithSelected}>
+              Cover whole garment
+            </button>
+          )}
         </div>
+        <p className="field__note">
+          These are shortcuts, not rules — drag your design wherever you want it. {GUIDES_NOTICE}
+        </p>
       </div>
 
       <div className="field">
         <label htmlFor="l-size">
           {selected.kind === "image" ? (
             <>
-              Printed width — {layerWidthIn(selected, product)}″<span className="field__opt"> (~{estimatedDpi(selected, product)} DPI)</span>
+              Printed width — {layerWidthIn(selected, product)}″
+              <span className="field__opt">
+                {selected.generated ? " (vector — scales cleanly)" : ` (~${estimatedDpi(selected, product)} DPI)`}
+              </span>
             </>
           ) : (
             <>Text height — {layerHeightIn(selected, product)}″</>
           )}
         </label>
+        {/* The range spans the whole garment — a design is never capped to a guide. */}
         <input
           id="l-size"
           type="range"
           min={selected.kind === "image" ? 1 : 0.5}
-          max={selected.kind === "image" ? round2(product.zones[state.view].widthIn * 1.4) : 12}
-          step={selected.kind === "image" ? 0.25 : 0.25}
+          max={selected.kind === "image" ? round2(STAGE_W / ppi) : round2((STAGE_H * 0.6) / ppi)}
+          step={0.25}
           value={selected.kind === "image" ? layerWidthIn(selected, product) : layerHeightIn(selected, product)}
           onChange={(e) => setSelectedSizeIn(Number(e.target.value))}
         />
-        {selected.kind === "image" && (
+        {selected.kind === "image" && !selected.generated && (
           <p className={"quality quality--" + qualityLevel(selected, product)} role="status">
             {QUALITY_COPY[qualityLevel(selected, product)]} <em>Approximate guide, not a final decision.</em>
           </p>
@@ -786,8 +1006,13 @@ export function StudioExperiment() {
         <button type="button" className="btn btn--outline" onClick={() => replaceLayer(straightenLayer(selected))}>
           <MoveDiagonal size={15} aria-hidden="true" /> Straighten
         </button>
-        <button type="button" className="btn btn--outline" onClick={() => replaceLayer(fitLayerToArea(selected, product))}>
-          Fit to area
+        <button
+          type="button"
+          className="btn btn--outline"
+          title="Optional: centre this inside the nearest alignment guide"
+          onClick={() => replaceLayer(fitLayerToArea(selected, product))}
+        >
+          Fit to guide
         </button>
         <button type="button" className="btn btn--outline" onClick={() => duplicateLayer(selected.id)}>
           <Copy size={15} aria-hidden="true" /> Duplicate
@@ -796,7 +1021,10 @@ export function StudioExperiment() {
           <Trash2 size={16} aria-hidden="true" /> Remove
         </button>
       </div>
-      <p className="field__note">Tip: drag to move · pinch or use the corner handle to resize · arrows, + − and [ ] work too. Designs snap to the centre lines as you drag.</p>
+      <p className="field__note">
+        Tip: drag to move · pinch or use the corner handle to resize · arrows, + − and [ ] work too. Snapping is only
+        an aid — switch <strong>Snap</strong> off (or hold Alt) to place a design completely freely.
+      </p>
     </>
   );
 
@@ -818,6 +1046,10 @@ export function StudioExperiment() {
             </label>
           ))}
         </div>
+        <p className="field__note">
+          {getProductionMethod(product).label} — {getProductionMethod(product).designNote} Switching garment keeps
+          everything you have designed.
+        </p>
       </div>
       <div className="field">
         <span className="field__legend mono">Colour — {state.color.name}</span>
@@ -861,6 +1093,8 @@ export function StudioExperiment() {
         <li>
           <strong>{product.name}</strong> — <AvailabilityBadge status={product.availability} />
         </li>
+        <li>Production method: {getProductionMethod(product).label}</li>
+        {product.tshirtOptionLabel && <li>T-shirt option: {product.tshirtOptionLabel}</li>}
         <li>
           {state.color.name} · <AvailabilityBadge status={colorAvailability(state.color.status)} />
         </li>
@@ -873,6 +1107,7 @@ export function StudioExperiment() {
             "Fabric: no preference — the team advises"
           )}
         </li>
+        {bgLayer?.pattern && <li>Full surface ({state.view}): {patternSummary(bgLayer.pattern)}</li>}
         <li>Front — {viewSummary(state, "front")}</li>
         <li>Back — {viewSummary(state, "back")}</li>
       </ul>
@@ -933,36 +1168,56 @@ export function StudioExperiment() {
         {/* STEP 1 — PRODUCT */}
         {step === 0 && (
           <section className="studio__panel" aria-label="Choose a product">
+            {/* The Factory makes T-shirts two genuinely different ways. The
+                customer chooses — the two are never merged into one option. */}
+            <div className="prodnote" role="note">
+              <Info size={16} aria-hidden="true" />
+              <span>
+                <strong>Two kinds of T-shirt.</strong> A <strong>custom-made</strong> T-shirt is sewn specifically for
+                you (usually with The Factory's towel-back fabric option). A <strong>ready-made</strong> T-shirt is a
+                100% cotton shirt that is bought and then printed. Pick the one you want — the team confirms fabric,
+                pricing and timing either way.
+              </span>
+            </div>
             <div className="prodgrid">
-              {PRODUCTS.map((p, i) => (
-                <label key={p.id} className={"prodcard" + (state.productId === p.id ? " is-active" : "")}>
-                  <input
-                    type="radio"
-                    name="product"
-                    checked={state.productId === p.id}
-                    onChange={() => setProductId(p.id)}
-                  />
-                  <img
-                    className="prodcard__thumb"
-                    src={p.thumb}
-                    alt={`${p.name} — real garment render`}
-                    loading={i < 4 ? "eager" : "lazy"}
-                    decoding="async"
-                  />
-                  <span className="prodcard__name">{p.name}</span>
-                  <span className="prodcard__fit mono">{p.fit}</span>
-                  <span className="prodcard__desc">{p.description}</span>
-                  <span className="prodcard__meta">
-                    <span className="prodcard__metaline"><strong>Typical use:</strong> {p.use}</span>
-                    <span className="prodcard__metaline"><strong>Material reference:</strong> {p.material}</span>
-                  </span>
-                  <AvailabilityBadge status={p.availability} />
-                </label>
-              ))}
+              {PRODUCTS.map((p, i) => {
+                const prod = getProductionMethod(p);
+                return (
+                  <label key={p.id} className={"prodcard" + (state.productId === p.id ? " is-active" : "")}>
+                    <input
+                      type="radio"
+                      name="product"
+                      checked={state.productId === p.id}
+                      onChange={() => setProductId(p.id)}
+                    />
+                    <img
+                      className="prodcard__thumb"
+                      src={p.thumb}
+                      alt={`${p.name} — real garment render`}
+                      loading={i < 4 ? "eager" : "lazy"}
+                      decoding="async"
+                    />
+                    <span className="prodcard__name">{p.name}</span>
+                    <span className="prodcard__fit mono">{p.fit}</span>
+                    <span className="prodcard__prod mono">{prod.badge}</span>
+                    <span className="prodcard__desc">{p.description}</span>
+                    <span className="prodcard__meta">
+                      <span className="prodcard__metaline"><strong>How it's made:</strong> {prod.summary}</span>
+                      <span className="prodcard__metaline"><strong>Typical use:</strong> {p.use}</span>
+                      <span className="prodcard__metaline"><strong>Material reference:</strong> {p.material}</span>
+                    </span>
+                    <AvailabilityBadge status={p.availability} />
+                  </label>
+                );
+              })}
             </div>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
               {MARKET_SOURCING_NOTICE}
+            </p>
+            <p className="enquiry__hint">
+              <Info size={15} aria-hidden="true" />
+              {TOWEL_BACK_NOTE} {SUBLIMATION_NOTE}
             </p>
             <p className="field__note studio__loaddesign">
               Continuing an earlier design?{" "}

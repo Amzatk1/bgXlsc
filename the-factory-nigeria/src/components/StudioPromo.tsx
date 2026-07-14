@@ -1,13 +1,13 @@
 import { ArrowUpRight } from "lucide-react";
-import { GARMENT_IMG, layerTuning } from "../studio/garment";
+import { DEFAULT_PRODUCT_ID, garmentImg, layerTuning } from "../studio/garment";
 import { Reveal } from "./Reveal";
 
 // Homepage introduction for Studio. The visual is the REAL
 // studio garment render (same layers as the editor) — not a mock UI.
 export function StudioPromo({ compact = false }: { compact?: boolean }) {
-  const img = GARMENT_IMG["unisex-tee"].front;
+  const img = garmentImg(DEFAULT_PRODUCT_ID, "front");
   const hex = "#a425a4"; // brand purple tee for the promo render
-  const tuning = layerTuning(hex, "unisex-tee");
+  const tuning = layerTuning(hex, DEFAULT_PRODUCT_ID);
 
   return (
     <section className={"section" + (compact ? "--tight" : " section--paper2")}>

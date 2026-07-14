@@ -74,6 +74,7 @@ function validLayer(raw: unknown): Layer | null {
   if (o.kind === "image") {
     const src = str(o.src);
     if (!src || !isNum(o.naturalW) || !isNum(o.naturalH) || o.naturalW <= 0 || o.naturalH <= 0) return null;
+    const pat = (o.pattern ?? null) as Record<string, unknown> | null;
     return clampLayer({
       ...base,
       kind: "image",
@@ -84,20 +85,36 @@ function validLayer(raw: unknown): Layer | null {
       naturalH: o.naturalH,
       hasAlpha: !!o.hasAlpha,
       ...(isNum(o.avgLuma) ? { avgLuma: o.avgLuma } : {}),
+      ...(o.generated ? { generated: true } : {}),
+      ...(pat && isStr(pat.id)
+        ? {
+            pattern: {
+              id: pat.id,
+              base: /^#[0-9a-f]{6}$/i.test(str(pat.base)) ? str(pat.base) : "#232f45",
+              secondary: /^#[0-9a-f]{6}$/i.test(str(pat.secondary)) ? str(pat.secondary) : "#f4f2ee",
+              accent: /^#[0-9a-f]{6}$/i.test(str(pat.accent)) ? str(pat.accent) : "#a5252b",
+            },
+          }
+        : {}),
     } as Layer);
   }
   if (o.kind === "text") {
+    // Text is a block: allow newlines, cap total length and line count.
+    const raw = str(o.text).slice(0, 160);
+    const text = raw.split("\n").slice(0, 6).join("\n") || "TEXT";
     return clampLayer({
       ...base,
       kind: "text",
       role: o.role === "name" || o.role === "number" ? o.role : "text",
-      text: str(o.text).slice(0, 40) || "TEXT",
+      text,
       fontId: str(o.fontId, "archivo"),
       color: /^#[0-9a-f]{6}$/i.test(str(o.color)) ? str(o.color) : "#ffffff",
       outline: /^#[0-9a-f]{6}$/i.test(str(o.outline)) ? str(o.outline) : "",
       outlineWidth: clamp(num(o.outlineWidth, 0), 0, 0.4),
       letterSpacing: clamp(num(o.letterSpacing, 0), -0.2, 0.6),
-      aspect: Math.max(0.2, num(o.aspect, 3)),
+      lineHeight: clamp(num(o.lineHeight, 1.1), 0.7, 2.5),
+      align: o.align === "left" || o.align === "right" ? o.align : "center",
+      aspect: Math.max(0.15, num(o.aspect, 3)),
     } as Layer);
   }
   return null;
@@ -131,7 +148,13 @@ export function deserializeDesign(saved: unknown): DesignState | null {
   if (!stateObj || typeof stateObj !== "object") return null;
 
   const base = initialState();
-  const productId = PRODUCTS.some((p) => p.id === stateObj.productId) ? (stateObj.productId as string) : base.productId;
+  // Designs saved before the T-shirt was split into its two real production
+  // options carry the old id. Map them onto the ready-made tee (the closest
+  // match to the old "standard" tee) rather than silently discarding the design.
+  const LEGACY_PRODUCT_IDS: Record<string, string> = { "unisex-tee": "tee-readymade" };
+  const rawProductId = str(stateObj.productId);
+  const mappedId = LEGACY_PRODUCT_IDS[rawProductId] ?? rawProductId;
+  const productId = PRODUCTS.some((p) => p.id === mappedId) ? mappedId : base.productId;
   const layers = Array.isArray(stateObj.layers)
     ? (stateObj.layers.map(validLayer).filter(Boolean) as Layer[])
     : [];

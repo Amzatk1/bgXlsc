@@ -1,17 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, Grid3x3, Magnet, RotateCw, Shrink, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
-import { areasForView, getFontById, PREVIEW_DISCLAIMER, type ViewId } from "../../studio/catalog";
-import {
-  clampLayer,
-  fitLayerToArea,
-  homeArea,
-  isLayerOutOfArea,
-  layerBox,
-  snapRotation,
-  type Layer,
-} from "../../studio/state";
+import { Eye, EyeOff, Grid3x3, Magnet, RotateCw, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { areasForView, getFontById, GUIDES_NOTICE, PREVIEW_DISCLAIMER, type ViewId } from "../../studio/catalog";
+import { clampLayer, homeArea, layerBox, snapRotation, type Layer } from "../../studio/state";
 import { PRODUCTS } from "../../studio/catalog";
-import { GARMENT_IMG, layerTuning, STAGE_H, STAGE_W } from "../../studio/garment";
+import { garmentImg, layerTuning, STAGE_H, STAGE_W } from "../../studio/garment";
 
 type Props = {
   productId: string;
@@ -47,13 +39,12 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
   const [fabricMode, setFabricMode] = useState(true);
   const [snapOn, setSnapOn] = useState(true);
   const [gridOn, setGridOn] = useState(false);
-  const [dragOut, setDragOut] = useState(false);
   const [guides, setGuides] = useState<{ x: boolean; y: boolean } | null>(null);
   const snapRef = useRef(true);
   snapRef.current = snapOn;
 
   const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? PRODUCTS[0], [productId]);
-  const img = (GARMENT_IMG[productId] ?? GARMENT_IMG["unisex-tee"])[view];
+  const img = garmentImg(productId, view);
   const tuning = useMemo(() => layerTuning(colorHex, productId), [colorHex, productId]);
   const zoom = ZOOMS[zoomI];
   const areas = useMemo(() => areasForView(product, view), [product, view]);
@@ -70,13 +61,15 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
   }, []);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  const committedOut = selected ? isLayerOutOfArea(selected, product) : false;
-  const out = gesture.current ? dragOut : committedOut;
-
   // ---- geometry ----
   function boxPx(l: Layer) {
     const b = layerBox(l); // stage px
     return { x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k };
+  }
+
+  /** One line's font size in screen px (the box height is the whole block). */
+  function fontPx(l: Layer) {
+    return l.size * STAGE_H * k;
   }
 
   function paint(l: Layer) {
@@ -88,7 +81,7 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
     el.style.transform = `translate(${b.x}px, ${b.y}px) translate(-50%, -50%) rotate(${l.rotation}deg)`;
     if (l.kind === "text") {
       const span = el.firstElementChild as HTMLElement | null;
-      if (span) span.style.fontSize = b.h + "px";
+      if (span) span.style.fontSize = fontPx(l) + "px";
     }
   }
 
@@ -96,10 +89,7 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
     live.current = l;
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
-      if (live.current) {
-        paint(live.current);
-        setDragOut(isLayerOutOfArea(live.current, product));
-      }
+      if (live.current) paint(live.current);
     });
   }
 
@@ -247,12 +237,12 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
           if (el) elRefs.current.set(l.id, el);
           else elRefs.current.delete(l.id);
         }}
-        className={"stage__art" + (isSel ? " is-sel" : "") + (isSel && out ? " is-out" : "")}
+        className={"stage__art" + (isSel ? " is-sel" : "")}
         role={compact ? undefined : "button"}
         aria-label={
           l.kind === "image"
             ? `Design ${l.fileName}. Arrow keys move, plus and minus resize, square brackets rotate.`
-            : `Text ${l.text}. Arrow keys move, plus and minus resize, square brackets rotate.`
+            : `Text ${l.text.replace(/\n/g, " ")}. Arrow keys move, plus and minus resize, square brackets rotate.`
         }
         tabIndex={compact ? -1 : 0}
         onKeyDown={compact ? undefined : (e) => onKeyDown(e, l)}
@@ -265,12 +255,15 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
           <span
             className="stage__text"
             style={{
-              fontSize: b.h,
+              fontSize: fontPx(l),
               fontFamily: getFontById(l.fontId).stack,
               fontWeight: getFontById(l.fontId).weight,
               color: l.color,
-              letterSpacing: `${(l.letterSpacing || 0) * b.h}px`,
-              WebkitTextStroke: l.outline && l.outlineWidth > 0 ? `${l.outlineWidth * b.h}px ${l.outline}` : undefined,
+              lineHeight: l.lineHeight > 0 ? l.lineHeight : 1,
+              textAlign: l.align,
+              letterSpacing: `${(l.letterSpacing || 0) * fontPx(l)}px`,
+              WebkitTextStroke:
+                l.outline && l.outlineWidth > 0 ? `${l.outlineWidth * fontPx(l)}px ${l.outline}` : undefined,
               paintOrder: "stroke fill",
             }}
           >
@@ -307,8 +300,14 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
             <ZoomOut size={16} aria-hidden="true" />
           </button>
           <span className="gtool__sep" aria-hidden="true" />
-          <button type="button" className={"gtool gtool--label" + (zoneVisible ? " is-on" : "")} aria-pressed={zoneVisible} onClick={() => setZoneVisible((v) => !v)}>
-            {zoneVisible ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />} Print areas
+          <button
+            type="button"
+            className={"gtool gtool--label" + (zoneVisible ? " is-on" : "")}
+            aria-pressed={zoneVisible}
+            onClick={() => setZoneVisible((v) => !v)}
+            title="Alignment guides — they help you line things up, they don't limit where a design can go"
+          >
+            {zoneVisible ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />} Guides
           </button>
           <button type="button" className={"gtool gtool--label" + (fabricMode ? " is-on" : "")} aria-pressed={fabricMode} onClick={() => setFabricMode((v) => !v)}>
             <Sparkles size={15} aria-hidden="true" /> Fabric preview
@@ -357,7 +356,8 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
                 ))}
               {sel && (
                 <text className="gstage__zonelabel" x={homeArea(sel, product).x + 6} y={homeArea(sel, product).y - 7}>
-                  {homeArea(sel, product).name.toUpperCase()} · {homeArea(sel, product).widthIn}″ × {homeArea(sel, product).heightIn}″
+                  {homeArea(sel, product).name.toUpperCase()} GUIDE · {homeArea(sel, product).widthIn}″ ×{" "}
+                  {homeArea(sel, product).heightIn}″
                 </text>
               )}
               {guides?.x && <line className="stage__guide" x1={STAGE_W / 2} y1={0} x2={STAGE_W / 2} y2={STAGE_H} />}
@@ -366,19 +366,10 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
               )}
             </svg>
           )}
-
-          {out && selected && !compact && (
-            <div className="stage__warn" role="status">
-              <AlertTriangle size={14} aria-hidden="true" />
-              <span>Part of this design is outside the {homeArea(selected, product).name.toLowerCase()} print area.</span>
-              <button type="button" className="stage__fix" onClick={() => onChange(fitLayerToArea(selected, product))}>
-                <Shrink size={13} aria-hidden="true" /> Fit to area
-              </button>
-            </div>
-          )}
         </div>
       </div>
       <p className="stage__note">{PREVIEW_DISCLAIMER}</p>
+      {!compact && <p className="stage__note stage__note--guides">{GUIDES_NOTICE}</p>}
     </div>
   );
 }

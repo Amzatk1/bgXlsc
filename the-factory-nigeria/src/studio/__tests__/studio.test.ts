@@ -1,18 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
   areasForView,
+  DIFFICULT_AREA_NOTICE,
+  FONT_CATEGORIES,
   FONTS,
+  fontsByCategory,
+  getProductionMethod,
+  GUIDES_NOTICE,
+  isSublimated,
   PLACEMENTS,
   placementsFor,
+  PRODUCTION_METHODS,
   PRODUCTS,
   productPpi,
   STANDARD_COLORS,
+  TOWEL_BACK_NOTE,
   UPLOAD_LIMITS,
 } from "../catalog";
 import {
   applyPlacement,
+  backgroundLayer,
   belowMinimum,
   clampLayer,
+  coverSize,
   difficultCrossings,
   emptySizes,
   estimatedDpi,
@@ -28,13 +38,17 @@ import {
   layerWidthIn,
   makeReference,
   newImageLayer,
+  newPatternLayer,
   newTextLayer,
   parseQuantity,
   qualityLevel,
+  restylePatternLayer,
   sizeIssue,
   sizeTotal,
   snapRotation,
   straightenLayer,
+  textBlockScale,
+  textLines,
   validateForSubmit,
   viewsWithDesign,
   viewSummary,
@@ -42,6 +56,7 @@ import {
   type ImageLayer,
   type TextLayer,
 } from "../state";
+import { DEFAULT_PATTERN, JERSEY_PATTERNS, patternSummary, renderPatternSvg } from "../patterns";
 import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, sizesLine, summaryRows } from "../messages";
 import { checkDimensions, precheckFile } from "../imageFile";
 import { deserializeDesign, isWorthSaving, serializeDesign } from "../persist";
@@ -81,7 +96,7 @@ describe("catalogue (prototype data)", () => {
     }
   });
   it("short-sleeve garments expose left+right sleeve print areas on the front", () => {
-    for (const id of ["unisex-tee", "oversized-tee", "polo", "hoodie"]) {
+    for (const id of ["tee-custom", "tee-readymade", "oversized-tee", "polo", "hoodie"]) {
       const p = PRODUCTS.find((x) => x.id === id)!;
       const ids = areasForView(p, "front").map((a) => a.id);
       expect(ids).toContain("torso");
@@ -217,12 +232,15 @@ describe("layer geometry (stage space)", () => {
     expect(layerBox(l).w).toBeCloseTo(0.5 * 600, 3);
     expect(layerBox(l).h).toBeCloseTo(0.5 * 600 * (1200 / 1600), 3);
   });
-  it("clamps centre, size and normalises rotation", () => {
+  it("keeps a layer on the stage and normalises rotation — without capping it to a guide", () => {
     const a = clampLayer(imgLayer({ cx: -3, cy: 9, size: 5, rotation: 725 }));
     expect(a.cx).toBeGreaterThanOrEqual(0.02);
     expect(a.cy).toBeLessThanOrEqual(0.98);
-    expect(a.size).toBeLessThanOrEqual(1.25);
     expect(a.rotation).toBeCloseTo(5, 5);
+    // A design may exceed the guide (full-bleed / sublimation). The only size
+    // limit is a sanity bound far beyond the garment — never a print box.
+    expect(a.size).toBeGreaterThan(1);
+    expect(a.size).toBeLessThanOrEqual(3);
   });
   it("unrotated corners span the box width", () => {
     const l = imgLayer({ size: 0.4, rotation: 0 });
@@ -343,7 +361,7 @@ describe("submission validation", () => {
 describe("enquiry summary & spec (multi-layer)", () => {
   function completeState() {
     const st = initialState();
-    st.productId = "unisex-tee";
+    st.productId = "tee-readymade";
     st.layers = [
       imgLayer({ id: "front-logo", view: "front", fileName: "logo.png" }),
       newTextLayer("name", tee, "back"),
@@ -380,7 +398,7 @@ describe("enquiry summary & spec (multi-layer)", () => {
     expect(msg).toContain("*Design:* Front and back");
     expect(msg).toContain("*Design layers:*");
     expect(msg).toContain("Number");
-    expect(msg).toContain("printing method, price and production time");
+    expect(msg).toContain("production method, price and production time");
     expect(msg).not.toContain("base64"); // never embeds image data
   });
   it("summary rows tag the step that edits them", () => {
@@ -520,5 +538,308 @@ describe("layersForView", () => {
     const st = initialState();
     st.layers = [imgLayer({ id: "a", view: "front" }), imgLayer({ id: "b", view: "back" })];
     expect(layersForView(st, "front").map((l) => l.id)).toEqual(["a"]);
+  });
+});
+
+// =====================================================================
+// The Factory's requirements, locked down as tests. These encode
+// decisions the team made about how their garments are really produced —
+// if one of these fails, the app is lying to a customer.
+// =====================================================================
+
+describe("guides are alignment aids, never restrictions", () => {
+  it("a design placed far outside its guide is still a valid, submittable design", () => {
+    const st = initialState();
+    // deliberately absurd: huge, rotated, hanging off the shoulder
+    const wild = imgLayer({ cx: 0.12, cy: 0.12, size: 1.2, rotation: 47 });
+    st.layers = [wild];
+    st.details.quantity = "5";
+    st.details.sizes = { ...emptySizes(), M: 5 };
+    st.details.name = "Amzat";
+    st.details.phone = "+2348000000000";
+
+    expect(isLayerOutOfArea(wild, tee)).toBe(true); // it IS outside — that's information
+    expect(validateForSubmit(st)).toHaveLength(0); // …and it changes nothing
+  });
+
+  it("clamping never pulls a design back toward a guide or shrinks it to fit", () => {
+    const off = imgLayer({ cx: 0.9, cy: 0.88, size: 0.9, rotation: 33 });
+    const clamped = clampLayer(off);
+    expect(clamped.cx).toBeCloseTo(0.9, 6);
+    expect(clamped.cy).toBeCloseTo(0.88, 6);
+    expect(clamped.size).toBeCloseTo(0.9, 6);
+    expect(clamped.rotation).toBeCloseTo(33, 6);
+    expect(isLayerOutOfArea(clamped, tee)).toBe(true); // still outside, untouched
+  });
+
+  it("fitting to a guide only ever happens when the customer asks for it", () => {
+    const l = imgLayer({ cx: 0.05, cy: 0.95, size: 1.1, rotation: 30 });
+    // the layer is untouched until fitLayerToArea is called explicitly
+    expect(clampLayer(l).cx).toBeCloseTo(0.05, 6);
+    const fitted = fitLayerToArea(l, tee);
+    expect(isLayerOutOfArea(fitted, tee)).toBe(false);
+    expect(l.cx).toBeCloseTo(0.05, 6); // original not mutated
+  });
+
+  it("crossing a seam or pocket warns in the team's words, and still submits", () => {
+    const hoodie = PRODUCTS.find((p) => p.id === "hoodie")!;
+    const overPocket = imgLayer({ view: "front", cx: 0.5, cy: 0.72, size: 0.5 });
+    expect(difficultCrossings(overPocket, hoodie).join(" ")).toMatch(/pocket/);
+
+    const st = initialState();
+    st.productId = "hoodie";
+    st.layers = [overPocket];
+    st.details.quantity = "2";
+    st.details.sizes = { ...emptySizes(), L: 2 };
+    st.details.name = "Amzat";
+    st.details.phone = "+2348000000000";
+    expect(validateForSubmit(st)).toHaveLength(0);
+
+    expect(DIFFICULT_AREA_NOTICE).toContain("You can continue with your idea");
+    expect(GUIDES_NOTICE).toContain("place your design anywhere on the visible garment");
+  });
+});
+
+describe("two T-shirt options — never merged into one vague 'T-shirt'", () => {
+  const custom = PRODUCTS.find((p) => p.id === "tee-custom")!;
+  const ready = PRODUCTS.find((p) => p.id === "tee-readymade")!;
+
+  it("offers a custom-made (towel-back) tee and a ready-made 100% cotton tee", () => {
+    expect(custom.tshirtOption).toBe("custom-made");
+    expect(ready.tshirtOption).toBe("ready-made");
+    expect(custom.production).toBe("custom-made");
+    expect(ready.production).toBe("ready-made-print");
+    // the team's own wording, kept verbatim
+    expect(custom.tshirtOptionLabel).toContain("towel-back fabric option");
+    expect(ready.tshirtOptionLabel).toContain("Ready-made 100% cotton");
+    expect(TOWEL_BACK_NOTE).toContain("towel-back fabric");
+    // no product may be a nameless "T-shirt"
+    expect(PRODUCTS.filter((p) => p.name.trim() === "T-shirt")).toHaveLength(0);
+  });
+
+  it("carries the chosen option into the enquiry and the design brief", () => {
+    const st = initialState();
+    st.productId = "tee-custom";
+    st.layers = [imgLayer()];
+    st.details.name = "Amzat";
+    st.details.phone = "+2348000000000";
+    st.details.quantity = "3";
+
+    const msg = buildStudioMessage(st);
+    expect(msg).toContain("*Production method:* Custom-made (cut and sewn for you)");
+    expect(msg).toContain("towel-back fabric option");
+
+    const rows = summaryRows(st);
+    expect(rows.find((r) => r.label === "Production method")!.value).toContain("Custom-made");
+    expect(rows.find((r) => r.label === "T-shirt option")!.value).toContain("towel-back");
+
+    const spec = buildDesignSpec(st) as { product: { productionMethod: string; tshirtOption?: string } };
+    expect(spec.product.tshirtOption).toBe("custom-made");
+    expect(spec.product.productionMethod).toContain("Custom-made");
+  });
+
+  it("switching between the two options never deletes the customer's work", () => {
+    const st = initialState();
+    st.productId = "tee-custom";
+    st.layers = [imgLayer({ id: "keep-me" }), newTextLayer("text", tee, "front")];
+    // switching product is a productId change only — layers are not touched
+    const switched = { ...st, productId: "tee-readymade" };
+    expect(switched.layers).toHaveLength(2);
+    expect(switched.layers[0].id).toBe("keep-me");
+    expect(hasAnyDesign(switched)).toBe(true);
+  });
+
+  it("an old saved design that still says 'unisex-tee' is migrated, not discarded", () => {
+    const restored = deserializeDesign({
+      state: { productId: "unisex-tee", layers: [{ kind: "text", text: "KEEP", fontId: "anton" }] },
+    })!;
+    expect(restored.productId).toBe("tee-readymade");
+    expect(restored.layers).toHaveLength(1);
+  });
+});
+
+describe("jerseys are sublimated, not printed", () => {
+  it("both jerseys declare sublimation; ready-made garments do not", () => {
+    for (const id of ["jersey", "basketball"]) {
+      const p = PRODUCTS.find((x) => x.id === id)!;
+      expect(p.production).toBe("sublimation");
+      expect(isSublimated(p)).toBe(true);
+      expect(getProductionMethod(p).label).toBe("Sublimation");
+    }
+    expect(isSublimated(PRODUCTS.find((p) => p.id === "tee-readymade")!)).toBe(false);
+    expect(PRODUCTION_METHODS.sublimation.designNote).toMatch(/whole garment|edge to edge/);
+  });
+
+  it("says 'Sublimation' in the enquiry and the brief", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [newTextLayer("number", tee, "back")];
+    st.details.name = "Coach";
+    st.details.phone = "+2348000000000";
+    st.details.quantity = "16";
+
+    expect(buildStudioMessage(st)).toContain("*Production method:* Sublimation");
+    expect(summaryRows(st).find((r) => r.label === "Production method")!.value).toBe("Sublimation");
+    const spec = buildDesignSpec(st) as { product: { productionMethod: string; sublimationNote?: string } };
+    expect(spec.product.productionMethod).toBe("Sublimation");
+    expect(spec.product.sublimationNote).toBeTruthy();
+  });
+
+  it("builds a full-surface design that covers the whole garment", () => {
+    const layer = newPatternLayer({ ...DEFAULT_PATTERN, id: "stripes" }, "front");
+    expect(layer.kind).toBe("image");
+    expect(layer.generated).toBe(true);
+    expect(layer.pattern!.id).toBe("stripes");
+    expect(layer.src.startsWith("data:image/svg+xml")).toBe(true);
+    expect(layer.cx).toBeCloseTo(0.5, 6);
+    expect(layer.cy).toBeCloseTo(0.5, 6);
+    // it must cover the full 600×700 stage, not sit in a chest box
+    const box = layerBox(layer);
+    expect(box.w).toBeGreaterThanOrEqual(600);
+    expect(box.h).toBeGreaterThanOrEqual(700 - 0.5);
+  });
+
+  it("restyling a full-surface design keeps its identity and records the recipe", () => {
+    const layer = newPatternLayer(DEFAULT_PATTERN, "front");
+    const restyled = restylePatternLayer(layer, { ...DEFAULT_PATTERN, id: "chevron", accent: "#00ff00" });
+    expect(restyled.id).toBe(layer.id); // same layer, new look
+    expect(restyled.pattern!.id).toBe("chevron");
+    expect(restyled.pattern!.accent).toBe("#00ff00");
+    expect(restyled.src).not.toBe(layer.src);
+
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [restyled];
+    expect(backgroundLayer(st, "front")!.id).toBe(layer.id);
+    expect(layerLine(restyled, tee)).toContain("Full-surface design (sublimation)");
+    expect(patternSummary(restyled.pattern!)).toContain("#00FF00");
+  });
+
+  it("every pattern renders valid, self-contained SVG with the chosen colours", () => {
+    for (const p of JERSEY_PATTERNS) {
+      const svg = renderPatternSvg({ id: p.id, base: "#112233", secondary: "#445566", accent: "#778899" });
+      expect(svg.startsWith("<svg")).toBe(true);
+      expect(svg).toContain("#112233");
+      expect(svg).not.toContain("http://external");
+    }
+    // a junk colour can never be injected into the markup
+    const dirty = renderPatternSvg({ id: "solid", base: '"><script>x</script>', secondary: "#fff", accent: "#000" });
+    expect(dirty).not.toContain("<script>");
+  });
+
+  it("an uploaded image can be scaled to cover the garment", () => {
+    expect(coverSize(1200, 1400)).toBeCloseTo(1, 3); // stage-shaped art → exactly covers
+    expect(coverSize(2000, 500)).toBeGreaterThan(1); // wide art must grow to cover the height
+  });
+
+  it("never reports a pixel DPI for a vector full surface (it has none)", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [newPatternLayer(DEFAULT_PATTERN, "front")];
+    st.details.name = "Coach";
+    st.details.phone = "+1";
+    st.details.quantity = "10";
+    const spec = buildDesignSpec(st) as {
+      layers: { vector?: boolean; estimatedDpi?: number; quality?: string }[];
+    };
+    expect(spec.layers[0].vector).toBe(true);
+    expect(spec.layers[0].estimatedDpi).toBeUndefined();
+    expect(spec.layers[0].quality).toBeUndefined();
+    // and the enquiry line describes the surface, not a resolution
+    expect(layerLine(st.layers[0], tee)).not.toMatch(/DPI/);
+  });
+});
+
+describe("text is a first-class design element", () => {
+  it("groups fonts into the categories the team asked for", () => {
+    const groups = fontsByCategory();
+    expect(groups.length).toBeGreaterThanOrEqual(6);
+    for (const g of groups) expect(FONT_CATEGORIES).toContain(g.category);
+    // every font lands in exactly one named category
+    expect(groups.flatMap((g) => g.fonts)).toHaveLength(FONTS.length);
+    const names = groups.map((g) => g.category);
+    for (const c of ["Athletic", "Jersey", "Varsity", "Script"]) expect(names).toContain(c);
+  });
+
+  it("multi-line text grows the block instead of overlapping itself", () => {
+    const one = { ...(newTextLayer("text", tee, "front") as TextLayer), text: "ONE", lineHeight: 1.1 };
+    const three = { ...one, text: "ONE\nTWO\nTHREE" };
+    expect(textLines(three.text)).toHaveLength(3);
+    expect(textBlockScale(one)).toBeCloseTo(1.1, 5);
+    expect(textBlockScale(three)).toBeCloseTo(3.3, 5);
+    // same font size, three times the block height
+    expect(layerBox(three).h).toBeCloseTo(layerBox(one).h * 3, 4);
+  });
+
+  it("records line spacing and alignment for the factory", () => {
+    const st = initialState();
+    const t = { ...(newTextLayer("text", tee, "front") as TextLayer), text: "TOP\nBOTTOM", align: "left" as const };
+    st.layers = [t];
+    st.details.name = "A";
+    st.details.phone = "+1";
+    st.details.quantity = "1";
+    const spec = buildDesignSpec(st) as { layers: { lines?: string[]; align?: string; lineHeight?: number }[] };
+    expect(spec.layers[0].lines).toEqual(["TOP", "BOTTOM"]);
+    expect(spec.layers[0].align).toBe("left");
+    expect(spec.layers[0].lineHeight).toBeGreaterThan(0);
+    expect(layerLine(t, tee)).toContain("2 lines");
+  });
+
+  it("a text-only design is a complete design", () => {
+    const st = initialState();
+    st.layers = [newTextLayer("text", tee, "front")];
+    st.details.quantity = "1";
+    st.details.sizes = { ...emptySizes(), M: 1 };
+    st.details.name = "Amzat";
+    st.details.phone = "+2348000000000";
+    expect(hasAnyDesign(st)).toBe(true);
+    expect(validateForSubmit(st)).toHaveLength(0);
+  });
+
+  it("survives a save/load round-trip with its line breaks intact", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [
+      { ...(newTextLayer("text", tee, "front") as TextLayer), text: "LINE ONE\nLINE TWO", align: "right", lineHeight: 1.4 },
+    ];
+    const back = deserializeDesign(JSON.parse(JSON.stringify(serializeDesign(st))))!;
+    const t = back.layers[0] as TextLayer;
+    expect(t.text).toBe("LINE ONE\nLINE TWO");
+    expect(t.align).toBe("right");
+    expect(t.lineHeight).toBeCloseTo(1.4, 5);
+    expect(back.productId).toBe("jersey");
+  });
+});
+
+describe("real designs: many layers, mixed media", () => {
+  it("carries 10 mixed image + text layers through preview, enquiry and brief", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    const layers = [
+      newPatternLayer(DEFAULT_PATTERN, "front"),
+      ...Array.from({ length: 5 }, (_, i) => imgLayer({ id: "logo" + i, view: "front", cx: 0.2 + i * 0.12, size: 0.1 })),
+      { ...(newTextLayer("name", tee, "front") as TextLayer), text: "ADEYEMI" },
+      { ...(newTextLayer("number", tee, "front") as TextLayer), text: "23" },
+      { ...(newTextLayer("text", tee, "front") as TextLayer), text: "SPONSOR\nLTD" },
+      imgLayer({ id: "sleeve", view: "front", cx: 0.15, cy: 0.36, size: 0.08 }),
+    ];
+    st.layers = layers;
+    st.details.quantity = "18";
+    st.details.sizes = { ...emptySizes(), M: 9, L: 9 };
+    st.details.name = "Coach";
+    st.details.phone = "+2348000000000";
+
+    expect(visibleLayersForView(st, "front")).toHaveLength(10);
+    expect(viewSummary(st, "front")).toBe("10 elements");
+    expect(validateForSubmit(st)).toHaveLength(0);
+
+    const msg = buildStudioMessage(st);
+    expect(msg).toContain("Full-surface design (sublimation)");
+    expect(msg).toContain("ADEYEMI");
+    expect(msg).not.toContain("base64"); // artwork is never inlined into a message
+
+    const spec = buildDesignSpec(st) as { layers: unknown[]; placementNotice: string };
+    expect(spec.layers).toHaveLength(10);
+    expect(spec.placementNotice).toBe(GUIDES_NOTICE);
   });
 });
