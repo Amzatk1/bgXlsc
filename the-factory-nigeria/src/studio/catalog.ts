@@ -124,6 +124,49 @@ export const TOWEL_BACK_NOTE =
 export const SUBLIMATION_NOTE =
   "Sublimated garments are produced on polyester-based sports fabric — that is what allows the design to run across the whole garment.";
 
+// ---------------------------------------------------------------------
+// How sublimation physically works. These are not house rules — they are
+// properties of the process, and the app must not draw a garment that the
+// process cannot produce.
+//
+//  • The ink is a DYE that turns to gas and bonds with polyester fibres.
+//    It needs a polyester-based fabric (65%+ recommended; 100% cotton will
+//    not take it at all).
+//  • The dye is TRANSLUCENT. It can only darken the fabric it lands on —
+//    it cannot print a light colour onto a dark blank, because the garment
+//    colour always shows through. Sublimated garments therefore start from
+//    a WHITE (or very light) blank, and every colour you see in the finished
+//    jersey comes from the print itself.
+// ---------------------------------------------------------------------
+
+/** Below this luminance a blank is too dark for sublimation ink to show on. */
+export const SUBLIMATION_MAX_BLANK_LUMA = 0.75;
+
+export const SUBLIMATION_BLANK_NOTE =
+  "Sublimation ink is a dye — it can only darken the fabric it bonds with, so it cannot print a light colour onto a dark blank. Sublimated garments start from a white blank, and every colour in the finished jersey comes from the print itself.";
+
+export const SUBLIMATION_DARK_COLOUR_HELP =
+  "To get a dark jersey, keep the blank white and put your colour into a full-surface design — that is exactly how the garment is really made.";
+
+export const SUBLIMATION_FABRIC_NOTE =
+  "Sublimation needs a polyester-based fabric (65% polyester or more is the usual guidance; 100% cotton will not take sublimation ink at all).";
+
+/**
+ * Is the chosen fabric physically able to take this garment's production method?
+ * Returns a plain-language issue, or null when there is nothing to say. Never a
+ * block — the team always confirms and offers the closest alternative.
+ */
+export function fabricMethodIssue(product: Product, fabric: Fabric | undefined): string | null {
+  if (!fabric || !isSublimated(product)) return null;
+  if (fabric.sublimation === "no") {
+    return `${fabric.name} is a cotton-based fabric, and sublimation ink does not bond with cotton. A sublimated ${product.name.toLowerCase()} needs a polyester-based fabric — The Factory Nigeria will confirm the closest option they can source.`;
+  }
+  if (fabric.sublimation === "confirm") {
+    return `${fabric.name} is a blend, so whether it sublimates well depends on how much polyester is in the roll actually sourced. The Factory Nigeria will confirm this before production.`;
+  }
+  return null;
+}
+
 export type PrintZone = {
   /** Stage coordinates (SVG viewBox units, 600×700 stage) */
   x: number;
@@ -136,7 +179,19 @@ export type PrintZone = {
 };
 
 /** A named printable region on a garment view (torso, sleeve, pocket…). */
-export type PrintArea = PrintZone & { id: string; name: string };
+export type PrintArea = PrintZone & {
+  id: string;
+  name: string;
+  /**
+   * True for seams, hems and cuffs — things that are hard to print ONTO a
+   * finished garment because the press needs a flat, stable surface.
+   *
+   * A sublimated garment is printed as FLAT PANELS before it is sewn, so these
+   * are not a difficulty for it at all — the design crosses the seam because
+   * the seam does not exist yet. difficultCrossings() honours that.
+   */
+  seamRelated?: boolean;
+};
 
 export type Product = {
   id: string;
@@ -217,9 +272,25 @@ const TEE_EXTRA: Partial<Record<ViewId, PrintArea[]>> = {
     { id: "right-sleeve", name: "Right sleeve", x: 432, y: 214, w: 72, h: 92, widthIn: 3.8, heightIn: 4.8 },
   ],
 };
+/**
+ * Seams and hems, measured off the real garment silhouette (alpha bounds of the
+ * processed asset ÷ 2 → stage units). The side seams start BELOW the sleeve
+ * areas so a sleeve logo is never mistaken for a seam crossing.
+ */
+const TEE_SEAMS: PrintArea[] = [
+  { id: "left-seam", name: "left side seam", x: 96, y: 320, w: 24, h: 318, widthIn: 1.2, heightIn: 16.5, seamRelated: true },
+  { id: "right-seam", name: "right side seam", x: 484, y: 320, w: 24, h: 318, widthIn: 1.2, heightIn: 16.5, seamRelated: true },
+  { id: "hem", name: "bottom hem", x: 100, y: 632, w: 404, h: 28, widthIn: 21, heightIn: 1.5, seamRelated: true },
+];
 const TEE_AVOID: Partial<Record<ViewId, PrintArea[]>> = {
-  front: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
-  back: [{ id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
+  front: [
+    { id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 62, widthIn: 5, heightIn: 3 },
+    ...TEE_SEAMS,
+  ],
+  back: [
+    { id: "collar", name: "collar / neckline", x: 250, y: 150, w: 100, h: 46, widthIn: 5, heightIn: 2 },
+    ...TEE_SEAMS,
+  ],
 };
 
 export const PRODUCTS: Product[] = [
@@ -283,8 +354,18 @@ export const PRODUCTS: Product[] = [
       ],
     },
     avoidAreas: {
-      front: [{ id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 62, widthIn: 5, heightIn: 3 }],
-      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 46, widthIn: 5, heightIn: 2 }],
+      front: [
+        { id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 62, widthIn: 5, heightIn: 3 },
+        { id: "left-seam", name: "left side seam", x: 100, y: 345, w: 24, h: 292, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 476, y: 345, w: 24, h: 292, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 104, y: 632, w: 396, h: 28, widthIn: 20.5, heightIn: 1.5, seamRelated: true },
+      ],
+      back: [
+        { id: "collar", name: "collar / neckline", x: 250, y: 155, w: 100, h: 46, widthIn: 5, heightIn: 2 },
+        { id: "left-seam", name: "left side seam", x: 100, y: 345, w: 24, h: 292, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 476, y: 345, w: 24, h: 292, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 104, y: 632, w: 396, h: 28, widthIn: 20.5, heightIn: 1.5, seamRelated: true },
+      ],
     },
   },
   {
@@ -315,8 +396,16 @@ export const PRODUCTS: Product[] = [
       front: [
         { id: "placket", name: "button placket", x: 272, y: 150, w: 56, h: 160, widthIn: 3, heightIn: 8 },
         { id: "collar", name: "collar", x: 240, y: 120, w: 120, h: 55, widthIn: 6, heightIn: 3 },
+        { id: "left-seam", name: "left side seam", x: 102, y: 340, w: 24, h: 288, widthIn: 1, heightIn: 11, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 478, y: 340, w: 24, h: 288, widthIn: 1, heightIn: 11, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 106, y: 627, w: 392, h: 28, widthIn: 15, heightIn: 1, seamRelated: true },
       ],
-      back: [{ id: "collar", name: "collar / neckline", x: 250, y: 120, w: 100, h: 40, widthIn: 5, heightIn: 2 }],
+      back: [
+        { id: "collar", name: "collar / neckline", x: 250, y: 120, w: 100, h: 40, widthIn: 5, heightIn: 2 },
+        { id: "left-seam", name: "left side seam", x: 102, y: 340, w: 24, h: 288, widthIn: 1, heightIn: 11, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 478, y: 340, w: 24, h: 288, widthIn: 1, heightIn: 11, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 106, y: 627, w: 392, h: 28, widthIn: 15, heightIn: 1, seamRelated: true },
+      ],
     },
   },
   {
@@ -347,8 +436,14 @@ export const PRODUCTS: Product[] = [
       front: [
         { id: "pocket", name: "kangaroo pocket", x: 175, y: 458, w: 250, h: 150, widthIn: 12, heightIn: 7 },
         { id: "hood", name: "hood", x: 205, y: 55, w: 190, h: 120, widthIn: 9, heightIn: 6 },
+        // The cords sit proud of the fabric — a press cannot lie flat over them.
+        { id: "drawstring", name: "hood drawstring", x: 240, y: 168, w: 120, h: 58, widthIn: 5, heightIn: 2.5 },
+        { id: "hem", name: "ribbed hem", x: 150, y: 618, w: 300, h: 40, widthIn: 13, heightIn: 1.7, seamRelated: true },
       ],
-      back: [{ id: "hood", name: "hood", x: 210, y: 60, w: 180, h: 110, widthIn: 9, heightIn: 5 }],
+      back: [
+        { id: "hood", name: "hood", x: 210, y: 60, w: 180, h: 110, widthIn: 9, heightIn: 5 },
+        { id: "hem", name: "ribbed hem", x: 150, y: 618, w: 300, h: 40, widthIn: 13, heightIn: 1.7, seamRelated: true },
+      ],
     },
   },
   {
@@ -376,9 +471,23 @@ export const PRODUCTS: Product[] = [
         { id: "right-panel", name: "Right side panel", x: 402, y: 250, w: 40, h: 230, widthIn: 2, heightIn: 12 },
       ],
     },
+    // The seams are marked seamRelated, so difficultCrossings() ignores them on a
+    // SUBLIMATED garment — its panels are printed flat before they are sewn, so a
+    // design crossing a seam is normal, not a difficulty. The ribbed collar is a
+    // separately knitted piece, so it stays a real confirmation item.
     avoidAreas: {
-      front: [{ id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 58, widthIn: 4.5, heightIn: 3 }],
-      back: [{ id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 42, widthIn: 4.5, heightIn: 2 }],
+      front: [
+        { id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 58, widthIn: 4.5, heightIn: 3 },
+        { id: "left-seam", name: "left side seam", x: 118, y: 310, w: 24, h: 290, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 462, y: 310, w: 24, h: 290, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 124, y: 598, w: 356, h: 28, widthIn: 18.5, heightIn: 1.5, seamRelated: true },
+      ],
+      back: [
+        { id: "collar", name: "collar / neckline", x: 255, y: 150, w: 90, h: 42, widthIn: 4.5, heightIn: 2 },
+        { id: "left-seam", name: "left side seam", x: 118, y: 310, w: 24, h: 290, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 462, y: 310, w: 24, h: 290, widthIn: 1.2, heightIn: 15, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 124, y: 598, w: 356, h: 28, widthIn: 18.5, heightIn: 1.5, seamRelated: true },
+      ],
     },
   },
   {
@@ -405,8 +514,18 @@ export const PRODUCTS: Product[] = [
       ],
     },
     avoidAreas: {
-      front: [{ id: "collar", name: "V-neck collar", x: 258, y: 150, w: 84, h: 78, widthIn: 4, heightIn: 4 }],
-      back: [{ id: "collar", name: "neckline", x: 258, y: 150, w: 84, h: 40, widthIn: 4, heightIn: 2 }],
+      front: [
+        { id: "collar", name: "V-neck collar", x: 258, y: 150, w: 84, h: 78, widthIn: 4, heightIn: 4 },
+        { id: "left-seam", name: "left side seam", x: 76, y: 300, w: 24, h: 348, widthIn: 1.3, heightIn: 18, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 500, y: 300, w: 24, h: 348, widthIn: 1.3, heightIn: 18, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 78, y: 648, w: 444, h: 30, widthIn: 23.5, heightIn: 1.6, seamRelated: true },
+      ],
+      back: [
+        { id: "collar", name: "neckline", x: 258, y: 150, w: 84, h: 40, widthIn: 4, heightIn: 2 },
+        { id: "left-seam", name: "left side seam", x: 76, y: 300, w: 24, h: 348, widthIn: 1.3, heightIn: 18, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 500, y: 300, w: 24, h: 348, widthIn: 1.3, heightIn: 18, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 78, y: 648, w: 444, h: 30, widthIn: 23.5, heightIn: 1.6, seamRelated: true },
+      ],
     },
   },
   {
@@ -422,8 +541,11 @@ export const PRODUCTS: Product[] = [
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-snapback-thumb.webp`,
     cut: "regular",
+    // A cap decoration area is much WIDER than it is tall (~4.5″ × 2.5″ is the
+    // usual structured-cap front). The old box was nearly square, so it drew a
+    // guide 37% taller than the size printed on its own label.
     zones: {
-      front: { x: 222, y: 190, w: 156, h: 142, widthIn: 4.5, heightIn: 3 },
+      front: { x: 222, y: 218, w: 156, h: 87, widthIn: 4.5, heightIn: 2.5 },
       back: { x: 238, y: 205, w: 124, h: 92, widthIn: 3.6, heightIn: 2.6 },
     },
     avoidAreas: {
@@ -443,8 +565,9 @@ export const PRODUCTS: Product[] = [
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-baseball-thumb.webp`,
     cut: "regular",
+    // Unstructured "dad cap" — a lower crown, so a shorter decoration area.
     zones: {
-      front: { x: 225, y: 198, w: 150, h: 135, widthIn: 4.2, heightIn: 3 },
+      front: { x: 225, y: 226, w: 150, h: 80, widthIn: 4.2, heightIn: 2.25 },
       back: { x: 240, y: 210, w: 120, h: 88, widthIn: 3.4, heightIn: 2.4 },
     },
     avoidAreas: {
@@ -464,9 +587,11 @@ export const PRODUCTS: Product[] = [
     family: "headwear",
     thumb: `${ASSET_BASE}/cap-trucker-thumb.webp`,
     cut: "regular",
+    // The foam front is tall and seamless, so it genuinely takes a bigger,
+    // taller design than a 6-panel cap — but not the near-square box it had.
     zones: {
-      front: { x: 220, y: 182, w: 160, h: 150, widthIn: 4.8, heightIn: 3.2 },
-      back: { x: 244, y: 200, w: 112, h: 84, widthIn: 3.2, heightIn: 2.2 },
+      front: { x: 220, y: 207, w: 160, h: 100, widthIn: 4.8, heightIn: 3 },
+      back: { x: 244, y: 200, w: 112, h: 84, widthIn: 3.2, heightIn: 2.5 },
     },
     avoidAreas: {
       front: [{ id: "brim", name: "peak / brim", x: 150, y: 470, w: 300, h: 110, widthIn: 7, heightIn: 2.5 }],
@@ -490,6 +615,14 @@ export type Fabric = {
   use: string;
   weight: FabricWeight;
   availability: AvailabilityStatus;
+  /**
+   * Can this fabric physically take sublimation ink?
+   *   "yes"     — polyester-based, sublimates properly
+   *   "no"      — cotton-based; sublimation ink will not bond with it
+   *   "confirm" — a blend: it depends on the polyester ratio actually sourced
+   * This is material science, not a Factory policy — see SUBLIMATION_FABRIC_NOTE.
+   */
+  sublimation: "yes" | "no" | "confirm";
   /** Close-up reference tile */
   img: string;
   /** What the reference photo actually shows (honesty caption) */
@@ -504,6 +637,7 @@ export const FABRICS: Fabric[] = [
     use: "Everyday tees, giveaways, warm-weather events",
     weight: "Light",
     availability: "common",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-cotton-light.webp`,
   },
   {
@@ -513,6 +647,7 @@ export const FABRICS: Fabric[] = [
     use: "Team tees, uniforms, retail-quality merch",
     weight: "Mid",
     availability: "common",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-cotton-mid.webp`,
   },
   {
@@ -522,6 +657,7 @@ export const FABRICS: Fabric[] = [
     use: "Streetwear, premium drops, oversized fits",
     weight: "Heavy",
     availability: "confirm",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-cotton-heavy.webp`,
   },
   {
@@ -531,6 +667,7 @@ export const FABRICS: Fabric[] = [
     use: "Workwear, frequently washed uniforms",
     weight: "Mid",
     availability: "common",
+    sublimation: "confirm",
     img: `${ASSET_BASE}/fabric-cotton-poly.webp`,
     refNote: "Reference photo shows a similar smooth jersey knit.",
   },
@@ -541,6 +678,7 @@ export const FABRICS: Fabric[] = [
     use: "Sports teams, fitness brands, jerseys",
     weight: "Light",
     availability: "confirm",
+    sublimation: "yes",
     img: `${ASSET_BASE}/fabric-performance.webp`,
     refNote: "Reference photo shows a similar knit; polyester is smoother with a slight sheen.",
   },
@@ -551,6 +689,7 @@ export const FABRICS: Fabric[] = [
     use: "Basketball jerseys, training bibs, hot-weather sports",
     weight: "Light",
     availability: "confirm",
+    sublimation: "yes",
     img: `${ASSET_BASE}/fabric-mesh.webp`,
     refNote: "Macro crop of this project's basketball-mesh render — the exact hole size is confirmed with a market sample.",
   },
@@ -561,6 +700,7 @@ export const FABRICS: Fabric[] = [
     use: "Football/soccer jerseys, structured sportswear",
     weight: "Mid",
     availability: "confirm",
+    sublimation: "yes",
     img: `${ASSET_BASE}/fabric-interlock.webp`,
     refNote: "Macro crop of this project's jersey render; interlock is a similar smooth performance knit.",
   },
@@ -571,6 +711,7 @@ export const FABRICS: Fabric[] = [
     use: "Caps, workwear, structured garments",
     weight: "Mid",
     availability: "common",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-twill.webp`,
     refNote: "Macro crop of this project's cap render; twill has a fine diagonal rib.",
   },
@@ -581,6 +722,7 @@ export const FABRICS: Fabric[] = [
     use: "Polos, collared uniforms, smart-casual teams",
     weight: "Mid",
     availability: "confirm",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-pique.webp`,
   },
   {
@@ -590,6 +732,7 @@ export const FABRICS: Fabric[] = [
     use: "Lighter hoodies, sweatshirts, loungewear",
     weight: "Mid",
     availability: "special",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-terry.webp`,
     refNote: "Reference photo shows the fleece family; french terry has visible loops inside.",
   },
@@ -600,6 +743,7 @@ export const FABRICS: Fabric[] = [
     use: "Hoodies, sweatshirts, colder-season merch",
     weight: "Heavy",
     availability: "confirm",
+    sublimation: "no",
     img: `${ASSET_BASE}/fabric-fleece.webp`,
   },
 ];

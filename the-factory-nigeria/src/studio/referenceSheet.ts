@@ -13,20 +13,26 @@ import {
   AVAILABILITY_LABEL,
   colorAvailability,
   DIFFICULT_AREA_NOTICE,
+  fabricMethodIssue,
+  getProductionMethod,
   GUIDES_NOTICE,
   isSublimated,
   MARKET_SOURCING_NOTICE,
   PREVIEW_DISCLAIMER,
   QUALITY_COPY,
+  SUBLIMATION_BLANK_NOTE,
   SUBLIMATION_NOTE,
   TOWEL_BACK_NOTE,
   type ViewId,
 } from "./catalog";
+import { minimumFor } from "./factoryFacts";
 import { composeViewCanvas, download, imageLayers, loadImage } from "./exporter";
-import { fabricLine, layerLine, productionLine, sizesLine } from "./messages";
+import { fabricLine, getFabric, layerLine, productionLine, sizesLine } from "./messages";
 import {
+  blankTooDarkForSublimation,
   difficultCrossings,
   fontOf,
+  fullSurfaceOnNonSublimated,
   getProduct,
   qualityLevel,
   SIZE_KEYS,
@@ -161,6 +167,21 @@ function warnings(state: DesignState): string[] {
   const out: string[] = [];
   const product = getProduct(state);
   const shirtLuma = hexLuma(state.color.hex);
+
+  // Can the chosen method physically do what the design asks of it?
+  const fabIssue = fabricMethodIssue(product, getFabric(state));
+  if (fabIssue) out.push(`Fabric: ${fabIssue}`);
+  if (blankTooDarkForSublimation(product, state.color.hex)) {
+    out.push(`Blank: “${state.color.name}” is too dark to sublimate onto. ${SUBLIMATION_BLANK_NOTE}`);
+  }
+  if (fullSurfaceOnNonSublimated(state)) {
+    out.push(
+      `Full surface: this design carries a full-surface (sublimation) layer, but the ${product.name.toLowerCase()} is ${getProductionMethod(product).label.toLowerCase()}. Confirm how much of it can be reproduced with that method.`,
+    );
+  }
+  // Prompt the team to state the minimum, since Studio does not invent one.
+  const min = minimumFor(product);
+  if (!min.confirmed) out.push(`Minimum: ${min.note}`);
   for (const l of state.layers) {
     if (l.hidden) continue;
     const side = l.view === "front" ? "Front" : "Back";

@@ -7,6 +7,7 @@ import {
   AVAILABILITY_LABEL,
   colorAvailability,
   CUSTOM_COLOR_NOTICE,
+  fabricMethodIssue,
   getFabricById,
   getProductionMethod,
   GUIDES_NOTICE,
@@ -20,7 +21,9 @@ import {
   type ViewId,
 } from "./catalog";
 import { patternSummary } from "./patterns";
+import { minimumFor } from "./factoryFacts";
 import {
+  blankTooDarkForSublimation,
   estimatedDpi,
   fontOf,
   getProduct,
@@ -171,7 +174,8 @@ export function buildStudioMessage(state: DesignState): string {
     "The shared reference file shows every design layer, its placement, size and rotation, the colour reference and production information.",
     isSublimated(product) ? `_${SUBLIMATION_NOTE}_` : "",
     product.tshirtOption === "custom-made" ? `_${TOWEL_BACK_NOTE}_` : "",
-    "Please confirm garment and fabric availability, final artwork size and placement, production method, price and production time.",
+    `_${minimumFor(product).note}_`,
+    "Please confirm garment and fabric availability, the minimum for this method, final artwork size and placement, production method, price and production time.",
     `_Placement guides in Studio are alignment aids only — the design is placed where I want it, and I understand The Factory reviews the final placement and confirms how it can be produced._`,
     `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms everything (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
   ].filter((l) => l !== "");
@@ -262,8 +266,20 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
       ...(state.color.status === "confirm" ? { notice: CUSTOM_COLOR_NOTICE } : {}),
     },
     fabric: fabric
-      ? { id: fabric.id, name: fabric.name, weight: fabric.weight, availability: AVAILABILITY_LABEL[fabric.availability] }
+      ? {
+          id: fabric.id,
+          name: fabric.name,
+          weight: fabric.weight,
+          availability: AVAILABILITY_LABEL[fabric.availability],
+          takesSublimationInk: fabric.sublimation,
+        }
       : null,
+    // What the chosen method can physically do, and what the team must still settle.
+    productionChecks: {
+      minimum: minimumFor(product),
+      fabricIssue: fabricMethodIssue(product, fabric) ?? null,
+      blankTooDarkForSublimation: blankTooDarkForSublimation(product, state.color.hex),
+    },
     layers: state.layers.filter((l) => !l.hidden).map(layerSpec),
     order: {
       quantity: d.quantity,

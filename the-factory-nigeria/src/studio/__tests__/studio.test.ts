@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   areasForView,
+  avoidAreasForView,
   DIFFICULT_AREA_NOTICE,
+  FABRICS,
+  fabricMethodIssue,
   FONT_CATEGORIES,
   FONTS,
   fontsByCategory,
@@ -17,16 +20,19 @@ import {
   TOWEL_BACK_NOTE,
   UPLOAD_LIMITS,
 } from "../catalog";
+import { FACTORY_QUESTIONS, minimumFor, OPEN_QUESTIONS } from "../factoryFacts";
 import {
   applyPlacement,
   backgroundLayer,
   belowMinimum,
+  blankTooDarkForSublimation,
   clampLayer,
   coverSize,
   difficultCrossings,
   emptySizes,
   estimatedDpi,
   fitLayerToArea,
+  fullSurfaceOnNonSublimated,
   hasAnyDesign,
   homeArea,
   initialState,
@@ -808,6 +814,153 @@ describe("text is a first-class design element", () => {
     expect(t.align).toBe("right");
     expect(t.lineHeight).toBeCloseTo(1.4, 5);
     expect(back.productId).toBe("jersey");
+  });
+});
+
+describe("what the process can physically do", () => {
+  const jersey = PRODUCTS.find((p) => p.id === "jersey")!;
+  const readyTee = PRODUCTS.find((p) => p.id === "tee-readymade")!;
+
+  it("a guide never lies about its own size", () => {
+    // heightIn must agree with the pixel box and the garment's pixels-per-inch,
+    // or the box drawn on screen is not the size printed on its label.
+    for (const p of PRODUCTS) {
+      const ppi = productPpi(p);
+      for (const v of ["front", "back"] as const) {
+        const z = p.zones[v];
+        const impliedHeightIn = z.h / ppi;
+        const drift = Math.abs(impliedHeightIn - z.heightIn) / z.heightIn;
+        expect(drift, `${p.id} ${v}: box implies ${impliedHeightIn.toFixed(2)}″ but says ${z.heightIn}″`).toBeLessThan(
+          0.05,
+        );
+      }
+    }
+  });
+
+  it("cap decoration areas are wider than they are tall, like a real cap", () => {
+    for (const p of PRODUCTS.filter((x) => x.family === "headwear")) {
+      expect(p.zones.front.widthIn).toBeGreaterThan(p.zones.front.heightIn);
+      expect(p.zones.front.heightIn).toBeLessThanOrEqual(3); // standard cap front
+    }
+  });
+
+  it("sublimation cannot print a light design onto a dark blank", () => {
+    // physics: the dye is translucent, so it can only darken what it bonds with
+    expect(blankTooDarkForSublimation(jersey, "#211f1e")).toBe(true); // black
+    expect(blankTooDarkForSublimation(jersey, "#232f45")).toBe(true); // navy
+    expect(blankTooDarkForSublimation(jersey, "#f4f2ee")).toBe(false); // white blank
+    // it is only a sublimation constraint — you can print white ink on a black tee
+    expect(blankTooDarkForSublimation(readyTee, "#211f1e")).toBe(false);
+  });
+
+  it("sublimation ink does not bond with cotton", () => {
+    const cotton = FABRICS.find((f) => f.id === "cotton-mid")!;
+    const poly = FABRICS.find((f) => f.id === "performance")!;
+    const blend = FABRICS.find((f) => f.id === "cotton-poly")!;
+    expect(fabricMethodIssue(jersey, cotton)).toMatch(/does not bond with cotton/);
+    expect(fabricMethodIssue(jersey, poly)).toBeNull();
+    expect(fabricMethodIssue(jersey, blend)).toMatch(/depends on how much polyester/);
+    // a printed cotton tee is a completely normal thing to ask for
+    expect(fabricMethodIssue(readyTee, cotton)).toBeNull();
+  });
+
+  it("a seam is only difficult when the garment is already sewn", () => {
+    // A sublimated garment is printed as FLAT PANELS before it is sewn, so a
+    // full-bleed design crossing a side seam is normal — not a difficulty.
+    const fullBleed = { cx: 0.5, cy: 0.5, size: 1.6, rotation: 0 };
+    const onJersey = imgLayer({ ...fullBleed, view: "front" });
+    const onTee = imgLayer({ ...fullBleed, view: "front" });
+
+    const jerseyCrossings = difficultCrossings(onJersey, jersey);
+    expect(jerseyCrossings.join(" ")).not.toMatch(/seam|hem/);
+
+    // …but printing that same design ONTO a finished tee really does fight the seams
+    const teeCrossings = difficultCrossings(onTee, readyTee);
+    expect(teeCrossings.join(" ")).toMatch(/seam/);
+    expect(teeCrossings.join(" ")).toMatch(/hem/);
+  });
+
+  it("an ordinary chest logo is never nagged about seams or hems", () => {
+    const chest = imgLayer({ view: "front", cx: 0.5, cy: 0.42, size: 0.3 });
+    expect(difficultCrossings(chest, readyTee)).toEqual([]);
+    // and a sleeve logo is not mistaken for a side-seam crossing
+    const sleeve = areasForView(readyTee, "front").find((a) => a.id === "left-sleeve")!;
+    const onSleeve = imgLayer({
+      view: "front",
+      cx: (sleeve.x + sleeve.w / 2) / 600,
+      cy: (sleeve.y + sleeve.h / 2) / 700,
+      size: 0.1,
+    });
+    expect(difficultCrossings(onSleeve, readyTee)).toEqual([]);
+  });
+
+  it("carries the manager's full list of awkward areas", () => {
+    const hoodie = PRODUCTS.find((p) => p.id === "hoodie")!;
+    const names = [...avoidAreasForView(hoodie, "front"), ...avoidAreasForView(readyTee, "front")]
+      .map((a) => a.name)
+      .join(" ");
+    for (const thing of ["collar", "pocket", "drawstring", "hem", "seam"]) {
+      expect(names).toContain(thing);
+    }
+    expect(avoidAreasForView(PRODUCTS.find((p) => p.id === "polo")!, "front").map((a) => a.name).join(" ")).toContain(
+      "placket",
+    );
+  });
+
+  it("never invents a minimum order The Factory has not given", () => {
+    for (const p of PRODUCTS) {
+      const m = minimumFor(p);
+      expect(m.confirmed).toBe(false); // nothing is confirmed yet
+      expect(m.min).toBe(1); // so Studio still accepts a single item
+      expect(m.note).toMatch(/confirmed by The Factory Nigeria/);
+    }
+    // made-to-order methods warn that the real minimum is often higher
+    expect(minimumFor(jersey).note).toMatch(/higher minimum/);
+    expect(minimumFor(readyTee).note).not.toMatch(/higher minimum/);
+  });
+
+  it("tells the factory what still needs settling, in the brief", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    st.color = { id: "black", name: "Black", hex: "#211f1e", status: "standard" };
+    st.details.fabricId = "cotton-mid";
+    st.layers = [imgLayer()];
+    st.details.name = "Coach";
+    st.details.phone = "+1";
+    st.details.quantity = "1";
+    const spec = buildDesignSpec(st) as {
+      productionChecks: { minimum: { confirmed: boolean }; fabricIssue: string | null; blankTooDarkForSublimation: boolean };
+    };
+    expect(spec.productionChecks.blankTooDarkForSublimation).toBe(true);
+    expect(spec.productionChecks.fabricIssue).toMatch(/cotton/);
+    expect(spec.productionChecks.minimum.confirmed).toBe(false);
+    expect(buildStudioMessage(st)).toMatch(/minimum for this method/);
+  });
+
+  it("flags a full-surface design stranded on a garment that isn't sublimated — but keeps it", () => {
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [newPatternLayer(DEFAULT_PATTERN, "front")];
+    expect(fullSurfaceOnNonSublimated(st)).toBe(false);
+
+    // the customer switches to a cap — the work must survive, but it is no
+    // longer reproducible as drawn, and we must say so rather than pretend
+    const onCap = { ...st, productId: "cap-snapback" };
+    expect(onCap.layers).toHaveLength(1); // nothing deleted
+    expect(fullSurfaceOnNonSublimated(onCap)).toBe(true);
+  });
+
+  it("keeps every open question open until The Factory answers it", () => {
+    expect(OPEN_QUESTIONS.length).toBe(FACTORY_QUESTIONS.length);
+    for (const q of FACTORY_QUESTIONS) {
+      expect(q.status).toBe("open");
+      expect(q.answer).toBeUndefined();
+      expect(q.question.length).toBeGreaterThan(20);
+      expect(q.assumption.length).toBeGreaterThan(20);
+    }
+    for (const id of ["towel-back", "sublimation-scope", "ready-made-tee", "minimums", "print-sizes", "difficult-areas"]) {
+      expect(FACTORY_QUESTIONS.map((q) => q.id)).toContain(id);
+    }
   });
 });
 

@@ -110,24 +110,69 @@ alignment, rendering identically in the editor (CSS) and in the canvas exports.
 
 ---
 
-## 5. What The Factory still needs to confirm
+## 5. The six open questions — researched, and what came back
 
-These are assumptions the app makes. Each one is written in the app as "to confirm", but the team should
-settle them:
+Four of the six turned out to be facts about **this business** (what fabric they buy, what machines they
+own, who supplies their blanks, what they charge a minimum for). No amount of research answers those, and
+guessing them would put a promise in front of a customer that nobody at The Factory ever made. Those stay
+open, and the app keeps saying "the team confirms this".
 
-1. **"Towel-back fabric" — what is it exactly?** Is it loopback / French terry as §2 suggests? What weight,
-   and what colours can be sourced? The app currently shows it as "Availability to confirm".
-2. **Which garments can actually be sublimated?** The app claims sublimation for both jerseys. If The
-   Factory sublimates anything else (or does *not* sublimate the basketball tank), correct the `production`
-   field on that product.
-3. **Is the ready-made tee genuinely 100% cotton**, and is it printed by screen printing, DTG, or transfer?
-   The app deliberately does not name a printing technique it was not told.
-4. **Minimums per method.** Sublimation and cut-and-sew usually carry different minimums from printing onto
-   a ready-made shirt. Studio currently accepts requests from **1 item** for everything.
-5. **Are the print-size guides right?** Every zone in `catalog.ts` was measured off the render, not off a
-   real garment.
-6. **The difficult areas** (collar, placket, kangaroo pocket, cap brim) are our estimate of what needs
-   special handling. The team should confirm the list.
+Two of them were answerable — and answering them found a real bug in each.
 
-Until these are answered, every one of them is presented to the customer as something the team confirms —
-never as a promise.
+### ✅ Answered by research (encoded in the app)
+
+**Q5 — Are the print-size guides right?** Partly. Cross-checking against published standard print areas
+(full front/back up to ~12″ × 16″; centre chest 8–10″; left chest 3–4″; sleeve 2–4″) showed every
+tee/polo/hoodie/jersey guide sits inside the normal range. **But the three cap fronts were internally
+inconsistent by 26–41%**: the snapback guide was *drawn* 4.10″ tall while its own label said 3″. The boxes
+were near-square; a real cap decoration area (~4.5″ × 2.5″) is much wider than it is tall. All three are
+corrected, and a test now asserts that every guide's `heightIn` agrees with its pixel box ÷ the garment's
+pixels-per-inch, so a guide can never again lie about its own size.
+
+**Q6 — Are the difficult areas right?** They were incomplete. The manager's list was *seam / pocket / zip /
+collar / placket / drawstring / hem*; the app only had collar, placket, pocket, hood and cap peak. Side
+seams, hems and the hood drawstring are now included, positioned from the **measured alpha silhouette of
+each garment asset** rather than guessed, and placed so an ordinary chest or sleeve logo never trips them.
+Industry guidance is a **1″ minimum clearance from seams**.
+
+More importantly, the warnings are now **method-aware**. A sublimated garment is printed as **flat panels
+before it is sewn**, so a design crossing a side seam is completely normal — the seam does not exist yet.
+Warning about it was a false alarm. Seam and hem warnings are therefore suppressed for sublimation and kept
+for printing onto a finished garment, which is the case where a seam actually fights the press.
+
+**Bonus — a correctness bug the sublimation research exposed.** Sublimation ink is a **translucent dye**: it
+can only darken what it bonds with, so it **cannot print a light colour onto a dark blank**. Sublimated
+garments start from a **white** blank and get *all* their colour from the print. Studio was happily letting
+people build a **black jersey with a white pattern** — not producible. It now says so, and offers the fix
+that matches how the garment is really made: *keep the blank white, and put your colour into a full-surface
+design*. One click does it. Sublimation also needs **polyester** (65%+ is the usual guidance; 100% cotton
+will not take the ink at all), so every fabric now carries whether it can take sublimation, and choosing a
+cotton fabric for a jersey is flagged.
+
+Sources: [Goal Sports Wear](https://www.goaluniform.com/sublimation-printing-vs-dtg/),
+[Printful](https://www.printful.com/blog/sublimation-vs-screen-printing),
+[SanMar U](https://www.education.sanmar.com/decorator-relations/understanding-polyester-fabrics-and-dye-sublimation-compatibility/),
+[ScreenPrinting.com placement standards](https://www.screenprinting.com/blogs/news/a-guide-to-industry-standard-for-screen-print-placements-and-dimensions),
+[UPrinting print-size guide](https://www.uprinting.com/blog/t-shirt-print-size-guide-how-big-should-your-design-be/).
+
+### ❓ Still only The Factory can answer (Q1–Q4)
+
+These live in [`src/studio/factoryFacts.ts`](../../src/studio/factoryFacts.ts) as `status: "open"`. While a
+question is open the app states no answer. **When the manager replies, set `status: "answered"`, fill in
+`answer`, and put any minimum into `METHOD_MINIMUM` — the product cards, the review screen, the reference
+sheet and the WhatsApp enquiry all read from that one file.**
+
+1. **What is towel-back fabric, exactly?** The research points hard at **loopback / French terry** — a knit
+   with a smooth face and towel-like loops on the reverse, which is almost certainly where the name comes
+   from. That is a *hypothesis*, not their answer. We did not rename their fabric. Ask: is it loopback? What
+   weight, and which colours can you actually source?
+2. **Which garments do you sublimate?** We assume both jerseys. One thing is settled regardless: a **100%
+   cotton tee can never be sublimated** — that is chemistry, not policy.
+3. **Is the ready-made tee genuinely 100% cotton, and how do you print it** — screen, DTG, or transfer?
+   Studio deliberately names no technique it was not told; the customer states a preference and the team
+   confirms.
+4. **What is the minimum per method?** Studio accepts a request from **1 item** for everything and tells the
+   customer the minimum is confirmed by the team. Made-to-order methods (sublimation, cut-and-sew) are
+   flagged as *often* carrying a higher minimum — an expectation, never a number we invented.
+
+A ready-to-send version of these four is in [`FACTORY_QUESTIONS.md`](./FACTORY_QUESTIONS.md).

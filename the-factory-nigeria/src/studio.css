@@ -960,6 +960,24 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .preset--wide { flex-basis: 100%; }
 .stage__note--guides { color: var(--text-soft); }
 
+/* What the production method physically can and cannot do.
+   Never an error — it always offers the customer a way to get what they want. */
+.advice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line-strong);
+  border-left: 3px solid var(--purple);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+.advice > svg { flex: none; margin-top: 3px; color: var(--purple); }
+.advice__body { display: grid; gap: 8px; }
+.advice__body p { margin: 0; font-size: 0.84rem; line-height: 1.5; }
+.advice__body .btn { justify-self: start; margin-top: 2px; }
+
 /* Layers panel */
 .layerlist { display: grid; gap: 6px; }
 .layeritem {

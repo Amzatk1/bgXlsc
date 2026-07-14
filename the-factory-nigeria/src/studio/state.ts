@@ -16,10 +16,12 @@ import {
   DPI_THRESHOLDS,
   getFontById,
   getProductionMethod,
+  isSublimated,
   MIN_ORDER,
   placementsFor,
   PRODUCTS,
   productPpi,
+  SUBLIMATION_MAX_BLANK_LUMA,
   type Placement,
   type PrintArea,
   type PrintZone,
@@ -29,7 +31,7 @@ import {
   type ShirtColor,
   type ViewId,
 } from "./catalog";
-import { STAGE_H, STAGE_W } from "./garment";
+import { hexLuma, STAGE_H, STAGE_W } from "./garment";
 import { getPatternDef, patternDataUrl, PATTERN_H, PATTERN_W, renderPatternSvg, type PatternSpec } from "./patterns";
 
 // ---------------------------------------------------------------------
@@ -322,19 +324,58 @@ export function isLayerOutOfArea(layer: Layer, product: Product, tolPx = 10): bo
 /** Reads better at the call sites that only want to show an advisory hint. */
 export const isOutsideGuide = isLayerOutOfArea;
 
-/** Names of difficult regions (collar/pocket/placket…) a layer overlaps. */
+/**
+ * Names of difficult regions (collar/pocket/placket/seam/hem…) a layer overlaps.
+ *
+ * Method-aware, because the same seam is only a problem for some methods: a
+ * SUBLIMATED garment is printed as flat panels BEFORE it is sewn, so a design
+ * running across a side seam or a hem is completely normal — the seam does not
+ * exist at print time. Warning about it would be a false alarm. Printing onto a
+ * garment that is already finished is the case where a seam actually fights the
+ * press, so the warnings apply there.
+ */
 export function difficultCrossings(layer: Layer, product: Product): string[] {
   const corners = layerCorners(layer);
   const minX = Math.min(...corners.map((c) => c.x));
   const maxX = Math.max(...corners.map((c) => c.x));
   const minY = Math.min(...corners.map((c) => c.y));
   const maxY = Math.max(...corners.map((c) => c.y));
+  const sublimated = isSublimated(product);
   const out: string[] = [];
   for (const a of avoidAreasForView(product, layer.view)) {
+    if (sublimated && a.seamRelated) continue;
     const overlap = minX < a.x + a.w && maxX > a.x && minY < a.y + a.h && maxY > a.y;
     if (overlap) out.push(a.name);
   }
   return out;
+}
+
+/**
+ * Sublimation ink is a translucent dye: it can only darken what it bonds with,
+ * so it cannot print a light colour onto a dark blank. A sublimated garment
+ * starts from a white blank and gets ALL of its colour from the print.
+ *
+ * Returns an explanation when the chosen blank is too dark to be printed on —
+ * never a block. The customer's real intent (a dark jersey) is achievable; it
+ * just has to come from a full-surface design rather than from dyed fabric.
+ */
+export function blankTooDarkForSublimation(product: Product, colorHex: string): boolean {
+  return isSublimated(product) && hexLuma(colorHex) < SUBLIMATION_MAX_BLANK_LUMA;
+}
+
+/**
+ * A full-surface design is a SUBLIMATION idea: the whole panel is printed before
+ * the garment is sewn. Carry one onto a garment that is printed after it is made
+ * (a tee, a cap) and it stops being reproducible as drawn.
+ *
+ * We never delete it — the customer keeps their work, and switching garment must
+ * not destroy anything. We just say so plainly, and let the team confirm how much
+ * of it can be reproduced with the method that garment actually uses.
+ */
+export function fullSurfaceOnNonSublimated(state: DesignState): boolean {
+  const product = getProduct(state);
+  if (isSublimated(product)) return false;
+  return state.layers.some((l) => l.kind === "image" && l.generated && !l.hidden);
 }
 
 /**

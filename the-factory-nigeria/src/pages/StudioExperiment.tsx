@@ -35,6 +35,7 @@ import {
   DIFFICULT_AREA_NOTICE,
   FABRIC_VISUAL_NOTICE,
   FABRICS,
+  fabricMethodIssue,
   fontsByCategory,
   getFontById,
   getProductionMethod,
@@ -45,11 +46,15 @@ import {
   productPpi,
   QUALITY_COPY,
   STANDARD_COLORS,
+  SUBLIMATION_BLANK_NOTE,
+  SUBLIMATION_DARK_COLOUR_HELP,
+  SUBLIMATION_FABRIC_NOTE,
   SUBLIMATION_NOTE,
   TOWEL_BACK_NOTE,
   type AvailabilityStatus,
   type ViewId,
 } from "../studio/catalog";
+import { minimumFor } from "../studio/factoryFacts";
 import {
   DEFAULT_PATTERN,
   JERSEY_PATTERNS,
@@ -61,11 +66,13 @@ import {
 import {
   applyPlacement,
   backgroundLayer,
+  blankTooDarkForSublimation,
   clampLayer,
   difficultCrossings,
   emptySizes,
   estimatedDpi,
   fitLayerToArea,
+  fullSurfaceOnNonSublimated,
   getProduct,
   hasAnyDesign,
   initialState,
@@ -461,6 +468,23 @@ export function StudioExperiment() {
     const layer = newPatternLayer(spec, state.view);
     commit({ layers: [layer, ...layers], selectedId: layer.id });
     setMtab("adjust");
+  }
+
+  // ---- what the process can physically do ----
+  // Sublimation ink is a translucent dye: it cannot print a light colour onto a
+  // dark blank. But the customer's real intent — a dark jersey — is exactly what
+  // a full-surface design is for, so we offer that instead of just saying no.
+  const darkBlank = blankTooDarkForSublimation(product, state.color.hex);
+  const fabricIssue = fabricMethodIssue(product, fabric);
+  const strandedFullSurface = fullSurfaceOnNonSublimated(state);
+  const minimum = minimumFor(product);
+
+  /** Keep the blank white and move the chosen colour into the print itself. */
+  function moveColourIntoPrint() {
+    const chosen = state.color.hex;
+    const white = STANDARD_COLORS.find((c) => c.id === "white");
+    if (white) setState((s) => ({ ...s, color: { ...white } }));
+    applyPattern({ id: bgLayer ? activePattern.id : "solid", base: chosen });
   }
 
   /** Scale an uploaded image up until it covers the whole garment (sublimation). */
@@ -1028,6 +1052,52 @@ export function StudioExperiment() {
     </>
   );
 
+  /**
+   * What the production method can and cannot physically do. Shown wherever the
+   * customer picks a colour or a fabric. Never a block — always a route forward.
+   */
+  const methodAdvice = (
+    <>
+      {darkBlank && (
+        <div className="advice" role="status">
+          <Info size={16} aria-hidden="true" />
+          <div className="advice__body">
+            <p>
+              <strong>A sublimated jersey cannot start from a {state.color.name.toLowerCase()} blank.</strong>{" "}
+              {SUBLIMATION_BLANK_NOTE}
+            </p>
+            <p>{SUBLIMATION_DARK_COLOUR_HELP}</p>
+            <button type="button" className="btn btn--primary" onClick={moveColourIntoPrint}>
+              Keep the blank white, print it {state.color.name.toLowerCase()}
+            </button>
+          </div>
+        </div>
+      )}
+      {fabricIssue && (
+        <div className="advice" role="status">
+          <Info size={16} aria-hidden="true" />
+          <div className="advice__body">
+            <p>{fabricIssue}</p>
+            <p className="field__note">{SUBLIMATION_FABRIC_NOTE}</p>
+          </div>
+        </div>
+      )}
+      {strandedFullSurface && (
+        <div className="advice" role="status">
+          <Info size={16} aria-hidden="true" />
+          <div className="advice__body">
+            <p>
+              <strong>Your full-surface design is still here, on a garment that isn't sublimated.</strong> A full
+              surface is printed into the fabric before a jersey is sewn. The {product.name.toLowerCase()} is{" "}
+              {getProductionMethod(product).label.toLowerCase()}, so The Factory Nigeria will confirm how much of it can
+              be reproduced that way — nothing has been deleted.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const styleControls = (
     <>
       <div className="field">
@@ -1065,6 +1135,7 @@ export function StudioExperiment() {
         {state.color.status === "confirm" && (
           <p className="field__note">{state.color.name} — availability to confirm (custom colour kept).</p>
         )}
+        {methodAdvice}
       </div>
       <div className="field">
         <span className="field__legend mono">Fabric — {fabric ? fabric.name : "team advises"}</span>
@@ -1349,6 +1420,8 @@ export function StudioExperiment() {
                   ))}
                 </div>
 
+                {methodAdvice}
+
                 <details className="fabhelp">
                   <summary>
                     <HelpCircle size={15} aria-hidden="true" /> Help me choose a fabric
@@ -1531,7 +1604,7 @@ export function StudioExperiment() {
                 aria-describedby="o-qty-note"
               />
               <p className="field__note" id="o-qty-note">
-                {"Studio requests start from just 1 item. The team confirms the price for your quantity."}
+                {minimum.note} The team confirms the price for your quantity.
               </p>
             </div>
 
