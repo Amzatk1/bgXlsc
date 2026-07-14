@@ -110,14 +110,24 @@ alignment, rendering identically in the editor (CSS) and in the canvas exports.
 
 ---
 
-## 5. The six open questions — researched, and what came back
+## 5. The open questions — researched, and what came back
 
-Four of the six turned out to be facts about **this business** (what fabric they buy, what machines they
-own, who supplies their blanks, what they charge a minimum for). No amount of research answers those, and
-guessing them would put a promise in front of a customer that nobody at The Factory ever made. Those stay
-open, and the app keeps saying "the team confirms this".
+The original list had six. **A full audit of the codebase found eighteen.** The first list was written from
+memory; this one was written by grepping for every place the app tells a customer something about The
+Factory. The gap is worth being blunt about, because the things that were missing were not small:
 
-Two of them were answerable — and answering them found a real bug in each.
+- The app offers a **printing-method dropdown** — screen print, DTG, heat transfer, embroidery — with no
+  confirmation that The Factory owns any of those machines.
+- The **nine colours, eleven fabrics and ten garments** each carry an availability label ("Commonly
+  available", "Special sourcing required"…). The founder gave us the four *labels*. **We** decided which
+  label goes on which item.
+- Nobody has told us **what file format they need to produce a job** — vector? actual size? separations? If
+  the answer is "vector, at size", the reference package needs rethinking.
+
+All eighteen are now in [`src/studio/factoryFacts.ts`](../../src/studio/factoryFacts.ts), tagged
+`blocking` / `handover` / `commercial` / `check`, and a test asserts none of them is silently dropped.
+
+Two of the original six were answerable by research — and answering them found a real bug in each.
 
 ### ✅ Answered by research (encoded in the app)
 
@@ -155,24 +165,41 @@ Sources: [Goal Sports Wear](https://www.goaluniform.com/sublimation-printing-vs-
 [ScreenPrinting.com placement standards](https://www.screenprinting.com/blogs/news/a-guide-to-industry-standard-for-screen-print-placements-and-dimensions),
 [UPrinting print-size guide](https://www.uprinting.com/blog/t-shirt-print-size-guide-how-big-should-your-design-be/).
 
-### ❓ Still only The Factory can answer (Q1–Q4)
+### ❓ Only The Factory can answer these — all eighteen
 
-These live in [`src/studio/factoryFacts.ts`](../../src/studio/factoryFacts.ts) as `status: "open"`. While a
-question is open the app states no answer. **When the manager replies, set `status: "answered"`, fill in
-`answer`, and put any minimum into `METHOD_MINIMUM` — the product cards, the review screen, the reference
-sheet and the WhatsApp enquiry all read from that one file.**
+Everything below is a fact about **their business**: what they buy, what machines they own, who supplies
+their blanks, what they'll accept as an order. Research cannot answer any of it, and guessing would put a
+promise in front of a customer that nobody at The Factory ever made.
 
-1. **What is towel-back fabric, exactly?** The research points hard at **loopback / French terry** — a knit
-   with a smooth face and towel-like loops on the reverse, which is almost certainly where the name comes
-   from. That is a *hypothesis*, not their answer. We did not rename their fabric. Ask: is it loopback? What
-   weight, and which colours can you actually source?
-2. **Which garments do you sublimate?** We assume both jerseys. One thing is settled regardless: a **100%
-   cotton tee can never be sublimated** — that is chemistry, not policy.
-3. **Is the ready-made tee genuinely 100% cotton, and how do you print it** — screen, DTG, or transfer?
-   Studio deliberately names no technique it was not told; the customer states a preference and the team
-   confirms.
-4. **What is the minimum per method?** Studio accepts a request from **1 item** for everything and tells the
-   customer the minimum is confirmed by the team. Made-to-order methods (sublimation, cut-and-sew) are
-   flagged as *often* carrying a higher minimum — an expectation, never a number we invented.
+They live in [`src/studio/factoryFacts.ts`](../../src/studio/factoryFacts.ts) as `status: "open"`. **While a
+question is open the app states no answer.** When the manager replies, set `status: "answered"`, write the
+answer in, and put any minimum into `METHOD_MINIMUM` — the product cards, review screen, reference sheet and
+WhatsApp enquiry all read from that one file.
 
-A ready-to-send version of these four is in [`FACTORY_QUESTIONS.md`](./FACTORY_QUESTIONS.md).
+**A. Can you actually do it?** _(the app implies a capability nobody has confirmed)_
+1. `decoration-methods` — Do you have all four machines we offer: screen print, DTG, heat transfer, embroidery?
+2. `sublimation-scope` — Which garments do you sublimate? (Settled regardless: cotton can never be sublimated.)
+3. `all-over-on-readymade` — Can you do an all-over print on a **finished** garment, or only on a sublimated jersey?
+4. `cap-decoration` — Do you embroider caps in-house? Max area, stitch count, thread colours?
+5. `print-colour-limit` — Max colours for screen printing? Studio allows photographs and gradients.
+
+**B. Can you actually get it?** _(availability labels **we** assigned, not them)_
+6. `towel-back` — What is it? Loopback / French terry? What weight, which colours?
+7. `garment-range` — Do you offer all ten garments? Anything missing?
+8. `colour-range` — All nine colours are marked "Commonly available". Are they?
+9. `fabric-availability` — Eleven fabrics, each with a status we invented. What's true?
+
+**C. What do you need from us?** _(decides whether the handover file is usable at all)_
+10. `artwork-format` — Vector? Actual size? Colour separations?
+11. `colour-standard` — Do you work to Pantone / TCX? Should the reference carry a Pantone code?
+12. `sizes` — XS–XXL on every garment? Real measurements? Is custom-made made-to-measure instead?
+
+**D. Commercial**
+13. `minimums` — Minimum per method.
+14. `general-minimum` — Is the site's 30-piece minimum still right? It contradicts Studio's 1.
+15. `ready-made-tee` — Genuinely 100% cotton? Printed how?
+
+**E. We've made a researched call — just check it**
+16. `print-sizes` · 17. `difficult-areas` · 18. `artwork-resolution`
+
+A ready-to-send version is in [`FACTORY_QUESTIONS.md`](./FACTORY_QUESTIONS.md).

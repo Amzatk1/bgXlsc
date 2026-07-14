@@ -1709,9 +1709,12 @@ export function StudioExperiment() {
               </div>
             </fieldset>
 
+            {/* Listing four techniques implies The Factory owns four machines.
+                Nobody has confirmed that, so the copy must not imply it either —
+                see the `decoration-methods` question in factoryFacts.ts. */}
             <fieldset className="field">
               <legend>
-                Printing method preference <span className="field__opt">(the team confirms what suits your artwork)</span>
+                Printing method preference <span className="field__opt">(optional)</span>
               </legend>
               <div className="choices">
                 {METHODS.map((m) => (
@@ -1726,6 +1729,11 @@ export function StudioExperiment() {
                   </label>
                 ))}
               </div>
+              <p className="field__note">
+                This is a preference, not a booking. The Factory Nigeria confirms which method they can use for your
+                garment, your fabric and your artwork — and will suggest a better one if there is one. If you're not
+                sure, leave it to the team.
+              </p>
             </fieldset>
 
             <div className="field">

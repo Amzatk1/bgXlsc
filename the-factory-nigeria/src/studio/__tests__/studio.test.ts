@@ -20,7 +20,7 @@ import {
   TOWEL_BACK_NOTE,
   UPLOAD_LIMITS,
 } from "../catalog";
-import { FACTORY_QUESTIONS, minimumFor, OPEN_QUESTIONS } from "../factoryFacts";
+import { BLOCKING_QUESTIONS, FACTORY_QUESTIONS, minimumFor, OPEN_QUESTIONS } from "../factoryFacts";
 import {
   applyPlacement,
   backgroundLayer,
@@ -957,10 +957,49 @@ describe("what the process can physically do", () => {
       expect(q.answer).toBeUndefined();
       expect(q.question.length).toBeGreaterThan(20);
       expect(q.assumption.length).toBeGreaterThan(20);
+      expect(q.whyItMatters.length).toBeGreaterThan(20);
     }
-    for (const id of ["towel-back", "sublimation-scope", "ready-made-tee", "minimums", "print-sizes", "difficult-areas"]) {
-      expect(FACTORY_QUESTIONS.map((q) => q.id)).toContain(id);
+    // Every assumption the app makes about The Factory's business must be here.
+    // If you add a capability or an availability claim to the app, add it here too.
+    const ids = FACTORY_QUESTIONS.map((q) => q.id);
+    for (const id of [
+      // can you actually DO it?
+      "decoration-methods",
+      "sublimation-scope",
+      "all-over-on-readymade",
+      "cap-decoration",
+      "print-colour-limit",
+      // can you actually GET it?
+      "towel-back",
+      "garment-range",
+      "colour-range",
+      "fabric-availability",
+      // what do you need from us?
+      "artwork-format",
+      "colour-standard",
+      "sizes",
+      // commercial
+      "minimums",
+      "general-minimum",
+      "ready-made-tee",
+      // sanity-check our researched call
+      "print-sizes",
+      "difficult-areas",
+      "artwork-resolution",
+    ]) {
+      expect(ids, `missing open question: ${id}`).toContain(id);
     }
+  });
+
+  it("knows which questions are the app making an unconfirmed claim", () => {
+    // These are the ones where Studio currently implies a capability or an
+    // availability that nobody at The Factory has actually confirmed.
+    expect(BLOCKING_QUESTIONS.length).toBeGreaterThanOrEqual(9);
+    const blocking = BLOCKING_QUESTIONS.map((q) => q.id);
+    expect(blocking).toContain("decoration-methods"); // we offer 4 machines in a dropdown
+    expect(blocking).toContain("colour-range"); // we called 9 colours "commonly available"
+    expect(blocking).toContain("fabric-availability"); // we assigned all 11 fabric statuses
+    expect(blocking).toContain("garment-range"); // we chose all 10 garments
   });
 });
 
