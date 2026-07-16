@@ -10,6 +10,12 @@
 // So every one of them lives here as an OPEN question, and while it is open the
 // app says "the team confirms this" rather than stating an answer.
 //
+// Each question now also carries a PROVISIONAL answer: Studio's best-researched
+// working position, phrased as "most likely …". The app is tuned to behave
+// sensibly under that position, but the provisional answer itself is NEVER
+// shown to a customer as a fact — it exists so the manager can confirm or
+// correct in one line instead of composing an answer from scratch.
+//
 // When the manager answers, set `status: "answered"`, fill in `answer`, and (for
 // minimums) put the number in METHOD_MINIMUM. Nothing else has to change — the
 // copy, the review screen, the reference sheet and the enquiry all read from here.
@@ -17,9 +23,9 @@
 // ⚠ A NOTE ON THE AVAILABILITY LABELS. The founder gave us the four labels
 // (Commonly available / Availability to confirm / Special sourcing required /
 // Custom request). They did NOT tell us which label belongs to which colour,
-// fabric or garment — WE assigned those. Every one of those assignments is an
-// open question below, and the global market-sourcing notice hedges them until
-// they are answered.
+// fabric or garment — WE assigned those. Where an assignment looked weak, it has
+// been DOWNGRADED (never upgraded): Studio may under-promise on its own
+// initiative, but only The Factory can over-promise.
 // =====================================================================
 
 import { PRODUCTION_METHODS, STUDIO_MIN_ORDER, type Product, type ProductionMethodId } from "./catalog";
@@ -40,9 +46,16 @@ export type OpenQuestion = {
   question: string;
   /** Why the answer changes what a customer sees. */
   whyItMatters: string;
-  /** What Studio does while the question is open. Never shown as a promise. */
+  /** What Studio DOES while the question is open. Never shown as a promise. */
   assumption: string;
+  /**
+   * Studio's best-researched working answer — "most likely …". The app is tuned
+   * to behave well under it, but it is never surfaced to customers as fact.
+   * The manager confirms or corrects it.
+   */
+  provisional: string;
   status: "open" | "answered";
+  /** The Factory's confirmed answer, once given. */
   answer?: string;
 };
 
@@ -58,18 +71,22 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
     whyItMatters:
       "This is the most exposed guess in the app. Offering DTG in a dropdown implies you own a DTG machine. If you don't, a customer will ask for it and we will have wasted their time.",
     assumption:
-      "Studio lists all four as a customer PREFERENCE and says the team confirms what suits the artwork. It does not promise any of them. Any method you do not have should simply be removed from the list.",
+      "Studio lists all four as a customer PREFERENCE — each annotated with what it typically suits — and says outright that it is a preference, not a booking. It does not promise any of them.",
+    provisional:
+      "Most likely: screen printing, heat transfer and embroidery are in-house (near-universal for a Lagos garment operation), and DTG is the most likely gap. The app asserts none of this — anything you don't have gets deleted from the list the day you say so.",
     status: "open",
   },
   {
     id: "sublimation-scope",
-    priority: "blocking",
+    priority: "check",
     question:
-      "Which garments do you sublimate? Studio currently sublimates the sports jersey and the basketball jersey. Is that right, and is there anything else you sublimate?",
+      "Is there anything ELSE you sublimate besides the two jerseys? (The jerseys themselves are settled — your own feedback said 'jerseys are sublimated', and Studio treats both the sports and basketball jerseys accordingly.)",
     whyItMatters:
       "Sublimation is the only method that lets a design cover the whole garment, so it decides which products get the full-surface designer.",
     assumption:
-      "Both jerseys are sublimated; everything else is printed onto a ready-made garment or cut and sewn. One thing is settled regardless: sublimation ink only bonds with polyester, so a 100% cotton tee can never be sublimated.",
+      "Both jerseys are sublimated — confirmed by the manager's feedback, the project's source of truth. Nothing else is treated as sublimated until the team says so.",
+    provisional:
+      "Most likely nothing else in the current range is sublimated. One thing is settled regardless of the answer: sublimation ink only bonds with polyester, so a 100% cotton tee can never be sublimated — that is chemistry, not policy.",
     status: "open",
   },
   {
@@ -81,6 +98,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "A customer can drag a design so it covers a whole tee. Right now we tell them you will confirm how much of it can be reproduced. If you simply cannot do it, we should say so up front instead.",
     assumption:
       "Full-surface designs are treated as a sublimation idea. On a non-sublimated garment Studio keeps the design (it never deletes work) and flags that the team will confirm how much can be reproduced.",
+    provisional:
+      "Most likely: no true all-over on ready-made garments (it needs oversize transfer/DTF equipment most local shops don't run), so full-surface stays a jersey feature. The app already behaves this way.",
     status: "open",
   },
   {
@@ -92,6 +111,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Studio says caps are 'printed or embroidered — the team confirms which'. That is a placeholder for an answer we do not have.",
     assumption:
       "Caps are decorated on the front and back panels using a ~4.5″ × 2.5″ area (the standard structured-cap front), method unspecified.",
+    provisional:
+      "Most likely: caps are embroidered or heat-pressed within the standard ~4.5″ × 2.5″ front panel, with embroidery preferred for logos. No stitch counts or machine limits are claimed anywhere.",
     status: "open",
   },
   {
@@ -102,7 +123,9 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
     whyItMatters:
       "Studio lets a customer upload a photograph or use a gradient, which is effectively unlimited colours. Screen printing is normally priced and limited per colour, so a design that looks free on screen may be expensive or impossible.",
     assumption:
-      "No limit is stated or enforced. Studio does not count the colours in a design, and does not warn about them.",
+      "No limit is asserted. Studio detects many-colour / gradient artwork at upload and tells the customer — softly, never blocking — that such artwork usually suits digital printing rather than screen printing, and flags it in the design brief and the production reference for the team.",
+    provisional:
+      "Typical screen practice: 1–6 spot colours, priced per colour; photographic and gradient artwork goes to a digital method instead. Studio steers many-colour artwork toward 'usually digital' wording without claiming your limit.",
     status: "open",
   },
 
@@ -118,6 +141,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "It is the fabric of the custom-made T-shirt. The customer is choosing it, so the description on the card should be yours, not our guess.",
     assumption:
       "Studio shows the team's own words — “towel-back fabric option” — and marks it Availability to confirm. It does not claim a composition or a weight.",
+    provisional:
+      "Most likely a loopback / French-terry style knit — smooth face, soft towel-like loops inside, mid-weight — which is almost certainly where the name comes from. This stays in the internal docs, never in customer copy, until you confirm it.",
     status: "open",
   },
   {
@@ -127,19 +152,22 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Do you actually offer all ten garments Studio shows — custom-made tee, ready-made tee, oversized tee, polo, pullover hoodie, sports jersey, basketball jersey, snapback, curved-peak cap, trucker cap? Any that you do not do, or anything obvious we have left out?",
     whyItMatters:
       "The garment list is the first screen a customer sees. Every item on it is an implicit 'yes, we make this'.",
-    assumption:
-      "All ten are offered. We chose the range; you did not.",
+    assumption: "All ten are offered. We chose the range; you did not.",
+    provisional:
+      "Most likely all ten are offerable — each came from the prototype briefs (the tees and jerseys from your feedback directly, the caps at the founder's request). Every card still carries its own availability status and the market-sourcing notice.",
     status: "open",
   },
   {
     id: "colour-range",
     priority: "blocking",
     question:
-      "Studio shows nine standard colours — White, Black, Navy, Heather grey, Red, Royal blue, Forest green, Cream, Chocolate brown — and marks every one of them 'Commonly available'. Which colours can you genuinely source, and is 'commonly available' true for each? (A customer can also pick any custom colour, which we already mark as needing confirmation.)",
+      "Studio shows nine standard colours — White, Black, Navy, Heather grey, Red, Royal blue, Forest green, Cream, Chocolate brown. Which can you genuinely source, and is the status on each right? (A customer can also pick any custom colour, which is always marked as needing confirmation.)",
     whyItMatters:
-      "WE wrote that colour list and WE marked them all commonly available. The founder gave us the labels, not the assignments.",
+      "WE wrote that colour list and WE assigned each status. The founder gave us the labels, not the assignments.",
     assumption:
-      "Nine standard colours, all marked Commonly available, hedged by the market-sourcing notice. The on-screen hex values are our approximation of each colour, not a matched fabric.",
+      "Seven staples (white, black, navy, heather grey, red, royal blue, forest green) are marked Commonly available; cream and chocolate brown are marked Availability to confirm. Everything is hedged by the market-sourcing notice, and the on-screen hex values are our approximation of each colour, not a matched fabric.",
+    provisional:
+      "Most likely the seven staples are genuinely easy to source and the two fashion tints (cream, chocolate brown) vary with market stock — so those two were DOWNGRADED to 'availability to confirm'. Studio only ever downgrades its own invented claims, never upgrades them.",
     status: "open",
   },
   {
@@ -150,7 +178,9 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
     whyItMatters:
       "Same problem as the colours: we invented the status of every fabric. A customer reading 'Commonly available' will assume you can get it this week.",
     assumption:
-      "Eleven fabrics with statuses we assigned. Several of the close-up images are honest macro crops of our own garment renders, disclosed on the card.",
+      "Eleven fabrics. Light/midweight cotton and cotton twill are marked common (true staples); the cotton-polyester blend was downgraded to Availability to confirm (blend ratios vary roll to roll); the rest already sat at confirm or special-sourcing. Several close-up images are honest macro crops of our own garment renders, disclosed on the card.",
+    provisional:
+      "Most likely: plain cottons and twill are always sourceable; performance knits, mesh, interlock and piqué depend on the week; French terry needs special sourcing. That is exactly how the statuses now read.",
     status: "open",
   },
 
@@ -166,6 +196,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "This decides whether the file we hand you is usable or whether you have to redraw the design. It is the single biggest thing that could make Studio useless in practice.",
     assumption:
       "A 2200×1980 reference PNG (mockups, placements, sizes in inches, colours, fonts with licences), the original uploaded artwork untouched, and a JSON brief with every layer's exact position, size and rotation.",
+    provisional:
+      "Most likely the current package is sufficient for digital methods and embroidery digitising, while screen printing would additionally want vector art or separations for multi-colour jobs. If that is right, Studio should ask for vector uploads only when screen printing is the confirmed method — tell us and we build it.",
     status: "open",
   },
   {
@@ -177,6 +209,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Screen colours are not fabric colours. Right now we hand you a hex value and a disclaimer. A Pantone reference would let you match a colour properly.",
     assumption:
       "The reference sheet gives the colour name, hex and RGB, with a note that screen colours are approximate and you confirm the final match.",
+    provisional:
+      "Most likely there is no formal Pantone workflow (open-market fabric sourcing rarely uses one), so hex + RGB + the market-match disclaimer is the honest default. We deliberately do not print a computed 'nearest Pantone' — a wrong Pantone is worse than none.",
     status: "open",
   },
   {
@@ -187,7 +221,9 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
     whyItMatters:
       "Studio asks a customer to split their order across XS–XXL but never tells them what those sizes mean. If you do not stock XS or XXL, we are collecting an order you cannot fill.",
     assumption:
-      "Six sizes, XS to XXL, with a free-text box for anything else. No size chart is shown anywhere, because we do not have your measurements.",
+      "Six sizes, XS to XXL, with a free-text box for anything else, and a note that exact measurements are confirmed by the team. The custom-made T-shirt invites made-to-measure requests through the notes.",
+    provisional:
+      "Most likely standard adult XS–XXL is fine for ready-made garments, and the custom-made tee is plausibly made to measure — the app now says exactly that, as an invitation rather than a claim. A real size chart gets added the day you send measurements.",
     status: "open",
   },
 
@@ -203,17 +239,19 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Studio accepts a request for a single item. If a sublimated jersey really needs 10 or 20, the customer should learn that from you, early, not after they have designed one.",
     assumption:
       "Studio accepts a request from 1 item for every method, and tells the customer the minimum is confirmed by the team before any order is accepted. Made-to-order methods are flagged as often carrying a higher minimum — an expectation, never a number we invented.",
+    provisional:
+      "Most likely: printing onto ready-made garments works from very small runs; sublimation and cut-and-sew realistically start around 10+ pieces. Those numbers are NOT shown to customers — METHOD_MINIMUM stays null until you give real ones.",
     status: "open",
   },
   {
     id: "general-minimum",
     priority: "commercial",
-    question:
-      "The main site still says the minimum for a general manufacturing enquiry is 30 pieces. Is that still right?",
+    question: "The main site still says the minimum for a general manufacturing enquiry is 30 pieces. Is that still right?",
     whyItMatters:
       "It is on the live site and it contradicts Studio's 1-item minimum, so a customer can meet both numbers on the same visit and be confused.",
-    assumption:
-      "General enquiries: 30 pieces. Studio: from 1 item. Both are shown, and Studio explains it accepts single-item requests.",
+    assumption: "General enquiries: 30 pieces. Studio: from 1 item. Both are shown, and Studio explains it accepts single-item requests.",
+    provisional:
+      "Most likely 30 still stands for general manufacturing, and Studio's from-1-item lane is intentional for individual custom requests. If so, no change — the two lanes are already explained separately.",
     status: "open",
   },
   {
@@ -225,6 +263,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Studio tells the customer what they are buying and how it will be decorated. It should not name a technique you did not choose.",
     assumption:
       "Studio says “ready-made 100% cotton, purchased and then customised with your requested print” and deliberately does NOT name a printing technique.",
+    provisional:
+      "Most likely: 100% cotton blanks (your feedback's own wording), screen-printed for team runs and heat-pressed for small orders. The app names none of it until you confirm.",
     status: "open",
   },
 
@@ -240,6 +280,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "The guides tell a customer roughly how big a design will be in inches. They are advisory, but they should not be misleading.",
     assumption:
       "Tee/jersey guides sit within the standard adult ranges (full front/back up to about 12″ × 16″; left chest 3–4″; sleeve 2–4″). Cap fronts use the standard ~4.5″ × 2.5″ decoration area.",
+    provisional:
+      "Most likely correct as encoded — every zone is now internally consistent (a test asserts each guide's label matches its drawn size) and inside published standard ranges.",
     status: "open",
   },
   {
@@ -251,6 +293,8 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "These drive the soft warning a customer sees. Too few and we mislead them; too many and we nag them about designs you can make.",
     assumption:
       "The list above, with a 1″ clearance from seams as the industry norm. Seam and hem warnings are suppressed for sublimated garments, because those panels are printed flat before they are sewn. No warning is ever a block.",
+    provisional:
+      "Most likely correct — the areas are measured from the real garment silhouettes, and the method-awareness (no seam warnings on sublimation) matches how the processes physically work.",
     status: "open",
   },
   {
@@ -262,25 +306,29 @@ export const FACTORY_QUESTIONS: OpenQuestion[] = [
       "Too strict and we scare people off good artwork; too loose and you receive files you cannot print cleanly.",
     assumption:
       "150 DPI = good, 100–150 = may look soft, below 100 = low but still submittable, with the team reviewing before anything is printed. These are common industry figures.",
+    provisional: "Most likely right — 150/100 are the standard garment-print figures, and nothing is ever blocked on them.",
     status: "open",
   },
 ];
 
-export const OPEN_QUESTIONS = FACTORY_QUESTIONS.filter((q) => q.status === "open");
+// The __PURE__ annotations matter: only tests read these lists, and without
+// them Rollup keeps the whole question prose (~14 KB) in the customer bundle.
+export const OPEN_QUESTIONS = /* @__PURE__ */ FACTORY_QUESTIONS.filter((q) => q.status === "open");
 
 export function questionsByPriority(p: QuestionPriority): OpenQuestion[] {
   return FACTORY_QUESTIONS.filter((q) => q.priority === p && q.status === "open");
 }
 
 /** The ones where the app currently implies something nobody has confirmed. */
-export const BLOCKING_QUESTIONS = questionsByPriority("blocking");
+export const BLOCKING_QUESTIONS = /* @__PURE__ */ questionsByPriority("blocking");
 
 // ---------------------------------------------------------------------
 // Minimum order per production method.
 //
 // `null` means The Factory has not told us yet — so Studio accepts a request
 // from a single item and SAYS the minimum is confirmed by the team. Put a real
-// number here the moment they give you one.
+// number here the moment they give you one. (The provisional guesses live in
+// the `minimums` question above and are never shown to customers.)
 // ---------------------------------------------------------------------
 export const METHOD_MINIMUM: Record<ProductionMethodId, number | null> = {
   sublimation: null,

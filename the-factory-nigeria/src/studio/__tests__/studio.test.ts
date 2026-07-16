@@ -64,7 +64,7 @@ import {
 } from "../state";
 import { DEFAULT_PATTERN, JERSEY_PATTERNS, patternSummary, renderPatternSvg } from "../patterns";
 import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, sizesLine, summaryRows } from "../messages";
-import { checkDimensions, precheckFile } from "../imageFile";
+import { checkDimensions, colorRichness, countQuantizedColors, MANY_COLORS_THRESHOLD, precheckFile, RICHNESS_THRESHOLD } from "../imageFile";
 import { deserializeDesign, isWorthSaving, serializeDesign } from "../persist";
 import { savedAgo } from "../deviceStore";
 
@@ -950,7 +950,7 @@ describe("what the process can physically do", () => {
     expect(fullSurfaceOnNonSublimated(onCap)).toBe(true);
   });
 
-  it("keeps every open question open until The Factory answers it", () => {
+  it("keeps every open question open until The Factory answers it — each with a provisional answer", () => {
     expect(OPEN_QUESTIONS.length).toBe(FACTORY_QUESTIONS.length);
     for (const q of FACTORY_QUESTIONS) {
       expect(q.status).toBe("open");
@@ -958,6 +958,9 @@ describe("what the process can physically do", () => {
       expect(q.question.length).toBeGreaterThan(20);
       expect(q.assumption.length).toBeGreaterThan(20);
       expect(q.whyItMatters.length).toBeGreaterThan(20);
+      // Every question carries Studio's best working answer ("most likely …"),
+      // so the manager confirms or corrects instead of composing from scratch.
+      expect(q.provisional.length, `provisional answer missing for ${q.id}`).toBeGreaterThan(30);
     }
     // Every assumption the app makes about The Factory's business must be here.
     // If you add a capability or an availability claim to the app, add it here too.
@@ -994,12 +997,142 @@ describe("what the process can physically do", () => {
   it("knows which questions are the app making an unconfirmed claim", () => {
     // These are the ones where Studio currently implies a capability or an
     // availability that nobody at The Factory has actually confirmed.
-    expect(BLOCKING_QUESTIONS.length).toBeGreaterThanOrEqual(9);
+    // (sublimation-scope is no longer blocking: the manager's own feedback —
+    // "jerseys are sublimated" — settled its core; only "anything else?" is open.)
+    expect(BLOCKING_QUESTIONS.length).toBeGreaterThanOrEqual(8);
     const blocking = BLOCKING_QUESTIONS.map((q) => q.id);
     expect(blocking).toContain("decoration-methods"); // we offer 4 machines in a dropdown
-    expect(blocking).toContain("colour-range"); // we called 9 colours "commonly available"
+    expect(blocking).toContain("colour-range"); // we assigned every colour's status
     expect(blocking).toContain("fabric-availability"); // we assigned all 11 fabric statuses
     expect(blocking).toContain("garment-range"); // we chose all 10 garments
+    expect(blocking).not.toContain("sublimation-scope"); // settled by the manager's own words
+  });
+
+  it("only ever downgrades its own invented availability claims", () => {
+    const byId = Object.fromEntries(STANDARD_COLORS.map((c) => [c.id, c.status]));
+    // staples stay standard — genuinely the easiest tee colours to source
+    for (const id of ["white", "black", "navy", "grey", "red", "royal", "green"]) {
+      expect(byId[id], id).toBe("standard");
+    }
+    // fashion tints were downgraded to "confirm" — under-promising is the only
+    // direction Studio may move an availability claim on its own
+    expect(byId.cream).toBe("confirm");
+    expect(byId.brown).toBe("confirm");
+    // the blend fabric was downgraded too (ratio varies roll to roll)
+    expect(FABRICS.find((f) => f.id === "cotton-poly")!.availability).toBe("confirm");
+  });
+
+  it("detects many-colour / gradient artwork without ever blocking it", () => {
+    // flat colour → one bucket, far under the threshold
+    const flat = new Uint8ClampedArray(48 * 48 * 4);
+    for (let i = 0; i < flat.length; i += 4) {
+      flat[i] = 200; flat[i + 1] = 30; flat[i + 2] = 30; flat[i + 3] = 255;
+    }
+    expect(countQuantizedColors(flat)).toBe(1);
+
+    // deterministic pseudo-noise (photograph-like) → hundreds of buckets
+    const noisy = new Uint8ClampedArray(48 * 48 * 4);
+    for (let p = 0; p < 48 * 48; p++) {
+      const h = (p * 2654435761) >>> 0;
+      noisy[p * 4] = h & 255;
+      noisy[p * 4 + 1] = (h >> 8) & 255;
+      noisy[p * 4 + 2] = (h >> 16) & 255;
+      noisy[p * 4 + 3] = 255;
+    }
+    expect(countQuantizedColors(noisy)).toBeGreaterThan(MANY_COLORS_THRESHOLD);
+    expect(colorRichness(noisy)).toBeGreaterThan(RICHNESS_THRESHOLD);
+
+    // transparent pixels are ignored entirely
+    const ghost = new Uint8ClampedArray(48 * 48 * 4); // alpha 0 everywhere
+    expect(countQuantizedColors(ghost)).toBe(0);
+    expect(colorRichness(ghost)).toBe(0);
+
+    // a smooth multi-colour GRADIENT: only ~50 distinct buckets (a raw count
+    // misses it) but the pixel mass is spread thin — richness catches it
+    const grad = new Uint8ClampedArray(48 * 48 * 4);
+    for (let y = 0; y < 48; y++) {
+      for (let x = 0; x < 48; x++) {
+        const i = (y * 48 + x) * 4;
+        grad[i] = Math.round((x / 47) * 255); // red sweeps left→right
+        grad[i + 1] = Math.round((y / 47) * 255); // green sweeps top→bottom
+        grad[i + 2] = 128;
+        grad[i + 3] = 255;
+      }
+    }
+    expect(colorRichness(grad)).toBeGreaterThan(RICHNESS_THRESHOLD);
+
+    // the HARD case that broke the first threshold: a realistic THREE-stop
+    // gradient — its colours sit on a path through colour space, so it only
+    // touches a few dozen buckets, but the mass is spread along the path
+    // (measured ~20 on a real canvas gradient)
+    const threeStop = new Uint8ClampedArray(48 * 48 * 4);
+    for (let p = 0; p < 48 * 48; p++) {
+      const t = p / (48 * 48 - 1);
+      const i = p * 4;
+      if (t < 0.5) {
+        const u = t * 2; // red → green
+        threeStop[i] = Math.round((1 - u) * 255);
+        threeStop[i + 1] = Math.round(u * 255);
+        threeStop[i + 2] = 64;
+      } else {
+        const u = (t - 0.5) * 2; // green → blue
+        threeStop[i] = 0;
+        threeStop[i + 1] = Math.round((1 - u) * 255);
+        threeStop[i + 2] = Math.round(64 + u * 191);
+      }
+      threeStop[i + 3] = 255;
+    }
+    expect(colorRichness(threeStop)).toBeGreaterThan(RICHNESS_THRESHOLD);
+
+    // …but a simple TWO-stop fade stays silent on purpose: an A→B blend is a
+    // classic screen-printing technique (split fountain / halftone), so the
+    // "many colours" note would be a false alarm there
+    const twoStop = new Uint8ClampedArray(48 * 48 * 4);
+    for (let p = 0; p < 48 * 48; p++) {
+      const t = p / (48 * 48 - 1);
+      twoStop[p * 4] = Math.round(t * 255);
+      twoStop[p * 4 + 1] = Math.round((1 - t) * 255);
+      twoStop[p * 4 + 2] = 64;
+      twoStop[p * 4 + 3] = 255;
+    }
+    expect(colorRichness(twoStop)).toBeLessThanOrEqual(RICHNESS_THRESHOLD);
+
+    // a flat 3-colour logo with anti-aliased edges: ~12% of pixels are edge
+    // blends spread across many buckets, but the mass sits in 3 — no flag
+    const logo = new Uint8ClampedArray(48 * 48 * 4);
+    for (let p = 0; p < 48 * 48; p++) {
+      const i = p * 4;
+      if (p % 100 < 88) {
+        // solid brand colours carry the mass
+        const c = p % 3;
+        logo[i] = c === 0 ? 220 : 20;
+        logo[i + 1] = c === 1 ? 220 : 20;
+        logo[i + 2] = c === 2 ? 220 : 20;
+      } else {
+        // anti-aliased edge pixels: varied blends, thin minority
+        const h = (p * 40503) >>> 0;
+        logo[i] = h & 255;
+        logo[i + 1] = (h >> 4) & 255;
+        logo[i + 2] = (h >> 8) & 255;
+      }
+      logo[i + 3] = 255;
+    }
+    expect(colorRichness(logo)).toBeLessThanOrEqual(RICHNESS_THRESHOLD);
+
+    // …and the flag flows through save/load and into the design brief
+    const st = initialState();
+    st.productId = "tee-readymade";
+    st.layers = [imgLayer({ manyColors: true })];
+    st.details.name = "A";
+    st.details.phone = "+1";
+    st.details.quantity = "1";
+    const back = deserializeDesign(JSON.parse(JSON.stringify(serializeDesign(st))))!;
+    expect((back.layers[0] as ImageLayer).manyColors).toBe(true);
+    const spec = buildDesignSpec(st) as { layers: { manyColorArtwork?: boolean }[] };
+    expect(spec.layers[0].manyColorArtwork).toBe(true);
+    // information, never a verdict: the design still validates
+    st.details.sizes = { ...emptySizes(), M: 1 };
+    expect(validateForSubmit(st)).toHaveLength(0);
   });
 });
 

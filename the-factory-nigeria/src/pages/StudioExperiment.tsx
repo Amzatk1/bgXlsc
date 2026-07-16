@@ -122,7 +122,18 @@ import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
 const STEPS = ["Product", "Colour & fabric", "Design", "Review", "Order details", "Send"];
-const METHODS = ["Screen printing", "Direct-to-garment (DTG)", "Heat transfer", "Embroidery", "Not sure — advise me"];
+
+// A PREFERENCE list, not a menu of machines The Factory owns (nobody has
+// confirmed their equipment — factoryFacts.ts → decoration-methods). The hints
+// are generic truths about each technique, so the customer can state an
+// informed preference without the app claiming any capability.
+const METHODS: { label: string; hint: string }[] = [
+  { label: "Screen printing", hint: "Bold, solid colours — the classic for team runs" },
+  { label: "Direct-to-garment (DTG)", hint: "Photos and artwork with many colours" },
+  { label: "Heat transfer", hint: "Names, numbers and small runs" },
+  { label: "Embroidery", hint: "Stitched logos — polos, caps and hoodies" },
+  { label: "Not sure — advise me", hint: "The team recommends what suits your artwork" },
+];
 
 /** Availability status: always text, never colour alone. */
 function AvailabilityBadge({ status }: { status: AvailabilityStatus }) {
@@ -427,7 +438,7 @@ export function StudioExperiment() {
     }
     addLayer(
       newImageLayer(
-        { src: res.src, fileName: res.fileName, fileKB: res.fileKB, naturalW: res.naturalW, naturalH: res.naturalH, hasAlpha: res.hasAlpha, avgLuma: res.avgLuma },
+        { src: res.src, fileName: res.fileName, fileKB: res.fileKB, naturalW: res.naturalW, naturalH: res.naturalH, hasAlpha: res.hasAlpha, avgLuma: res.avgLuma, manyColors: res.manyColors },
         product,
         state.view,
       ),
@@ -966,6 +977,15 @@ export function StudioExperiment() {
             {QUALITY_COPY[qualityLevel(selected, product)]} <em>Approximate guide, not a final decision.</em>
           </p>
         )}
+        {/* Sublimation prints gradients natively, so this only matters on
+            printed garments — and it is information, never a block. */}
+        {selected.kind === "image" && !selected.generated && selected.manyColors && !sublimated && (
+          <p className="quality quality--soft" role="status">
+            This artwork uses many colours or gradients — completely fine to submit. Artwork like this usually suits
+            digital printing rather than per-colour screen printing; <em>The Factory Nigeria confirms the best method
+            for your order.</em>
+          </p>
+        )}
         {selLowContrast && (
           <p className="quality quality--soft" role="status">
             Low contrast: this design may blend into the {state.color.name.toLowerCase()} fabric.{" "}
@@ -1133,7 +1153,10 @@ export function StudioExperiment() {
           ))}
         </div>
         {state.color.status === "confirm" && (
-          <p className="field__note">{state.color.name} — availability to confirm (custom colour kept).</p>
+          <p className="field__note">
+            {state.color.name} — availability to confirm{state.color.custom ? " (custom colour kept)" : ""}. The team
+            checks market sourcing before production.
+          </p>
         )}
         {methodAdvice}
       </div>
@@ -1327,12 +1350,14 @@ export function StudioExperiment() {
                       />
                       <span className="swatch__chip" style={{ background: c.hex }} aria-hidden="true" />
                       <span className="swatch__name">{c.name}</span>
+                      {c.status === "confirm" && <span className="swatch__tag">to confirm</span>}
                     </label>
                   ))}
                 </div>
                 <p className="field__note">
-                  Standard colours are <strong>commonly available</strong> — final shade always depends on the
-                  fabric sourced for your order.
+                  Most standard colours are <strong>commonly available</strong>; the few marked “to confirm” depend
+                  on market sourcing at the time. The final shade always depends on the fabric sourced for your
+                  order.
                 </p>
               </fieldset>
 
@@ -1670,6 +1695,13 @@ export function StudioExperiment() {
                   {sizesStatus.message}
                 </p>
               )}
+              {/* We do not have The Factory's measurements, so we never imply a
+                  size chart exists — see factoryFacts.ts → sizes. */}
+              <p className="field__note">
+                Sizes follow standard adult sizing — exact measurements are confirmed by the team before production.
+                {product.tshirtOption === "custom-made" &&
+                  " This T-shirt is sewn for you, so you can also request made-to-measure — put your measurements in “Other / custom sizes” or the notes."}
+              </p>
               <div className="field" style={{ marginTop: 10 }}>
                 <label htmlFor="o-other">
                   Other / custom sizes <span className="field__opt">(optional — confirmed manually)</span>
@@ -1718,14 +1750,15 @@ export function StudioExperiment() {
               </legend>
               <div className="choices">
                 {METHODS.map((m) => (
-                  <label key={m} className={"choice" + (state.details.method === m ? " is-active" : "")}>
+                  <label key={m.label} className={"choice" + (state.details.method === m.label ? " is-active" : "")}>
                     <input
                       type="radio"
                       name="method"
-                      checked={state.details.method === m}
-                      onChange={() => setDetails({ method: m })}
+                      checked={state.details.method === m.label}
+                      onChange={() => setDetails({ method: m.label })}
                     />
-                    <span className="choice__label">{m}</span>
+                    <span className="choice__label">{m.label}</span>
+                    <span className="choice__desc">{m.hint}</span>
                   </label>
                 ))}
               </div>

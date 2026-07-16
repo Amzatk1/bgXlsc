@@ -666,7 +666,9 @@ export const FABRICS: Fabric[] = [
     description: "Cotton comfort with added crease and shrink resistance.",
     use: "Workwear, frequently washed uniforms",
     weight: "Mid",
-    availability: "common",
+    // Downgraded from "common": blend ratios vary roll to roll in the market,
+    // and the ratio decides whether it can sublimate at all (factoryFacts.ts).
+    availability: "confirm",
     sublimation: "confirm",
     img: `${ASSET_BASE}/fabric-cotton-poly.webp`,
     refNote: "Reference photo shows a similar smooth jersey knit.",
@@ -767,6 +769,11 @@ export type ShirtColor = {
   status: ColorStatus;
 };
 
+// WE assigned these statuses, not The Factory (see factoryFacts.ts →
+// colour-range). Studio may only ever DOWNGRADE its own invented claims:
+// the seven staples stay "standard" (genuinely the easiest tee colours to
+// source anywhere); the two fashion tints are marked to-confirm because
+// market stock for them varies. Never upgrade one without the team's word.
 export const STANDARD_COLORS: ShirtColor[] = [
   { id: "white", name: "White", hex: "#f4f2ee", status: "standard" },
   { id: "black", name: "Black", hex: "#211f1e", status: "standard" },
@@ -775,8 +782,8 @@ export const STANDARD_COLORS: ShirtColor[] = [
   { id: "red", name: "Red", hex: "#a5252b", status: "standard" },
   { id: "royal", name: "Royal blue", hex: "#2b4f9e", status: "standard" },
   { id: "green", name: "Forest green", hex: "#2e5c43", status: "standard" },
-  { id: "cream", name: "Cream", hex: "#e8dfc8", status: "standard" },
-  { id: "brown", name: "Chocolate brown", hex: "#4e3a2d", status: "standard" },
+  { id: "cream", name: "Cream", hex: "#e8dfc8", status: "confirm" },
+  { id: "brown", name: "Chocolate brown", hex: "#4e3a2d", status: "confirm" },
 ];
 
 /** Map colour statuses onto the shared availability vocabulary. */

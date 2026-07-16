@@ -1,214 +1,153 @@
-# Questions for The Factory
+# The Factory — confirm or correct
 
-_Send this as it is. Everything below is something **Studio currently guesses at**, and only you can settle._
+_Every question below is already **answered** with Studio's best working position. You don't need to compose
+anything: tick ✅ where we're right, correct the line where we're wrong. Ten minutes covers the lot._
 
-Studio is careful never to promise anything — every screen says the team confirms availability, minimums,
-pricing and timing before an order is accepted. But a guess that is *hedged* is still a guess, and some of
-these guesses are visible to a customer as if they were facts. **The five in Section A are the ones where
-the app currently implies you can do something nobody has confirmed you can do.** Those are worth ten
-minutes of your time; the rest can trickle in.
+Two ground rules we've kept while answering:
+
+1. **Nothing provisional is shown to a customer as a fact.** Every screen still says the team confirms
+   availability, minimums, pricing and timing.
+2. **We only ever downgrade our own claims, never upgrade them.** Where our original guess looked too
+   confident (two colours, one fabric), we've already moved it to "availability to confirm".
+
+One question is **settled by your own feedback** and needs no reply: *jerseys are sublimated* — both the
+sports and basketball jersey are treated that way, full-surface designer and all.
 
 ---
 
 ## A. Can you actually do it?
-_The app implies a capability. If the answer is no, we remove it rather than let a customer ask for it._
 
-### A1. Which decoration methods do you actually have in-house? ⚠ **most exposed guess in the app**
+### A1. Decoration methods ⚠ most exposed guess in the app
+**Our answer:** Most likely you run **screen printing, heat transfer and embroidery** in-house, and **DTG is
+the most likely gap.**
+**What the app does:** all four remain selectable as a *preference only*, each annotated with what it
+typically suits ("Photos and artwork with many colours" for DTG, etc.), and the form says outright it's a
+preference, not a booking.
+**Confirm or correct:** which of the four do you actually have? Anything missing (DTF, vinyl, puff, flock)?
+Anything you don't have gets deleted the day you say so.
 
-Studio offers the customer a choice of:
+### A2. What else do you sublimate? *(the jerseys themselves are settled — your words)*
+**Our answer:** most likely nothing else in the current range.
+**Confirm or correct:** anything else? (Settled regardless: sublimation ink only bonds with polyester — a
+100% cotton tee can never be sublimated. Chemistry, not policy.)
 
-- Screen printing
-- Direct-to-garment (DTG)
-- Heat transfer
-- Embroidery
+### A3. All-over print on a ready-made garment
+**Our answer:** most likely **no** — a true all-over on a finished tee needs oversize transfer/DTF kit most
+local shops don't run, so full-surface stays a jersey feature.
+**What the app does:** a full-surface design carried onto a non-sublimated garment is kept (work is never
+deleted) and flagged: "the team confirms how much of this can be reproduced".
+**Confirm or correct:** can you do it? If yes, we open full-surface up to tees.
 
-**Do you have all four?** Is there anything we're missing — DTF, vinyl, puff, flock?
+### A4. Caps
+**Our answer:** most likely **embroidered or heat-pressed** within the standard **~4.5″ × 2.5″** front panel,
+embroidery preferred for logos.
+**Confirm or correct:** do you embroider in-house? Max area / stitch count / thread colours?
 
-*Listing DTG in a dropdown implies you own a DTG machine. Anything you don't have, we delete.*
-
-### A2. Which garments do you sublimate?
-
-Studio sublimates the **sports jersey** and the **basketball jersey** — printed as flat panels before they're
-sewn, which is what lets a design cover the whole garment.
-
-- Is that right?
-- Anything **else** you sublimate?
-
-*Settled either way: sublimation ink only bonds with polyester, so a 100% cotton tee can never be sublimated.
-That's chemistry, not a choice.*
-
-### A3. Can you do an all-over print on a **ready-made** garment?
-
-A customer can drag a design so it covers a whole tee.
-
-- Can you do a full-bleed / all-over print on a finished garment (DTF, all-over transfer)?
-- Or is a full surface only possible on a sublimated jersey?
-
-*Right now we keep their design and say you'll confirm how much of it can be reproduced. If you simply can't
-do it, we should say so up front.*
-
-### A4. Caps — do you embroider, or only print?
-
-- Do you embroider caps **in-house**?
-- If so: maximum embroidery area, stitch count, number of thread colours?
-
-*Studio currently says "printed or embroidered — the team confirms which". That's a placeholder for an answer
-we don't have.*
-
-### A5. Is there a maximum number of print colours?
-
-Studio lets a customer upload a **photograph** or use a **gradient** — effectively unlimited colours. Screen
-printing is normally priced and limited per colour.
-
-- Max colours for screen printing?
-- Does the colour count change the price?
-
-*A design that looks free on screen may be expensive or impossible.*
+### A5. Screen-print colour limit
+**Our answer:** typical practice is **1–6 spot colours, priced per colour**; photographic and gradient
+artwork goes to a digital method instead.
+**What the app does (new):** Studio now **detects many-colour / gradient artwork at upload** and tells the
+customer — softly, never blocking — that artwork like that usually suits digital printing rather than
+per-colour screens. It's flagged in the design brief and the production reference too. No limit of yours is
+claimed anywhere.
+**Confirm or correct:** your real max colours, and whether colour count changes price.
 
 ---
 
 ## B. Can you actually get it?
-_You gave us the four availability labels. **We** decided which label goes on which item. All of it needs your eyes._
 
-### B6. What exactly is the towel-back fabric?
+### B6. Towel-back fabric
+**Our answer:** most likely a **loopback / French-terry style knit** — smooth face, soft towel-like loops
+inside, mid-weight — which is almost certainly where the name comes from.
+**What the app does:** uses your exact words ("towel-back fabric option"), marked *Availability to confirm*,
+no composition or weight claimed. Our hypothesis stays in internal docs, never in customer copy.
+**Confirm or correct:** is that what it is? What weight? Which colours can you source?
 
-We describe the custom-made T-shirt as *"usually sewn using The Factory's towel-back fabric option"* — your
-words, kept exactly.
+### B7. The ten garments
+**Our answer:** most likely all ten are offerable — the tees and jerseys came from your feedback directly,
+the caps from the founder's request.
+**Confirm or correct:** any you don't do? Anything obvious missing?
 
-- Is "towel-back" what the trade calls **loopback / French terry** (smooth face, towel-like loops on the
-  reverse)? Or something else?
-- What **weight**?
-- Which **colours** can you reliably source?
+### B8. The nine colours
+**Our answer (already applied):** the seven staples — **White, Black, Navy, Heather grey, Red, Royal blue,
+Forest green** — stay *Commonly available*; **Cream and Chocolate brown are downgraded to "availability to
+confirm"** because fashion tints vary with market stock. The swatches now carry a "to confirm" tag.
+**Confirm or correct:** per-colour, is that right?
 
-### B7. Do you actually offer all ten garments?
-
-Custom-made tee · Ready-made tee · Oversized tee · Polo · Pullover hoodie · Sports jersey · Basketball jersey ·
-Snapback cap · Curved-peak cap · Trucker cap
-
-- Any you **don't** do?
-- Anything obvious we've **left out**?
-
-*We chose that range. You didn't.*
-
-### B8. The nine standard colours
-
-White · Black · Navy · Heather grey · Red · Royal blue · Forest green · Cream · Chocolate brown
-
-Studio marks **every one of them "Commonly available."**
-
-- Which can you genuinely source?
-- Is "commonly available" true for each?
-
-*We wrote that list and we assigned that status. The on-screen colours are our approximation, not a matched
-fabric.*
-
-### B9. The eleven fabrics and their availability
-
-Lightweight / midweight / heavyweight cotton · Cotton-polyester blend · Performance polyester · Sports mesh ·
-Polyester interlock · Cotton twill · Piqué · French terry · Fleece
-
-We gave each one a status — e.g. lightweight cotton = *Commonly available*, French terry = *Special sourcing
-required*.
-
-- Which do you actually source?
-- What's the **true** status of each?
-
-*Same problem as the colours: we invented every one of those statuses. A customer reading "commonly available"
-assumes you can get it this week.*
+### B9. The eleven fabrics
+**Our answer (already applied):** plain cottons and twill stay *common* (true staples anywhere); the
+**cotton-poly blend is downgraded to "to confirm"** (the ratio varies roll to roll — and the ratio decides
+whether it can sublimate); performance knits, mesh, interlock and piqué were already *to confirm*; French
+terry stays *special sourcing*.
+**Confirm or correct:** per-fabric, is that right?
 
 ---
 
 ## C. What do you need from us?
-_This decides whether the file Studio hands you is usable, or whether you have to redraw the design._
 
-### C10. What do you actually want to receive? ⚠ **could make Studio useless in practice**
+### C10. The handover package ⚠ could make Studio useless if wrong
+**Our answer:** most likely the current package covers digital methods and embroidery digitising, while
+**screen printing would additionally want vector art or separations** for multi-colour jobs.
+**What you get today:** a 2200×1980 reference PNG (front/back mockups, placements and sizes in inches,
+colours, fonts with licences, checks for the team), the untouched original artwork, and a JSON brief with
+every layer's exact geometry.
+**Confirm or correct:** if screen jobs need vector, say so — we'll ask customers for vector only when screen
+printing is the confirmed method.
 
-Studio currently sends:
-
-- a **production reference PNG** (2200×1980 — front/back mockups, print-area close-ups, placements and sizes in
-  inches, colour swatch with hex/RGB, fonts with licences, checks for the team)
-- the **original artwork**, untouched
-- a **JSON design brief** — every layer's exact position, size and rotation
-
-Do you need:
-
-- **Vector** artwork (AI / EPS / PDF)?
-- Artwork supplied at **actual print size**?
-- **Colour separations** for screen printing?
-
-### C11. Do you work to a colour standard?
-
-- **Pantone? Pantone TCX?** Something else?
-- Should the reference sheet carry a **Pantone code** rather than just a hex and an RGB value?
-
-*Screen colours aren't fabric colours. Right now we hand you a hex and a disclaimer.*
+### C11. Colour standard
+**Our answer:** most likely **no formal Pantone workflow** (open-market fabric sourcing rarely uses one), so
+hex + RGB + the market-match disclaimer is the honest default. We deliberately don't print a computed
+"nearest Pantone" — a wrong Pantone is worse than none.
+**Confirm or correct:** if you do match to Pantone/TCX, we'll add the code to the reference sheet.
 
 ### C12. Sizes
-
-Studio asks a customer to split their order across **XS, S, M, L, XL, XXL** — and never tells them what those
-mean.
-
-- Do you offer **XS–XXL on every garment**?
-- What are the **actual measurements** — is there a size chart we can show?
-- For the **custom-made** tee, is it **made to measure** instead of sized S/M/L?
-
-*If you don't stock XS or XXL, we're collecting an order you can't fill.*
+**Our answer:** most likely standard adult **XS–XXL** is fine for ready-made garments, and the custom-made
+tee is plausibly **made to measure**.
+**What the app does (new):** the size grid now says exact measurements are confirmed by the team, and on the
+custom-made tee it invites made-to-measure requests through the notes.
+**Confirm or correct:** all six sizes on every garment? Send a size chart and we'll show it.
 
 ---
 
 ## D. Commercial
 
-### D13. Minimum order, per method
+### D13. Minimums per method
+**Our answer:** most likely ready-made printing works from very small runs, while **sublimation and
+cut-and-sew realistically start around 10+ pieces**. Those numbers are **not** shown to customers — the app
+accepts a request from 1 item and says you confirm the minimum, warning that made-to-order methods often
+carry a higher one.
+**Confirm or correct:**
+- Sublimated jersey: \_\_\_\_ · Custom-made: \_\_\_\_ · Ready-made print: \_\_\_\_ · Caps: \_\_\_\_
 
-Studio currently accepts a request for **a single item** for everything.
+### D14. The site's 30-piece minimum
+**Our answer:** most likely 30 still stands for general manufacturing, with Studio's from-1-item lane
+intentionally separate (and explained as such).
+**Confirm or correct:** still right?
 
-- Sublimated jersey: minimum \_\_\_\_
-- Custom-made (cut and sewn): minimum \_\_\_\_
-- Printing onto a ready-made garment: minimum \_\_\_\_
-- Caps: minimum \_\_\_\_
-
-*If a sublimated jersey really needs 10 or 20, the customer should hear that **before** they spend half an hour
-designing one.*
-
-### D14. Is the 30-piece minimum still right?
-
-The main site still says **minimum 30 pieces** for a general manufacturing enquiry, while Studio accepts **1**.
-A customer can see both on the same visit.
-
-### D15. The ready-made T-shirt
-
-- Is it genuinely **100% cotton**?
-- How do you print it — **screen, DTG, or heat transfer**?
-
-*Studio deliberately names no technique you didn't choose.*
+### D15. The ready-made tee
+**Our answer:** most likely **100% cotton blanks** (your feedback's own wording), screen-printed for team
+runs and heat-pressed for small orders.
+**What the app does:** says "ready-made 100% cotton, purchased and then customised with your requested
+print" — and names no technique.
+**Confirm or correct:** cotton confirmed? Printed how?
 
 ---
 
-## E. We've made a researched call — just sanity-check it
-_Not blocking. We've grounded these in industry standards, but you have the real garments._
+## E. Researched calls — glance and nod
 
-### E16. Print sizes
-Guides were measured off the renders and cross-checked against standard print areas (full front/back up to
-~12″ × 16″, left chest 3–4″, sleeve 2–4″, cap front ~4.5″ × 2.5″). They're **advisory** — a customer can place
-a design anywhere — but tell us if any are off for the garments you actually source.
-
-### E17. Awkward areas
-We warn (never block) when a design crosses a **collar, placket, kangaroo pocket, hood drawstring, side seam,
-hem or cap peak**, using the usual 1″ clearance from seams. Seam and hem warnings are switched **off** for
-sublimated garments, because those panels are printed flat before they're sewn.
-
-Anything we're missing? Anything we're nagging about that you can produce perfectly well?
-
-### E18. Artwork resolution
-We warn a customer when their artwork works out below **~150 DPI** at the size they've placed it (and strongly
-below 100). Do those thresholds match what your press actually needs?
+- **E16. Print sizes** — every guide now provably matches the size on its own label (a test enforces it) and
+  sits inside published standard ranges (full front/back ≤ ~12″ × 16″, left chest 3–4″, sleeve 2–4″, cap
+  front ~4.5″ × 2.5″). Guides are advisory — customers can place designs anywhere.
+- **E17. Awkward areas** — collar, placket, kangaroo pocket, hood drawstring, side seams, hems, cap peak;
+  1″ seam clearance; seam/hem warnings suppressed on sublimated garments (their panels are printed flat
+  before sewing). Warnings never block.
+- **E18. Artwork resolution** — 150 DPI good / 100–150 soft / under 100 low-but-submittable; standard
+  industry figures; the team reviews before anything prints.
 
 ---
 
 ## Where the answers go
 
-`src/studio/factoryFacts.ts` — every question above is in there with an id. Set its `status` to `"answered"`,
-write the answer in, and put any minimum into `METHOD_MINIMUM`.
-
-The product cards, the review screen, the production reference and the WhatsApp enquiry all read from that one
-file. Nothing else needs touching.
+`src/studio/factoryFacts.ts` — each question above lives there with its provisional answer. Set
+`status: "answered"`, write your answer in, put any minimum into `METHOD_MINIMUM`. The product cards, review
+screen, production reference and WhatsApp enquiry all read from that one file — nothing else needs touching.

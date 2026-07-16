@@ -213,6 +213,9 @@ export function buildDesignSpec(state: DesignState, includeArtworkData = false):
         ...(l.generated
           ? { vector: true, generatedByStudio: true, fullSurface: true }
           : { estimatedDpi: estimatedDpi(l, product), quality: qualityLevel(l, product) }),
+        // Photographic / gradient artwork — usually a digital method rather
+        // than per-colour screen printing; the team decides.
+        ...(l.manyColors ? { manyColorArtwork: true } : {}),
         // The exact recipe, so The Factory can rebuild the printed panel precisely.
         ...(l.pattern ? { pattern: { ...l.pattern, summary: patternSummary(l.pattern) } } : {}),
         ...(includeArtworkData ? { originalDataUrl: l.src } : {}),

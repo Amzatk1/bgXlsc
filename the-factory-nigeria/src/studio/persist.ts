@@ -85,6 +85,7 @@ function validLayer(raw: unknown): Layer | null {
       naturalH: o.naturalH,
       hasAlpha: !!o.hasAlpha,
       ...(isNum(o.avgLuma) ? { avgLuma: o.avgLuma } : {}),
+      ...(o.manyColors ? { manyColors: true } : {}),
       ...(o.generated ? { generated: true } : {}),
       ...(pat && isStr(pat.id)
         ? {

@@ -49,6 +49,12 @@ export type Artwork = {
   hasAlpha: boolean;
   /** average tone of the artwork (0–1), used for legibility warnings */
   avgLuma?: number;
+  /**
+   * Artwork reads as photographic / gradient (many distinct colours). Screen
+   * printing is priced per colour, so this steers a soft "usually a digital
+   * method" note — never a block, never a claim about the team's machines.
+   */
+  manyColors?: boolean;
 };
 
 type LayerBase = {

@@ -19,8 +19,87 @@ export type IntakeResult =
       naturalH: number;
       hasAlpha: boolean;
       avgLuma: number;
+      /** reads as photographic / gradient artwork rather than flat spot colours */
+      manyColors: boolean;
     }
   | { ok: false; error: string };
+
+/**
+ * Distinct colours after quantising to 4 bits per channel, ignoring
+ * near-transparent pixels. Pure and unit-testable.
+ *
+ * Why it exists: screen printing is priced and limited PER COLOUR, so a
+ * photograph or a gradient — effectively unlimited colours — is a different
+ * production conversation from a three-colour logo. Studio never blocks on
+ * this and never claims a machine limit; it just steers the customer toward
+ * "usually a digital method" wording and flags it for the team.
+ */
+export function countQuantizedColors(data: Uint8ClampedArray): number {
+  const seen = new Set<number>();
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] <= 16) continue; // ignore transparent pixels
+    seen.add(((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4));
+  }
+  return seen.size;
+}
+
+/**
+ * Above this many quantised colours (in a 48×48 sample) the artwork reads as
+ * photographic. Deliberately high: a flat logo with anti-aliased edges lands
+ * well under it, so the note appears only when it is genuinely informative.
+ */
+export const MANY_COLORS_THRESHOLD = 150;
+
+/**
+ * How many quantised colours it takes to cover 80% of the (opaque) pixels.
+ *
+ * This is the discriminator that actually separates artwork classes: a flat
+ * spot-colour logo concentrates its pixel mass in a handful of buckets — its
+ * core colours carry 80% comfortably even when up to a fifth of the pixels are
+ * anti-aliased edge blends — while a gradient or a photograph never
+ * concentrates that much anywhere and needs dozens or hundreds of buckets. A
+ * raw distinct-colour count cannot tell them apart: a smooth gradient may only
+ * touch ~50 buckets, the same ballpark as a heavily anti-aliased logo.
+ *
+ * (80%, not 90%: at 90% the tail of AA edge pixels starts counting and a
+ * clean three-colour logo can score like a gradient.)
+ *
+ * Nuance that falls out for free: a single-hue fade (black → white) covers its
+ * mass with ≤16 grey buckets and does NOT trip this — correctly, because a
+ * monochrome fade prints as one screen with halftones, not "many colours".
+ */
+export function colorRichness(data: Uint8ClampedArray): number {
+  const freq = new Map<number, number>();
+  let total = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] <= 16) continue; // ignore transparent pixels
+    const key = ((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4);
+    freq.set(key, (freq.get(key) ?? 0) + 1);
+    total++;
+  }
+  if (!total) return 0;
+  const counts = [...freq.values()].sort((a, b) => b - a);
+  let covered = 0;
+  let n = 0;
+  for (const c of counts) {
+    covered += c;
+    n++;
+    if (covered >= total * 0.8) break;
+  }
+  return n;
+}
+
+/**
+ * Richness above this = multi-colour gradient / photographic artwork.
+ *
+ * Calibrated against real cases, not intuition: a genuine three-stop gradient
+ * measures ~20 (its colours sit on a 1-D path through colour space, so even a
+ * "smooth" blend concentrates into a couple of dozen buckets), a flat logo
+ * measures 2–5, a monochrome fade ~13, and photographs measure in the
+ * hundreds. 15 splits all four correctly — fades stay silent (they print as
+ * one halftoned screen), true multi-colour blends do not.
+ */
+export const RICHNESS_THRESHOLD = 15;
 
 /** Pure pre-checks, unit-testable without a DOM. */
 export function precheckFile(file: { name: string; size: number; type: string }): string | null {
@@ -50,15 +129,18 @@ function sanitiseName(name: string): string {
   return clean.length > 60 ? clean.slice(0, 57) + "…" : clean || "artwork";
 }
 
-/** Sample the decoded image: transparency + average tone (for contrast checks). */
-function analyzeImage(img: HTMLImageElement, isPng: boolean): { hasAlpha: boolean; avgLuma: number } {
+/** Sample the decoded image: transparency, average tone, and colour richness. */
+function analyzeImage(
+  img: HTMLImageElement,
+  isPng: boolean,
+): { hasAlpha: boolean; avgLuma: number; manyColors: boolean } {
   try {
     const c = document.createElement("canvas");
     const s = 48;
     c.width = s;
     c.height = s;
     const ctx = c.getContext("2d");
-    if (!ctx) return { hasAlpha: isPng, avgLuma: 0.5 };
+    if (!ctx) return { hasAlpha: isPng, avgLuma: 0.5, manyColors: false };
     ctx.drawImage(img, 0, 0, s, s);
     const data = ctx.getImageData(0, 0, s, s).data;
     let hasAlpha = false;
@@ -72,9 +154,14 @@ function analyzeImage(img: HTMLImageElement, isPng: boolean): { hasAlpha: boolea
         n++;
       }
     }
-    return { hasAlpha: isPng && hasAlpha, avgLuma: n ? sum / n / 255 : 0.5 };
+    return {
+      hasAlpha: isPng && hasAlpha,
+      avgLuma: n ? sum / n / 255 : 0.5,
+      // richness catches gradients AND photos; the raw count is a cheap backstop
+      manyColors: colorRichness(data) > RICHNESS_THRESHOLD || countQuantizedColors(data) > MANY_COLORS_THRESHOLD,
+    };
   } catch {
-    return { hasAlpha: isPng, avgLuma: 0.5 };
+    return { hasAlpha: isPng, avgLuma: 0.5, manyColors: false };
   }
 }
 

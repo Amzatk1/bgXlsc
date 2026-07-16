@@ -192,6 +192,12 @@ function warnings(state: DesignState): string[] {
       if (!l.generated) {
         const q = qualityLevel(l, product);
         if (q !== "good") out.push(`${side} ${who}: ${QUALITY_COPY[q]}`);
+        // Sublimation prints gradients natively; for printed garments,
+        // many-colour art usually means a digital method, not screens.
+        if (l.manyColors && !isSublimated(product))
+          out.push(
+            `${side} ${who}: many-colour / gradient artwork — usually suits a digital method rather than per-colour screen printing; confirm the method.`,
+          );
       }
       if (typeof l.avgLuma === "number" && Math.abs(l.avgLuma - shirtLuma) < 0.16)
         out.push(`${side} ${who}: low contrast against the ${state.color.name.toLowerCase()} fabric — confirm legibility before printing.`);
