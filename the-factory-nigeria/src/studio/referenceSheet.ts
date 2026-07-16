@@ -379,8 +379,10 @@ export async function exportReferenceSheet(state: DesignState): Promise<string> 
   const ty = Math.max(iy + 18, H - FOOT - 20 - 250);
   const thumbH = Math.max(160, H - FOOT - 20 - ty);
   if (ty + thumbH <= H - FOOT - 10) {
-    const t0 = originals[0] ? `Original — ${originals[0].fileName}` : "Uploaded artwork";
-    const t1 = originals.length > 2 ? `Original — ${originals[1].fileName} (+${originals.length - 2} more)` : originals[1] ? `Original — ${originals[1].fileName}` : "Uploaded artwork";
+    // Generated pattern SVGs are Studio output, never "original" customer art.
+    const title = (l?: ImageLayer) => (l ? `${l.generated ? "Studio-generated" : "Original"} — ${l.fileName}` : "Uploaded artwork");
+    const t0 = title(originals[0]);
+    const t1 = originals.length > 2 ? `${title(originals[1])} (+${originals.length - 2} more)` : title(originals[1]);
     await originalPanel(ctx, originals[0], t0, ix, ty, thumbW, thumbH);
     await originalPanel(ctx, originals[1], t1, ix + thumbW + 20, ty, thumbW, thumbH);
   }

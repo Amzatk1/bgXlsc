@@ -144,8 +144,25 @@ export function imageLayers(state: DesignState): ImageLayer[] {
 }
 
 /** Preserve one uploaded artwork's ORIGINAL bytes (no re-encoding). */
+/**
+ * Honest file labels. A Studio-generated pattern SVG is NOT the customer's
+ * original artwork, and calling it "original … (untouched)" would misdescribe
+ * the file to both the customer and the factory. One source of truth for the
+ * wording, used by the share sheet, the download list and the send-step copy.
+ */
+export function artworkFileLabel(layer: ImageLayer): string {
+  return layer.generated
+    ? `Studio-generated artwork — ${layer.fileName}`
+    : `Original ${layer.view} artwork — ${layer.fileName} (untouched)`;
+}
+
+/** Matching filename for shares/downloads: generated files say so in the name. */
+export function artworkFileName(reference: string, layer: ImageLayer): string {
+  return `${reference}-${layer.view}-${layer.generated ? "studio-generated" : "original"}-${layer.fileName}`;
+}
+
 export function downloadOriginalArtwork(state: DesignState, layer: ImageLayer): void {
-  download(layer.src, `${state.reference}-${layer.view}-original-${layer.fileName}`);
+  download(layer.src, artworkFileName(state.reference, layer));
 }
 
 /** Can this browser share files through the native share sheet? */

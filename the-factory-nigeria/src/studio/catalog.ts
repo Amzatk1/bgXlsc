@@ -600,6 +600,70 @@ export const PRODUCTS: Product[] = [
 ];
 
 // ---------------------------------------------------------------------
+// Product families — how the Choose step groups the catalogue. Derived from
+// the products' own data (production method / family / id), never duplicated.
+// ---------------------------------------------------------------------
+export type ProductGroup = {
+  id: string;
+  name: string;
+  /** one short line under the group heading (replaces per-card essays) */
+  note?: string;
+  products: Product[];
+};
+
+export function productGroups(): ProductGroup[] {
+  const isTee = (p: Product) => p.id.includes("tee");
+  const groups: ProductGroup[] = [
+    {
+      id: "tees",
+      name: "T-shirts",
+      note: "Two kinds: custom-made is sewn for you (towel-back fabric option); ready-made is a 100% cotton shirt that is bought and printed.",
+      products: PRODUCTS.filter(isTee),
+    },
+    {
+      id: "tops",
+      name: "Polos & hoodies",
+      note: "Ready-made garments, printed with your design.",
+      products: PRODUCTS.filter((p) => p.id === "polo" || p.id === "hoodie"),
+    },
+    {
+      id: "sports",
+      name: "Sports jerseys",
+      note: "Sublimated — the design is printed into the fabric, so it can cover the whole garment.",
+      products: PRODUCTS.filter((p) => isSublimated(p)),
+    },
+    {
+      id: "caps",
+      name: "Caps",
+      note: "Ready-made caps, decorated on the front and back panels.",
+      products: PRODUCTS.filter((p) => p.family === "headwear"),
+    },
+  ];
+  return groups.filter((g) => g.products.length > 0);
+}
+
+// ---------------------------------------------------------------------
+// Decoration-method PREFERENCES (order details). This is a preference list,
+// not a menu of machines The Factory owns — see factoryFacts.ts
+// (decoration-methods). Sublimated garments get NO choice at all: the method
+// is set by how the garment is made, so asking would be a fake question.
+// ---------------------------------------------------------------------
+export type DecorationPreference = { label: string; hint: string };
+
+export const DECORATION_PREFERENCES: DecorationPreference[] = [
+  { label: "Screen printing", hint: "Bold, solid colours — the classic for team runs" },
+  { label: "Direct-to-garment (DTG)", hint: "Photos and artwork with many colours" },
+  { label: "Heat transfer", hint: "Names, numbers and small runs" },
+  { label: "Embroidery", hint: "Stitched logos — polos, caps and hoodies" },
+  { label: "Not sure — advise me", hint: "The team recommends what suits your artwork" },
+];
+
+/** The method preferences that make sense to ASK for this garment. */
+export function methodChoicesFor(product: Product): DecorationPreference[] {
+  return isSublimated(product) ? [] : DECORATION_PREFERENCES;
+}
+
+// ---------------------------------------------------------------------
 // Fabrics & textiles — visual REFERENCES only (see FABRIC_VISUAL_NOTICE).
 // Close-up images are macro crops of this project's own processed
 // garment photography; each represents the closest fabric family.
@@ -750,6 +814,38 @@ export const FABRICS: Fabric[] = [
 
 export function getFabricById(id: string): Fabric | undefined {
   return FABRICS.find((f) => f.id === id);
+}
+
+/**
+ * Fabrics that make sense to LEAD with for a garment, versus the rest.
+ *
+ * Nothing is deleted — the "other" group stays requestable under an
+ * "ask the team" disclosure, because availability is always a conversation.
+ * The split is grounded in facts the catalogue already carries (sublimation
+ * compatibility, cap construction), not in an invented compatibility matrix.
+ */
+export function fabricGroupsFor(product: Product): { suggested: Fabric[]; other: Fabric[]; reason: string } {
+  if (isSublimated(product)) {
+    return {
+      suggested: FABRICS.filter((f) => f.sublimation === "yes"),
+      other: FABRICS.filter((f) => f.sublimation !== "yes"),
+      reason:
+        "Sublimation ink bonds with polyester, so these sports fabrics are the ones that suit how this garment is made.",
+    };
+  }
+  if (product.family === "headwear") {
+    return {
+      suggested: FABRICS.filter((f) => f.id === "twill"),
+      other: FABRICS.filter((f) => f.id !== "twill"),
+      reason: "Caps are bought ready-made — cotton twill is the usual shell. Anything else is a conversation with the team.",
+    };
+  }
+  const sportsKnits = new Set(["performance", "sports-mesh", "interlock"]);
+  return {
+    suggested: FABRICS.filter((f) => !sportsKnits.has(f.id)),
+    other: FABRICS.filter((f) => sportsKnits.has(f.id)),
+    reason: "Sports performance knits are an unusual choice for a printed garment like this — ask the team if you want one.",
+  };
 }
 
 /** Shown when no fabric is picked — the team recommends instead. */

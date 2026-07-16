@@ -3,6 +3,7 @@ import {
   areasForView,
   avoidAreasForView,
   DIFFICULT_AREA_NOTICE,
+  fabricGroupsFor,
   FABRICS,
   fabricMethodIssue,
   FONT_CATEGORIES,
@@ -11,8 +12,10 @@ import {
   getProductionMethod,
   GUIDES_NOTICE,
   isSublimated,
+  methodChoicesFor,
   PLACEMENTS,
   placementsFor,
+  productGroups,
   PRODUCTION_METHODS,
   PRODUCTS,
   productPpi,
@@ -48,6 +51,7 @@ import {
   newTextLayer,
   parseQuantity,
   qualityLevel,
+  reconcileDetailsForProduct,
   restylePatternLayer,
   sizeIssue,
   sizeTotal,
@@ -63,7 +67,8 @@ import {
   type TextLayer,
 } from "../state";
 import { DEFAULT_PATTERN, JERSEY_PATTERNS, patternSummary, renderPatternSvg } from "../patterns";
-import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, sizesLine, summaryRows } from "../messages";
+import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, readinessChecklist, sizesLine, summaryRows } from "../messages";
+import { artworkFileLabel, artworkFileName } from "../exporter";
 import { checkDimensions, colorRichness, countQuantizedColors, MANY_COLORS_THRESHOLD, precheckFile, RICHNESS_THRESHOLD } from "../imageFile";
 import { deserializeDesign, isWorthSaving, serializeDesign } from "../persist";
 import { savedAgo } from "../deviceStore";
@@ -398,13 +403,19 @@ describe("enquiry summary & spec (multi-layer)", () => {
     expect(layerLine(number, tee)).toContain("Number");
     expect(layerLine(number, tee)).toContain("Back"); // number was added to the back view
   });
-  it("builds a WhatsApp message listing every layer + confirmation ask", () => {
+  it("builds a SHORT human WhatsApp message — layer geometry stays in the reference/JSON", () => {
     const msg = buildStudioMessage(completeState());
-    expect(msg).toContain("New Studio enquiry");
+    expect(msg).toContain("*Studio enquiry*");
+    expect(msg).toContain(completeState().reference.slice(0, 7)); // TFN-DS-…
     expect(msg).toContain("*Design:* Front and back");
-    expect(msg).toContain("*Design layers:*");
-    expect(msg).toContain("Number");
-    expect(msg).toContain("production method, price and production time");
+    expect(msg).toContain("*Quantity:* 12");
+    expect(msg).toContain("Please confirm availability, minimum, price and timing");
+    // scannable by a human, triage-able by staff: no per-layer geometry dump,
+    // no wall of disclaimers, nothing a customer can't read at a glance
+    expect(msg).not.toContain("Design layers");
+    expect(msg).not.toContain("DPI");
+    expect(msg.split("\n").length).toBeLessThanOrEqual(14);
+    expect(msg.length).toBeLessThan(700);
     expect(msg).not.toContain("base64"); // never embeds image data
   });
   it("summary rows tag the step that edits them", () => {
@@ -667,7 +678,7 @@ describe("two T-shirt options — never merged into one vague 'T-shirt'", () => 
     st.details.quantity = "3";
 
     const msg = buildStudioMessage(st);
-    expect(msg).toContain("*Production method:* Custom-made (cut and sewn for you)");
+    expect(msg).toContain("Custom-made (cut and sewn for you)"); // in the product line
     expect(msg).toContain("towel-back fabric option");
 
     const rows = summaryRows(st);
@@ -719,7 +730,7 @@ describe("jerseys are sublimated, not printed", () => {
     st.details.phone = "+2348000000000";
     st.details.quantity = "16";
 
-    expect(buildStudioMessage(st)).toContain("*Production method:* Sublimation");
+    expect(buildStudioMessage(st)).toContain("— Sublimation"); // in the product line
     expect(summaryRows(st).find((r) => r.label === "Production method")!.value).toBe("Sublimation");
     const spec = buildDesignSpec(st) as { product: { productionMethod: string; sublimationNote?: string } };
     expect(spec.product.productionMethod).toBe("Sublimation");
@@ -969,7 +980,7 @@ describe("what the process can physically do", () => {
     expect(spec.productionChecks.blankTooDarkForSublimation).toBe(true);
     expect(spec.productionChecks.fabricIssue).toMatch(/cotton/);
     expect(spec.productionChecks.minimum.confirmed).toBe(false);
-    expect(buildStudioMessage(st)).toMatch(/minimum for this method/);
+    expect(buildStudioMessage(st)).toMatch(/confirm availability, minimum/);
   });
 
   it("flags a full-surface design stranded on a garment that isn't sublimated — but keeps it", () => {
@@ -1171,6 +1182,100 @@ describe("what the process can physically do", () => {
   });
 });
 
+describe("workbench redesign: contextual questions, honest files, grouped catalogue", () => {
+  const jersey = PRODUCTS.find((p) => p.id === "jersey")!;
+  const readyTee = PRODUCTS.find((p) => p.id === "tee-readymade")!;
+  const cap = PRODUCTS.find((p) => p.id === "cap-snapback")!;
+
+  it("never asks a sublimated-jersey customer to pick a print method", () => {
+    expect(methodChoicesFor(jersey)).toHaveLength(0);
+    expect(methodChoicesFor(PRODUCTS.find((p) => p.id === "basketball")!)).toHaveLength(0);
+    // printed garments keep the full preference list (still a preference,
+    // never a claim about machines — factoryFacts.ts)
+    expect(methodChoicesFor(readyTee).map((m) => m.label)).toContain("Screen printing");
+    expect(methodChoicesFor(cap).length).toBeGreaterThan(3);
+  });
+
+  it("drops a stale method preference when the garment becomes sublimated", () => {
+    const details = { ...initialState().details, method: "Direct-to-garment (DTG)" };
+    const reconciled = reconcileDetailsForProduct(details, jersey);
+    expect(reconciled.method).toBe("");
+    // and everything else survives untouched
+    expect(reconcileDetailsForProduct(details, readyTee).method).toBe("Direct-to-garment (DTG)");
+    // so the review and the enquiry can never carry a fake DTG claim on a jersey
+    const st = initialState();
+    st.productId = "jersey";
+    st.details = reconciled;
+    expect(summaryRows(st).find((r) => r.label === "Method preference")).toBeUndefined();
+  });
+
+  it("leads with fabrics that suit how the garment is made — and deletes none", () => {
+    const j = fabricGroupsFor(jersey);
+    expect(j.suggested.map((f) => f.id).sort()).toEqual(["interlock", "performance", "sports-mesh"]);
+    expect(j.suggested.every((f) => f.sublimation === "yes")).toBe(true);
+
+    const c = fabricGroupsFor(cap);
+    expect(c.suggested.map((f) => f.id)).toEqual(["twill"]);
+
+    const t = fabricGroupsFor(readyTee);
+    expect(t.suggested.some((f) => f.id === "cotton-mid")).toBe(true);
+    expect(t.other.map((f) => f.id).sort()).toEqual(["interlock", "performance", "sports-mesh"]);
+
+    // nothing is ever removed from the catalogue by the split
+    for (const g of [j, c, t]) {
+      expect([...g.suggested, ...g.other]).toHaveLength(FABRICS.length);
+      expect(g.reason.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("groups the ten products into four families, each product exactly once", () => {
+    const groups = productGroups();
+    expect(groups.map((g) => g.id)).toEqual(["tees", "tops", "sports", "caps"]);
+    const ids = groups.flatMap((g) => g.products.map((p) => p.id));
+    expect(ids).toHaveLength(PRODUCTS.length);
+    expect(new Set(ids).size).toBe(PRODUCTS.length);
+    expect(groups.find((g) => g.id === "tees")!.products).toHaveLength(3);
+    expect(groups.find((g) => g.id === "sports")!.products.every((p) => p.production === "sublimation")).toBe(true);
+    // the two-kinds-of-T-shirt truth lives on the group, said once
+    expect(groups.find((g) => g.id === "tees")!.note).toMatch(/towel-back/);
+  });
+
+  it("never calls Studio-generated output the customer's original artwork", () => {
+    const generated = { ...newPatternLayer(DEFAULT_PATTERN, "front") };
+    const uploaded = imgLayer({ fileName: "crest.png" });
+    expect(artworkFileLabel(generated)).toContain("Studio-generated");
+    expect(artworkFileLabel(generated)).not.toContain("riginal");
+    expect(artworkFileLabel(uploaded)).toContain("Original");
+    expect(artworkFileLabel(uploaded)).toContain("untouched");
+    expect(artworkFileName("TFN-DS-X", generated)).toContain("studio-generated");
+    expect(artworkFileName("TFN-DS-X", uploaded)).toContain("original");
+  });
+
+  it("review readiness: says what the team will confirm, never blocks", () => {
+    // a complete jersey design → sides OK + provisional sourcing to confirm
+    const st = initialState();
+    st.productId = "jersey";
+    st.layers = [newPatternLayer(DEFAULT_PATTERN, "front")];
+    const items = readinessChecklist(st);
+    expect(items[0].level).toBe("ok");
+    expect(items[0].text).toMatch(/front only/i);
+    expect(items.some((i) => i.text.includes("Sourcing to confirm"))).toBe(true);
+
+    // an empty design → the one real gap is named
+    const empty = initialState();
+    expect(readinessChecklist(empty)[0].level).toBe("check");
+    expect(readinessChecklist(empty)[0].text).toMatch(/No design/);
+
+    // low-res upload → flagged as reviewable, not fatal
+    const low = initialState();
+    low.productId = "tee-readymade";
+    low.layers = [imgLayer({ size: 0.9, naturalW: 400, naturalH: 300 })];
+    const lowItems = readinessChecklist(low);
+    expect(lowItems.some((i) => i.level === "check" && /low resolution/.test(i.text))).toBe(true);
+    expect(lowItems.every((i) => !/cannot|blocked|must not/i.test(i.text))).toBe(true);
+  });
+});
+
 describe("real designs: many layers, mixed media", () => {
   it("carries 10 mixed image + text layers through preview, enquiry and brief", () => {
     const st = initialState();
@@ -1193,11 +1298,17 @@ describe("real designs: many layers, mixed media", () => {
     expect(viewSummary(st, "front")).toBe("10 elements");
     expect(validateForSubmit(st)).toHaveLength(0);
 
+    // the chat message stays a short human summary…
     const msg = buildStudioMessage(st);
-    expect(msg).toContain("Full-surface design (sublimation)");
-    expect(msg).toContain("ADEYEMI");
+    expect(msg).toContain("*Design:* Front only");
+    expect(msg).not.toContain("ADEYEMI"); // per-layer detail lives in the files
     expect(msg).not.toContain("base64"); // artwork is never inlined into a message
 
+    // …while the BRIEF carries every layer, and the reference line still
+    // describes the full surface for the team
+    expect(layerLine(st.layers[0], PRODUCTS.find((p) => p.id === "jersey")!)).toContain(
+      "Full-surface design (sublimation)",
+    );
     const spec = buildDesignSpec(st) as { layers: unknown[]; placementNotice: string };
     expect(spec.layers).toHaveLength(10);
     expect(spec.placementNotice).toBe(GUIDES_NOTICE);

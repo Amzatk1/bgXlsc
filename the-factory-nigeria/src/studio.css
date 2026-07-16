@@ -624,19 +624,36 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .ed__rail { display: none; gap: 18px; align-content: start; }
 .ed__rail.is-mtab { display: grid; }
 
-/* Mobile: bottom-sheet-style tab bar (one task at a time) */
-.ed__sheettabs {
+/* Mobile: ONE coordinated bottom dock — Back · Add/Edit/Garment · Continue.
+   Replaces the old two stacked sticky bars (~132px) so the garment stage keeps
+   the viewport (see the Canva pattern in the redesign research table). */
+.ed__dock {
   position: sticky;
-  bottom: calc(74px + env(safe-area-inset-bottom));
-  z-index: 29;
+  bottom: 0;
+  z-index: 30;
   display: flex;
-  gap: 6px;
-  padding: 8px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  margin: 8px -2px 0;
   background: var(--white);
   border: 1.5px solid var(--line-strong);
-  border-radius: 14px;
-  box-shadow: 0 6px 20px rgba(20, 17, 15, 0.08);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 20px rgba(20, 17, 15, 0.08);
 }
+.ed__dockbtn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--text);
+}
+.ed__docktabs { flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; }
+.ed__dockcont { flex: none; min-height: 44px; padding: 0 14px; font-size: 0.8rem; }
 .ed__sheettab {
   flex: 1;
   min-height: 44px;
@@ -652,7 +669,13 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 /* Breathing room so the sticky tab bar + nav never crowd panel content */
 /* Design step: the active mobile rail must clear BOTH the sticky Add/Edit/
    Garment tab bar (bottom: 74px) and the sticky nav below it. */
-.ed__rail.is-mtab { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+/* One dock instead of two stacked bars → less clearance needed under rails */
+.ed__rail.is-mtab { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+
+/* The dock replaces the step nav on the Design step below 861px */
+@media (max-width: 860px) {
+  .studio__nav--ed { display: none; }
+}
 
 /* Mini pickers (editor style rail) — calm rows, no cramped caps */
 .minigarments { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -744,7 +767,20 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
     gap: 18px 22px;
   }
   .ed__stagecol { grid-area: stage; }
-  .ed__sheettabs { grid-area: tabs; position: sticky; top: 82px; bottom: auto; box-shadow: none; }
+  /* Tablet: only the tab strip lives in the side column; Back/Continue stay
+     in the normal step nav, so the dock's own buttons hide here. */
+  .ed__dock {
+    grid-area: tabs;
+    position: sticky;
+    top: 82px;
+    bottom: auto;
+    margin: 0;
+    border-radius: 14px;
+    box-shadow: none;
+    padding: 8px;
+  }
+  .ed__dockbtn,
+  .ed__dockcont { display: none; }
   .ed__rail { grid-area: rail; }
 }
 
@@ -760,7 +796,7 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
     gap: 18px 26px;
     align-items: start;
   }
-  .ed__sheettabs { display: none; }
+  .ed__dock { display: none; }
   .ed__stagecol { grid-column: 2; grid-row: 1 / span 3; }
   .ed__rail { display: grid; }
   .ed__rail--style { grid-column: 1; grid-row: 1; }
@@ -964,6 +1000,93 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .viewrow { display: flex; align-items: center; gap: 10px; }
 .viewrow .viewtabs { flex: 1 1 auto; min-width: 0; }
 .histbtns { display: flex; gap: 6px; flex: none; }
+
+/* --- Choose step: product families, compact cards ------------------- */
+.prodgroup { margin-bottom: 26px; }
+.prodgroup__head { margin-bottom: 12px; }
+.prodgroup__name {
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  margin: 0 0 3px;
+}
+.prodgroup__note { margin: 0; font-size: 0.8rem; color: var(--text-soft); line-height: 1.5; max-width: 640px; }
+
+/* Compact card: image, name, fit, two badges — the essay goes behind Details */
+.prodcard--compact { gap: 6px; padding-bottom: 12px; }
+.prodcard__badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.prodcard__more { width: 100%; margin-top: 2px; }
+.prodcard__more summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-soft);
+  padding: 4px 0;
+}
+.prodcard__more summary:hover { color: var(--purple-700); }
+.prodcard__more[open] summary { margin-bottom: 6px; }
+.prodcard__more .prodcard__desc { display: block; margin-bottom: 6px; }
+
+/* Fabrics that need a conversation live behind one calm disclosure */
+.fabother { margin-top: 14px; }
+.fabother .fabgrid { margin-top: 4px; }
+
+/* --- Editor: collapsed garment/colour/fabric sections (desktop) ------ */
+.edsec {
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  padding: 0 12px;
+  margin-bottom: 10px;
+}
+.edsec__sum {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 46px;
+  cursor: pointer;
+  list-style: none;
+}
+.edsec__sum::-webkit-details-marker { display: none; }
+.edsec__sum::after { content: "+"; font-weight: 700; color: var(--text-soft); }
+.edsec[open] .edsec__sum::after { content: "–"; }
+.edsec__val {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+}
+.edsec__chip { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(20, 17, 15, 0.2); }
+.edsec > .field { padding-bottom: 12px; }
+
+/* --- Review: readiness checklist ------------------------------------ */
+.readiness {
+  list-style: none;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  display: grid;
+  gap: 8px;
+}
+.readiness__item { display: flex; gap: 9px; align-items: flex-start; font-size: 0.84rem; line-height: 1.45; }
+.readiness__item svg { flex: none; margin-top: 2px; }
+.readiness__item--ok svg { color: #1c7c46; }
+.readiness__item--check svg { color: var(--purple-700); }
+
+/* garment-switch advisory buttons */
+.advice__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.advice__actions .btn { min-height: 38px; padding: 0 12px; font-size: 0.76rem; }
+
+/* order form: optional extras disclosure */
+.formmore { margin-top: 4px; }
 
 /* "to confirm" tag on colour swatches whose availability WE downgraded */
 .swatch__tag {

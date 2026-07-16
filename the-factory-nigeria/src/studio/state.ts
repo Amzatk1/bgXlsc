@@ -200,6 +200,20 @@ export function tshirtOptionLine(product: Product): string {
   return product.tshirtOptionLabel ?? "";
 }
 
+/**
+ * Order details that stop making sense on the newly selected garment.
+ * A sublimated jersey has no print-method choice — the method IS sublimation —
+ * so a preference picked for an earlier garment must not travel with the
+ * design and resurface as a stale claim in the review and the enquiry.
+ * Never touches layers: switching garments never deletes design work.
+ */
+export function reconcileDetailsForProduct(details: OrderDetails, product: Product): OrderDetails {
+  if (isSublimated(product) && details.method.trim()) {
+    return { ...details, method: "" };
+  }
+  return details;
+}
+
 /** Primary (torso) print zone for the current view. */
 export function getZone(state: DesignState): PrintZone {
   return getProduct(state).zones[state.view];

@@ -644,3 +644,14 @@ Test on a phone via your LAN IP (`npm run dev -- --host`), or run `npm run build
   Add/Edit/Garment; converting to a single settings rail would bury the layer stack that jerseys depend on.
 - **Wizard-in-modal** — Studio is a full page; a modal wizard would fight the sticky mobile tab bar and the
   large stage.
+
+## Redesign research table (Mobbin) — 2026-07-16 workbench pass
+
+| Product / screen | Pattern captured | Why it works | Relevance to Studio | Verdict |
+|---|---|---|---|---|
+| [Canva iOS editor](https://mobbin.com/screens/177dfd9b-fd03-4699-a7cb-2c001255115e) (+3 sibling screens) | ONE bottom-sheet system; canvas keeps ~60% of viewport; sheet content contextual to selection; undo/redo in top chrome | The work never disappears behind chrome | Our mobile Design step stacked two sticky bars (~132px) over the stage | **Adopt** — single dock: Back · Add/Edit/Garment · Continue |
+| [Canva layers sheet](https://mobbin.com/screens/a7d2e8f9-cf06-4b76-bd09-50d1a2315114) | Layers as a half-sheet with type thumbnails | First-class layers without burying canvas | Layers panel already strong in rails | Adapt — keep in tabs; full sheet states deferred |
+| [Nike By You](https://mobbin.com/screens/6e94b81b-5a9f-405b-b8d4-aaa3406fbaad) (5 screens) | Product fills ~70% of screen; ONLY the current decision's controls visible; everything else behind Menu | Decision cost tiny; product is the interface | Editor repeated the whole garment/colour/fabric catalogue inline | **Adopt** — collapse Garment/Colour/Fabric into disclosure sections on desktop |
+| Nike By You part stepper ("Vamp 1/13") | Linear part-by-part configurator | Tames huge config spaces | Our editor is a free canvas, not parts | **Reject** — a parts stepper fights free layer editing |
+| [Etsy](https://mobbin.com/screens/1760865f-b541-4432-8539-29347eb48975) / [FARFETCH](https://mobbin.com/screens/222d08fc-37b5-42ce-9aa2-63ba80fc541e) / [Walmart](https://mobbin.com/screens/2d7ecd10-8c27-422e-8cae-b43cd39e29aa) review | Compact summary + per-section Edit + one primary action | Scannable trust | Review is already close to this | Adapt — add a readiness checklist, keep the rest |
+| [Squarespace](https://mobbin.com/screens/74fdbbc4-e844-4598-9c8c-9f2a0b462a94) / [Figma](https://mobbin.com/screens/e23d11dd-4c38-4d54-bae4-7c10a45042d6) review | Legal/small print consolidated once near the action | Disclaimers don't bury the action | Send step had 3 long hint paragraphs + long WhatsApp text | **Adopt** — one privacy line; short human WhatsApp; detail stays in reference/JSON |

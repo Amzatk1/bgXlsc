@@ -26,6 +26,7 @@ import {
   blankTooDarkForSublimation,
   estimatedDpi,
   fontOf,
+  fullSurfaceOnNonSublimated,
   getProduct,
   homeArea,
   layerHeightIn,
@@ -38,6 +39,7 @@ import {
   viewsWithDesign,
   visibleLayersForView,
   type DesignState,
+  type ImageLayer,
   type Layer,
 } from "./state";
 import { BRAND } from "../data/brand";
@@ -138,46 +140,36 @@ export function summaryRows(state: DesignState): SummaryRow[] {
   return rows;
 }
 
+/**
+ * The WhatsApp message is a HUMAN summary a customer can scan and staff can
+ * triage — reference, who, what, how many. Exact layer geometry, fonts,
+ * licences and every disclaimer live in the attached reference PNG and the
+ * JSON brief, not in chat. One confirmation ask, one honesty line.
+ */
 export function buildStudioMessage(state: DesignState): string {
   const d = state.details;
   const product = getProduct(state);
   const line = (label: string, value: string) => (value.trim() ? `*${label}:* ${value.trim()}` : "");
-  const printBlocks: string[] = [];
-  for (const v of ["front", "back"] as ViewId[]) {
-    const ls = visibleLayersForView(state, v);
-    if (!ls.length) continue;
-    printBlocks.push(`${v === "front" ? "Front" : "Back"}:`);
-    for (const l of ls) printBlocks.push(`• ${layerLine(l, product)}`);
-  }
 
   const parts = [
-    "*New Studio enquiry* 👕",
-    "",
-    line("Reference", state.reference),
-    line("Customer", d.name),
-    line("Phone", d.phone),
-    d.email.trim() ? line("Email", d.email) : "",
-    line("Product", `${product.name} — ${AVAILABILITY_LABEL[product.availability].toLowerCase()}`),
-    line("Production method", productionLine(product)),
-    product.tshirtOptionLabel ? line("T-shirt option", product.tshirtOptionLabel) : "",
-    line("Colour", `${state.color.name} (${state.color.hex}) — ${AVAILABILITY_LABEL[colorAvailability(state.color.status)].toLowerCase()}`),
-    line("Fabric", fabricLine(state) || "No preference — please advise"),
-    line("Design", designSidesLine(state)),
-    line("Quantity", d.quantity),
-    line("Sizes", sizesLine(state)),
-    printBlocks.length ? `*Design layers:*\n${printBlocks.join("\n")}` : "",
-    d.method.trim() ? line("Print preference", d.method) : "",
-    line("Required date", d.deadline),
+    `*Studio enquiry* \u{1F455} ${state.reference}`,
+    line("Customer", [d.name, d.phone, d.email].filter((s) => s.trim()).join(" \u00b7 ")),
+    line("Product", `${product.name} \u2014 ${productionLine(product)}`),
+    product.tshirtOptionLabel ? line("Option", product.tshirtOptionLabel) : "",
+    line("Colour", `${state.color.name} (${state.color.hex})`),
+    line("Fabric", getFabric(state)?.name || "No preference \u2014 please advise"),
+    line("Design", designSidesLine(state) || "\u2014"),
+    line(
+      "Quantity",
+      [d.quantity.trim(), sizesLine(state) !== "\u2014" ? `Sizes: ${sizesLine(state)}` : ""].filter(Boolean).join(" \u00b7 "),
+    ),
+    d.method.trim() ? line("Method preference", d.method) : "",
+    line("Needed by", d.deadline),
     line("Delivery", d.deliveryLocation),
     d.notes.trim() ? line("Notes", d.notes) : "",
     "",
-    "The shared reference file shows every design layer, its placement, size and rotation, the colour reference and production information.",
-    isSublimated(product) ? `_${SUBLIMATION_NOTE}_` : "",
-    product.tshirtOption === "custom-made" ? `_${TOWEL_BACK_NOTE}_` : "",
-    `_${minimumFor(product).note}_`,
-    "Please confirm garment and fabric availability, the minimum for this method, final artwork size and placement, production method, price and production time.",
-    `_Placement guides in Studio are alignment aids only — the design is placed where I want it, and I understand The Factory reviews the final placement and confirms how it can be produced._`,
-    `_I understand the garment, fabric and colour shown are visual references — availability depends on market sourcing at the time of this request, and the team confirms everything (or suggests the closest alternative) before any order is accepted. Studio requests can start from one item._`,
+    "The attached Studio reference shows the full design \u2014 placement, sizes, colours and production details.",
+    "Please confirm availability, minimum, price and timing. Everything shown is a visual reference until the team confirms it.",
   ].filter((l) => l !== "");
 
   return parts.join("\n");
@@ -185,6 +177,62 @@ export function buildStudioMessage(state: DesignState): string {
 
 export function studioWaLink(state: DesignState): string {
   return `${BRAND.whatsapp.base}?text=${encodeURIComponent(buildStudioMessage(state))}`;
+}
+
+// ---------------------------------------------------------------------
+// Review readiness — a short, non-blocking checklist. Every "check" item says
+// what The Factory will confirm; none of them stops the enquiry.
+// ---------------------------------------------------------------------
+export type ReadinessItem = { level: "ok" | "check"; text: string };
+
+export function readinessChecklist(state: DesignState): ReadinessItem[] {
+  const product = getProduct(state);
+  const items: ReadinessItem[] = [];
+
+  const sides = designSidesLine(state);
+  items.push(
+    sides
+      ? { level: "ok", text: `Design on: ${sides.toLowerCase()}.` }
+      : { level: "check", text: "No design added yet — add at least one element before sending." },
+  );
+
+  const uploads = state.layers.filter((l): l is ImageLayer => l.kind === "image" && !l.hidden && !l.generated);
+  const lowRes = uploads.filter((l) => qualityLevel(l, product) === "low").length;
+  if (lowRes) {
+    items.push({
+      level: "check",
+      text: `${lowRes} artwork file${lowRes === 1 ? " is" : "s are"} low resolution at the placed size — still sendable; the team reviews before anything prints.`,
+    });
+  }
+  if (!isSublimated(product) && uploads.some((l) => l.manyColors)) {
+    items.push({
+      level: "check",
+      text: "Many-colour / gradient artwork usually suits digital printing — the team confirms the best method.",
+    });
+  }
+  if (fullSurfaceOnNonSublimated(state)) {
+    items.push({
+      level: "check",
+      text: "A full-surface layer is on a garment that isn't sublimated — the team confirms how much of it can be reproduced. Nothing has been deleted.",
+    });
+  }
+
+  const toConfirm: string[] = [];
+  if (product.availability !== "common") toConfirm.push(product.name.toLowerCase());
+  if (colorAvailability(state.color.status) !== "common") toConfirm.push(`${state.color.name.toLowerCase()} colour`);
+  const fab = getFabric(state);
+  if (fab && fab.availability !== "common") toConfirm.push(fab.name.toLowerCase());
+  if (toConfirm.length) {
+    items.push({
+      level: "check",
+      text: `Sourcing to confirm: ${toConfirm.join(", ")} — the team checks the market and suggests the closest alternative if needed.`,
+    });
+  }
+
+  if (!items.some((i) => i.level === "check")) {
+    items.push({ level: "ok", text: "Nothing needs special review — ready to continue." });
+  }
+  return items;
 }
 
 /** Machine-readable design brief. Original uploaded artwork preserved separately. */

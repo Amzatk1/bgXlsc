@@ -36,6 +36,7 @@ import {
   DIFFICULT_AREA_NOTICE,
   FABRIC_VISUAL_NOTICE,
   FABRICS,
+  fabricGroupsFor,
   fabricMethodIssue,
   fontsByCategory,
   getFontById,
@@ -43,6 +44,8 @@ import {
   GUIDES_NOTICE,
   isSublimated,
   MARKET_SOURCING_NOTICE,
+  methodChoicesFor,
+  productGroups,
   PRODUCTS,
   productPpi,
   QUALITY_COPY,
@@ -50,8 +53,6 @@ import {
   SUBLIMATION_BLANK_NOTE,
   SUBLIMATION_DARK_COLOUR_HELP,
   SUBLIMATION_FABRIC_NOTE,
-  SUBLIMATION_NOTE,
-  TOWEL_BACK_NOTE,
   type AvailabilityStatus,
   type ViewId,
 } from "../studio/catalog";
@@ -77,10 +78,12 @@ import {
   getProduct,
   hasAnyDesign,
   initialState,
+  isLayerOutOfArea,
   layerBox,
   layerHeightIn,
   layerLabel,
   layersForView,
+  reconcileDetailsForProduct,
   coverSize,
   newPatternLayer,
   restylePatternLayer,
@@ -104,8 +107,10 @@ import {
   type TextRole,
 } from "../studio/state";
 import { intakeFile } from "../studio/imageFile";
-import { buildStudioMessage, getFabric, studioWaLink, summaryRows } from "../studio/messages";
+import { buildStudioMessage, getFabric, productionLine, readinessChecklist, studioWaLink, summaryRows } from "../studio/messages";
 import {
+  artworkFileLabel,
+  artworkFileName,
   canShareFiles,
   copyText,
   dataUrlToFile,
@@ -123,18 +128,6 @@ import { TeeStage } from "../components/studio/TeeStage";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 
 const STEPS = ["Product", "Colour & fabric", "Design", "Review", "Order details", "Send"];
-
-// A PREFERENCE list, not a menu of machines The Factory owns (nobody has
-// confirmed their equipment — factoryFacts.ts → decoration-methods). The hints
-// are generic truths about each technique, so the customer can state an
-// informed preference without the app claiming any capability.
-const METHODS: { label: string; hint: string }[] = [
-  { label: "Screen printing", hint: "Bold, solid colours — the classic for team runs" },
-  { label: "Direct-to-garment (DTG)", hint: "Photos and artwork with many colours" },
-  { label: "Heat transfer", hint: "Names, numbers and small runs" },
-  { label: "Embroidery", hint: "Stitched logos — polos, caps and hoodies" },
-  { label: "Not sure — advise me", hint: "The team recommends what suits your artwork" },
-];
 
 /** Availability status: always text, never colour alone. */
 function AvailabilityBadge({ status }: { status: AvailabilityStatus }) {
@@ -248,9 +241,39 @@ export function StudioExperiment() {
   const setDetails = (patch: Partial<DesignState["details"]>) =>
     setState((s) => ({ ...s, details: { ...s.details, ...patch } }));
 
+  /**
+   * Switching garment NEVER deletes design work — but a placement that made
+   * sense on a tee can be semantically wrong on a cap. When the family or the
+   * production method changes, say so (dismissible, reversible), and drop any
+   * order detail that stopped making sense (a method preference on a
+   * sublimated jersey is a fake answer).
+   */
+  const [switchNote, setSwitchNote] = useState<null | { to: string; count: number; firstId: string | null }>(null);
   function setProductId(id: string) {
-    setState((s) => ({ ...s, productId: id }));
+    const next = PRODUCTS.find((p) => p.id === id) ?? PRODUCTS[0];
+    const prev = product; // the garment being switched AWAY from
+    setState((s) => ({ ...s, productId: id, details: reconcileDetailsForProduct(s.details, next) }));
+    const familyChanged = (prev.family ?? "top") !== (next.family ?? "top");
+    const methodChanged = prev.production !== next.production;
+    const layers = snapRef.current.layers.filter((l) => !l.hidden);
+    if ((familyChanged || methodChanged) && layers.length && next.id !== prev.id) {
+      const affected = layers.filter((l) => isLayerOutOfArea(l, next));
+      setSwitchNote({ to: next.name, count: affected.length, firstId: affected[0]?.id ?? null });
+    } else if (next.id !== prev.id) {
+      setSwitchNote(null);
+    }
   }
+
+  /** Viewport class for disclosure defaults (editor panels open on mobile tabs). */
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    const on = () => setIsNarrow(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   function setView(view: ViewId) {
     const candidates = snapRef.current.layers.filter((layer) => layer.view === view && !layer.hidden);
@@ -527,6 +550,16 @@ export function StudioExperiment() {
     );
   }
 
+  /** The Design step's forward action — shared by the desktop nav and the mobile dock. */
+  function advanceFromDesign() {
+    if (!hasAnyDesign(state)) {
+      setUploadError("Add at least one design or text (front or back) to continue.");
+      setMtab("artwork");
+      return;
+    }
+    go(3);
+  }
+
   function trySend() {
     const issues = validateForSubmit(state);
     if (issues.length) {
@@ -563,7 +596,7 @@ export function StudioExperiment() {
       const files: File[] = [];
       if (sheetUrl) files.push(await dataUrlToFile(sheetUrl, `${state.reference}-studio-reference.png`));
       for (const l of imageLayers(state)) {
-        files.push(await dataUrlToFile(l.src, `${state.reference}-${l.view}-original-${l.fileName}`));
+        files.push(await dataUrlToFile(l.src, artworkFileName(state.reference, l)));
       }
       const result = await shareFiles(state, files, buildStudioMessage(state));
       setShareState(result);
@@ -1125,10 +1158,18 @@ export function StudioExperiment() {
     </>
   );
 
+  // The Nike-By-You lesson: the canvas is the interface, so the garment /
+  // colour / fabric catalogues collapse to one summary line each on desktop
+  // (current value visible, one click to open). On the mobile Garment tab
+  // they stay open — the tab IS the disclosure there.
   const styleControls = (
     <>
-      <div className="field">
-        <span className="field__legend mono">Garment</span>
+      <details className="edsec" key={"garment-" + (isNarrow ? "m" : "d")} {...(isNarrow ? { open: true } : {})}>
+        <summary className="edsec__sum">
+          <span className="field__legend mono">Garment</span>
+          <span className="edsec__val">{product.name}</span>
+        </summary>
+        <div className="field">
         <div className="minigarments" role="radiogroup" aria-label="Switch garment">
           {PRODUCTS.map((p) => (
             <label key={p.id} className={"minigarment" + (state.productId === p.id ? " is-active" : "")} title={p.name}>
@@ -1147,9 +1188,16 @@ export function StudioExperiment() {
           {getProductionMethod(product).label} — {getProductionMethod(product).designNote} Switching garment keeps
           everything you have designed.
         </p>
-      </div>
-      <div className="field">
-        <span className="field__legend mono">Colour — {state.color.name}</span>
+        </div>
+      </details>
+      <details className="edsec" key={"colour-" + (isNarrow ? "m" : "d")} {...(isNarrow ? { open: true } : {})}>
+        <summary className="edsec__sum">
+          <span className="field__legend mono">Colour</span>
+          <span className="edsec__val">
+            <span className="edsec__chip" style={{ background: state.color.hex }} aria-hidden="true" /> {state.color.name}
+          </span>
+        </summary>
+        <div className="field">
         <div className="minidots" role="radiogroup" aria-label="Switch colour">
           {STANDARD_COLORS.map((c) => (
             <label key={c.id} className={"minidot" + (state.color.id === c.id ? " is-active" : "")} title={c.name}>
@@ -1166,9 +1214,14 @@ export function StudioExperiment() {
           </p>
         )}
         {methodAdvice}
-      </div>
-      <div className="field">
-        <span className="field__legend mono">Fabric — {fabric ? fabric.name : "team advises"}</span>
+        </div>
+      </details>
+      <details className="edsec" key={"fabric-" + (isNarrow ? "m" : "d")} {...(isNarrow ? { open: true } : {})}>
+        <summary className="edsec__sum">
+          <span className="field__legend mono">Fabric</span>
+          <span className="edsec__val">{fabric ? fabric.name : "Team advises"}</span>
+        </summary>
+        <div className="field">
         <div className="minifabrics" role="radiogroup" aria-label="Switch fabric">
           <label className={"minifabric" + (!state.details.fabricId ? " is-active" : "")}>
             <input type="radio" name="ed-fabric" checked={!state.details.fabricId} onChange={() => setDetails({ fabricId: "" })} />
@@ -1183,7 +1236,8 @@ export function StudioExperiment() {
           ))}
         </div>
         <p className="field__note">Fabric choice never changes the preview — the render shows shape and colour only.</p>
-      </div>
+        </div>
+      </details>
     </>
   );
 
@@ -1269,56 +1323,59 @@ export function StudioExperiment() {
         {/* STEP 1 — PRODUCT */}
         {step === 0 && (
           <section className="studio__panel" aria-label="Choose a product">
-            {/* The Factory makes T-shirts two genuinely different ways. The
-                customer chooses — the two are never merged into one option. */}
-            <div className="prodnote" role="note">
-              <Info size={16} aria-hidden="true" />
-              <span>
-                <strong>Two kinds of T-shirt.</strong> A <strong>custom-made</strong> T-shirt is sewn specifically for
-                you (usually with The Factory's towel-back fabric option). A <strong>ready-made</strong> T-shirt is a
-                100% cotton shirt that is bought and then printed. Pick the one you want — the team confirms fabric,
-                pricing and timing either way.
-              </span>
-            </div>
-            <div className="prodgrid">
-              {PRODUCTS.map((p, i) => {
-                const prod = getProductionMethod(p);
-                return (
-                  <label key={p.id} className={"prodcard" + (state.productId === p.id ? " is-active" : "")}>
-                    <input
-                      type="radio"
-                      name="product"
-                      checked={state.productId === p.id}
-                      onChange={() => setProductId(p.id)}
-                    />
-                    <img
-                      className="prodcard__thumb"
-                      src={p.thumb}
-                      alt={`${p.name} — real garment render`}
-                      loading={i < 4 ? "eager" : "lazy"}
-                      decoding="async"
-                    />
-                    <span className="prodcard__name">{p.name}</span>
-                    <span className="prodcard__fit mono">{p.fit}</span>
-                    <span className="prodcard__prod mono">{prod.badge}</span>
-                    <span className="prodcard__desc">{p.description}</span>
-                    <span className="prodcard__meta">
-                      <span className="prodcard__metaline"><strong>How it's made:</strong> {prod.summary}</span>
-                      <span className="prodcard__metaline"><strong>Typical use:</strong> {p.use}</span>
-                      <span className="prodcard__metaline"><strong>Material reference:</strong> {p.material}</span>
-                    </span>
-                    <AvailabilityBadge status={p.availability} />
-                  </label>
-                );
-              })}
-            </div>
+            {/* The catalogue reads as four small families, not ten essays.
+                Long production copy lives behind "Details" on each card — the
+                comparison stays compact (see the redesign research table). */}
+            {productGroups().map((g) => (
+              <div className="prodgroup" key={g.id}>
+                <div className="prodgroup__head">
+                  <h2 className="prodgroup__name">{g.name}</h2>
+                  {g.note && <p className="prodgroup__note">{g.note}</p>}
+                </div>
+                <div className="prodgrid prodgrid--compact">
+                  {g.products.map((p, i) => {
+                    const prod = getProductionMethod(p);
+                    return (
+                      <label key={p.id} className={"prodcard prodcard--compact" + (state.productId === p.id ? " is-active" : "")}>
+                        <input
+                          type="radio"
+                          name="product"
+                          checked={state.productId === p.id}
+                          onChange={() => setProductId(p.id)}
+                        />
+                        <img
+                          className="prodcard__thumb"
+                          src={p.thumb}
+                          alt={`${p.name} — real garment render`}
+                          loading={g.id === "tees" && i < 2 ? "eager" : "lazy"}
+                          decoding="async"
+                          width={300}
+                          height={350}
+                        />
+                        <span className="prodcard__name">{p.name}</span>
+                        <span className="prodcard__fit mono">{p.fit}</span>
+                        <span className="prodcard__badges">
+                          <span className="prodcard__prod mono">{prod.badge}</span>
+                          <AvailabilityBadge status={p.availability} />
+                        </span>
+                        <details className="prodcard__more">
+                          <summary>Details</summary>
+                          <span className="prodcard__desc">{p.description}</span>
+                          <span className="prodcard__meta">
+                            <span className="prodcard__metaline"><strong>How it's made:</strong> {prod.summary}</span>
+                            <span className="prodcard__metaline"><strong>Typical use:</strong> {p.use}</span>
+                            <span className="prodcard__metaline"><strong>Material reference:</strong> {p.material}</span>
+                          </span>
+                        </details>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
               {MARKET_SOURCING_NOTICE}
-            </p>
-            <p className="enquiry__hint">
-              <Info size={15} aria-hidden="true" />
-              {TOWEL_BACK_NOTE} {SUBLIMATION_NOTE}
             </p>
             <p className="field__note studio__loaddesign">
               Continuing an earlier design?{" "}
@@ -1418,21 +1475,13 @@ export function StudioExperiment() {
                   {FABRIC_VISUAL_NOTICE} Your choice is a preference — it does not change the on-screen
                   preview.
                 </p>
-                <div className="fabgrid" role="radiogroup" aria-label="Fabric options">
-                  <label className={"fabcard fabcard--advise" + (!state.details.fabricId ? " is-active" : "")}>
-                    <input
-                      type="radio"
-                      name="fabric"
-                      checked={!state.details.fabricId}
-                      onChange={() => setDetails({ fabricId: "" })}
-                    />
-                    <span className="fabcard__name">No preference</span>
-                    <span className="fabcard__desc">
-                      Let The Factory team recommend the best fabric for your design, quantity and budget.
-                    </span>
-                    <span className="avail avail--common">Team recommendation</span>
-                  </label>
-                  {FABRICS.map((f) => (
+                {/* Lead with the fabrics that suit HOW this garment is made
+                    (sublimation needs polyester; caps are twill shells). The
+                    rest stay requestable — nothing is deleted, it just stops
+                    competing for attention. */}
+                {(() => {
+                  const groups = fabricGroupsFor(product);
+                  const fabCard = (f: (typeof FABRICS)[number]) => (
                     <label key={f.id} className={"fabcard" + (state.details.fabricId === f.id ? " is-active" : "")}>
                       <input
                         type="radio"
@@ -1440,7 +1489,14 @@ export function StudioExperiment() {
                         checked={state.details.fabricId === f.id}
                         onChange={() => setDetails({ fabricId: f.id })}
                       />
-                      <img className="fabcard__img" src={f.img} alt={`${f.name} close-up reference`} loading="lazy" />
+                      <img
+                        className="fabcard__img"
+                        src={f.img}
+                        alt={`${f.name} close-up reference`}
+                        loading="lazy"
+                        width={320}
+                        height={320}
+                      />
                       <span className="fabcard__name">
                         {f.name} <span className="fabcard__weight mono">{f.weight}</span>
                       </span>
@@ -1449,8 +1505,42 @@ export function StudioExperiment() {
                       {f.refNote && <span className="fabcard__refnote">{f.refNote}</span>}
                       <AvailabilityBadge status={f.availability} />
                     </label>
-                  ))}
-                </div>
+                  );
+                  return (
+                    <>
+                      <p className="field__note">{groups.reason}</p>
+                      <div className="fabgrid" role="radiogroup" aria-label="Fabric options">
+                        <label className={"fabcard fabcard--advise" + (!state.details.fabricId ? " is-active" : "")}>
+                          <input
+                            type="radio"
+                            name="fabric"
+                            checked={!state.details.fabricId}
+                            onChange={() => setDetails({ fabricId: "" })}
+                          />
+                          <span className="fabcard__name">No preference</span>
+                          <span className="fabcard__desc">
+                            Let The Factory team recommend the best fabric for your design, quantity and budget.
+                          </span>
+                          <span className="avail avail--common">Team recommendation</span>
+                        </label>
+                        {groups.suggested.map(fabCard)}
+                      </div>
+                      {groups.other.length > 0 && (
+                        <details
+                          className="fabhelp fabother"
+                          {...(groups.other.some((f) => f.id === state.details.fabricId) ? { open: true } : {})}
+                        >
+                          <summary>Other materials — ask the team ({groups.other.length})</summary>
+                          <div className="fabhelp__body">
+                            <div className="fabgrid" role="radiogroup" aria-label="Other fabric options">
+                              {groups.other.map(fabCard)}
+                            </div>
+                          </div>
+                        </details>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {methodAdvice}
 
@@ -1510,6 +1600,39 @@ export function StudioExperiment() {
         {step === 2 && (
           <section className="studio__panel ed" aria-label="Add and position your design">
             <div className="ed__stagecol">
+              {/* Non-blocking garment-switch summary: work is never deleted,
+                  but a tee placement can be semantically wrong on a cap. */}
+              {switchNote && (
+                <div className="advice advice--switch" role="status">
+                  <Info size={16} aria-hidden="true" />
+                  <div className="advice__body">
+                    <p>
+                      <strong>Everything you designed is still here on the {switchNote.to.toLowerCase()}.</strong>{" "}
+                      {switchNote.count > 0
+                        ? `${switchNote.count} layer${switchNote.count === 1 ? " sits" : "s sit"} outside this garment's guides and may be worth a quick look — nothing was moved, resized or deleted.`
+                        : "Placements carried over — worth a quick glance before you continue."}
+                    </p>
+                    <div className="advice__actions">
+                      {switchNote.firstId && (
+                        <button
+                          type="button"
+                          className="btn btn--outline"
+                          onClick={() => {
+                            selectLayer(switchNote.firstId);
+                            setMtab("adjust");
+                            setSwitchNote(null);
+                          }}
+                        >
+                          Review the first layer
+                        </button>
+                      )}
+                      <button type="button" className="btn btn--ghost" onClick={() => setSwitchNote(null)}>
+                        <span className="btn-underline">Dismiss</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="viewrow">
                 <div className="viewtabs" role="tablist" aria-label="Garment view">
                   {(["front", "back"] as ViewId[]).map((v) => (
@@ -1562,25 +1685,36 @@ export function StudioExperiment() {
               />
             </div>
 
-            {/* Mobile bottom-sheet tabs (hidden ≥861px) */}
-            <div className="ed__sheettabs" role="tablist" aria-label="Editor controls">
-              {(
-                [
-                  ["artwork", "Add"],
-                  ["adjust", "Edit"],
-                  ["style", "Garment"],
-                ] as const
-              ).map(([id, name]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={mtab === id}
-                  className={"ed__sheettab" + (mtab === id ? " is-active" : "")}
-                  onClick={() => setMtab(id)}
-                >
-                  {name}
-                </button>
-              ))}
+            {/* ONE coordinated bottom system on mobile (the Canva pattern):
+                Back · Add/Edit/Garment · Continue in a single dock, instead of
+                two stacked sticky bars covering ~132px of the stage. Hidden
+                ≥861px; the desktop nav takes over there. */}
+            <div className="ed__dock">
+              <button type="button" className="ed__dockbtn" aria-label="Back to colour & fabric" onClick={() => go(1)}>
+                <ArrowLeft size={18} aria-hidden="true" />
+              </button>
+              <div className="ed__docktabs" role="tablist" aria-label="Editor controls">
+                {(
+                  [
+                    ["artwork", "Add"],
+                    ["adjust", "Edit"],
+                    ["style", "Garment"],
+                  ] as const
+                ).map(([id, name]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={mtab === id}
+                    className={"ed__sheettab" + (mtab === id ? " is-active" : "")}
+                    onClick={() => setMtab(id)}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="btn btn--primary ed__dockcont" onClick={advanceFromDesign}>
+                Continue <ArrowRight size={15} aria-hidden="true" />
+              </button>
             </div>
 
             <div className={"ed__rail ed__rail--style" + (mtab === "style" ? " is-mtab" : "")}>
@@ -1604,6 +1738,16 @@ export function StudioExperiment() {
               <TeePreview state={state} view="front" />
               <TeePreview state={state} view="back" />
             </div>
+            {/* Non-blocking readiness — every "check" line says what the team
+                confirms; none of them stops the enquiry. */}
+            <ul className="readiness" aria-label="Readiness check">
+              {readinessChecklist(state).map((it, i) => (
+                <li key={i} className={"readiness__item readiness__item--" + it.level}>
+                  {it.level === "ok" ? <Check size={15} aria-hidden="true" /> : <Info size={15} aria-hidden="true" />}
+                  <span>{it.text}</span>
+                </li>
+              ))}
+            </ul>
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
               Please review your design carefully. The preview will be used by The Factory Nigeria as a
@@ -1775,33 +1919,45 @@ export function StudioExperiment() {
               </div>
             </fieldset>
 
-            {/* Listing four techniques implies The Factory owns four machines.
-                Nobody has confirmed that, so the copy must not imply it either —
-                see the `decoration-methods` question in factoryFacts.ts. */}
-            <fieldset className="field">
-              <legend>
-                Printing method preference <span className="field__opt">(optional)</span>
-              </legend>
-              <div className="choices">
-                {METHODS.map((m) => (
-                  <label key={m.label} className={"choice" + (state.details.method === m.label ? " is-active" : "")}>
-                    <input
-                      type="radio"
-                      name="method"
-                      checked={state.details.method === m.label}
-                      onChange={() => setDetails({ method: m.label })}
-                    />
-                    <span className="choice__label">{m.label}</span>
-                    <span className="choice__desc">{m.hint}</span>
-                  </label>
-                ))}
+            {/* Method is only a QUESTION when the garment leaves one open. A
+                sublimated jersey's method is set by how it is made — asking a
+                customer to pick screen printing for it would be a fake choice.
+                The preference list itself stays a preference, not a menu of
+                machines (factoryFacts.ts → decoration-methods). */}
+            {methodChoicesFor(product).length > 0 ? (
+              <fieldset className="field">
+                <legend>
+                  Printing method preference <span className="field__opt">(optional)</span>
+                </legend>
+                <div className="choices">
+                  {methodChoicesFor(product).map((m) => (
+                    <label key={m.label} className={"choice" + (state.details.method === m.label ? " is-active" : "")}>
+                      <input
+                        type="radio"
+                        name="method"
+                        checked={state.details.method === m.label}
+                        onChange={() => setDetails({ method: m.label })}
+                      />
+                      <span className="choice__label">{m.label}</span>
+                      <span className="choice__desc">{m.hint}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="field__note">
+                  This is a preference, not a booking. The Factory Nigeria confirms which method they can use for your
+                  garment, your fabric and your artwork — and will suggest a better one if there is one. If you're not
+                  sure, leave it to the team.
+                </p>
+              </fieldset>
+            ) : (
+              <div className="field">
+                <span className="field__legend mono">Production method</span>
+                <p className="field__note">
+                  <strong>{productionLine(product)}.</strong> Set by how this garment is made — there's no print-method
+                  choice to make here. The team confirms the production details with you.
+                </p>
               </div>
-              <p className="field__note">
-                This is a preference, not a booking. The Factory Nigeria confirms which method they can use for your
-                garment, your fabric and your artwork — and will suggest a better one if there is one. If you're not
-                sure, leave it to the team.
-              </p>
-            </fieldset>
+            )}
 
             <div className="field">
               <span className="field__legend mono">Fabric</span>
@@ -1815,31 +1971,9 @@ export function StudioExperiment() {
 
             <div className="field-grid2">
               <div className="field">
-                <label htmlFor="o-deadline">
-                  When do you need it? <span className="field__opt">(optional)</span>
+                <label htmlFor="o-name">
+                  Your name <span className="field__opt">(required)</span>
                 </label>
-                <input
-                  id="o-deadline"
-                  type="text"
-                  value={state.details.deadline}
-                  onChange={(e) => setDetails({ deadline: e.target.value })}
-                  placeholder="e.g. 15 August"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="o-delivery">
-                  Delivery location <span className="field__opt">(optional)</span>
-                </label>
-                <input
-                  id="o-delivery"
-                  type="text"
-                  value={state.details.deliveryLocation}
-                  onChange={(e) => setDetails({ deliveryLocation: e.target.value })}
-                  placeholder="e.g. Lekki, Lagos — or pickup"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="o-name">Your name</label>
                 <input
                   id="o-name"
                   type="text"
@@ -1854,7 +1988,9 @@ export function StudioExperiment() {
                 )}
               </div>
               <div className="field">
-                <label htmlFor="o-phone">Phone / WhatsApp</label>
+                <label htmlFor="o-phone">
+                  Phone / WhatsApp <span className="field__opt">(required)</span>
+                </label>
                 <input
                   id="o-phone"
                   type="tel"
@@ -1870,33 +2006,71 @@ export function StudioExperiment() {
                   </p>
                 )}
               </div>
-              <div className="field">
-                <label htmlFor="o-email">
-                  Email <span className="field__opt">(optional)</span>
-                </label>
-                <input
-                  id="o-email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  value={state.details.email}
-                  onChange={(e) => setDetails({ email: e.target.value })}
-                />
-              </div>
             </div>
 
-            <div className="field">
-              <label htmlFor="o-notes">
-                Additional instructions <span className="field__opt">(optional)</span>
-              </label>
-              <textarea
-                id="o-notes"
-                rows={3}
-                value={state.details.notes}
-                onChange={(e) => setDetails({ notes: e.target.value })}
-                placeholder="Anything the team should know — including specific fabric or brand preferences"
-              />
-            </div>
+            {/* Optional extras stay one tap away instead of lengthening the form
+                (form-length reduction is the best-evidenced checkout win). */}
+            <details
+              className="fabhelp formmore"
+              {...(state.details.deadline || state.details.deliveryLocation || state.details.email || state.details.notes
+                ? { open: true }
+                : {})}
+            >
+              <summary>Deadline, delivery, email or notes (optional)</summary>
+              <div className="fabhelp__body">
+                <div className="field-grid2">
+                  <div className="field">
+                    <label htmlFor="o-deadline">
+                      When do you need it? <span className="field__opt">(optional)</span>
+                    </label>
+                    <input
+                      id="o-deadline"
+                      type="text"
+                      value={state.details.deadline}
+                      onChange={(e) => setDetails({ deadline: e.target.value })}
+                      placeholder="e.g. 15 August"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="o-delivery">
+                      Delivery location <span className="field__opt">(optional)</span>
+                    </label>
+                    <input
+                      id="o-delivery"
+                      type="text"
+                      value={state.details.deliveryLocation}
+                      onChange={(e) => setDetails({ deliveryLocation: e.target.value })}
+                      placeholder="e.g. Lekki, Lagos — or pickup"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="o-email">
+                      Email <span className="field__opt">(optional)</span>
+                    </label>
+                    <input
+                      id="o-email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      value={state.details.email}
+                      onChange={(e) => setDetails({ email: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="o-notes">
+                    Additional instructions <span className="field__opt">(optional)</span>
+                  </label>
+                  <textarea
+                    id="o-notes"
+                    rows={3}
+                    value={state.details.notes}
+                    onChange={(e) => setDetails({ notes: e.target.value })}
+                    placeholder="Anything the team should know — including specific fabric or brand preferences"
+                  />
+                </div>
+              </div>
+            </details>
           </section>
         )}
 
@@ -1927,7 +2101,7 @@ export function StudioExperiment() {
                   </li>
                   {imageLayers(state).map((l) => (
                     <li key={l.id}>
-                      <Paperclip size={14} aria-hidden="true" /> Original {l.view} artwork — {l.fileName} (untouched)
+                      <Paperclip size={14} aria-hidden="true" /> {artworkFileLabel(l)}
                     </li>
                   ))}
                 </ul>
@@ -1937,17 +2111,12 @@ export function StudioExperiment() {
                 <pre className="msgpreview">{buildStudioMessage(state)}</pre>
               </div>
             </div>
-            <p className="enquiry__hint enquiry__hint--fabric">
-              <Info size={15} aria-hidden="true" />
-              A quick note before you send: some fabrics and colours may not be available in the
-              market at the time of your request. The Factory team confirms availability with you
-              in the WhatsApp chat after you send your design — and if your exact choice can't be
-              sourced, they'll suggest the closest available alternative before anything is made.
-            </p>
+            {/* One consolidated note — privacy + sourcing, stated once. */}
             <p className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              Privacy note: nothing is uploaded or sent automatically. Preparing your design only
-              creates the files on your device — you choose what to share on WhatsApp.
+              Nothing is uploaded or sent automatically — preparing your design only creates the files on
+              this device, and you choose what to share. If a fabric or colour can't be sourced, the team
+              suggests the closest available alternative in the chat before anything is made.
             </p>
             <button
               type="button"
@@ -2038,7 +2207,8 @@ export function StudioExperiment() {
                   </button>
                   {imageLayers(state).map((l) => (
                     <button key={l.id} type="button" className="btn btn--outline" onClick={() => downloadOriginalArtwork(state, l)}>
-                      <Download size={16} aria-hidden="true" /> {l.view} — {l.fileName}
+                      <Download size={16} aria-hidden="true" /> {l.generated ? "Studio-generated" : "Original"} {l.view} —{" "}
+                      {l.fileName}
                     </button>
                   ))}
                 </div>
@@ -2082,9 +2252,9 @@ export function StudioExperiment() {
           </section>
         )}
 
-        {/* NAV */}
+        {/* NAV — on the Design step under 861px the dock replaces this bar */}
         {!submitted && (
-          <div className="enquiry__nav studio__nav">
+          <div className={"enquiry__nav studio__nav" + (step === 2 ? " studio__nav--ed" : "")}>
             {step > 0 ? (
               <button type="button" className="btn btn--outline" onClick={() => go(step - 1)}>
                 <ArrowLeft size={17} aria-hidden="true" /> Back
@@ -2096,14 +2266,7 @@ export function StudioExperiment() {
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => {
-                  if (step === 2 && !hasAnyDesign(state)) {
-                    setUploadError("Add at least one design or text (front or back) to continue.");
-                    setMtab("artwork");
-                    return;
-                  }
-                  go(step + 1);
-                }}
+                onClick={() => (step === 2 ? advanceFromDesign() : go(step + 1))}
               >
                 Continue <ArrowRight size={17} aria-hidden="true" />
               </button>
