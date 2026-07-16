@@ -13,6 +13,7 @@ export function Process() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="How it works"
         title="A production path you can follow"
         intro="From your first message to pickup, here’s exactly how an order moves through The Factory. Nothing goes into production until it’s confirmed with you."

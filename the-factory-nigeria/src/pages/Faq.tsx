@@ -7,6 +7,7 @@ export function Faq() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="FAQ & payment"
         title="Good questions, straight answers"
         intro="The essentials on minimum order, hours, visits, artwork, and how pricing and payment work. Anything specific is confirmed with you on WhatsApp."

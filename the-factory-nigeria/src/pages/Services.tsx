@@ -26,6 +26,7 @@ export function Services() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="Services"
         title="What The Factory produces"
         intro="Seven core capabilities for clothing brands, companies, teams, creators and events. Every card tells you what to send so we can quote fast on WhatsApp."
@@ -33,10 +34,32 @@ export function Services() {
         <SpecLine items={["Minimum order: 30 pieces", "Production & printing", "Start an order enquiry"]} />
       </PageIntro>
 
+      {/* Two truthful groups instead of seven equal cards — and a real H2
+          layer, so the heading order runs H1 → H2 → H3 card titles. */}
       <section className="section">
         <div className="container">
+          <SectionHeader
+            eyebrow="Making garments"
+            title="Made from scratch"
+            intro="Cut-and-sew production to your design — from everyday garments to signature pieces and aso-ebi."
+          />
           <div className="grid cols-3">
-            {SERVICES.map((s) => (
+            {SERVICES.filter((s) => s.group === "make").map((s) => (
+              <ServiceCard key={s.id} s={s} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section section--tight">
+        <div className="container">
+          <SectionHeader
+            eyebrow="Branding & outfitting"
+            title="Branding, uniforms & merch"
+            intro="Put your name on garments and gear — printing and embroidery requests, uniforms and event merch."
+          />
+          <div className="grid cols-3">
+            {SERVICES.filter((s) => s.group === "brand").map((s) => (
               <ServiceCard key={s.id} s={s} />
             ))}
           </div>

@@ -6,14 +6,22 @@ export function PageIntro({
   title,
   intro,
   children,
+  compact = false,
 }: {
   eyebrow: string;
   title: ReactNode;
   intro?: ReactNode;
   children?: ReactNode;
+  /**
+   * Inner-page variant: same Factory type treatment and ruled paper, but the
+   * composition is rebalanced so the route's first useful content lands inside
+   * the first viewport on a laptop (the HODINKEE editorial-header principle —
+   * authority without ceremony). Home keeps its own full hero.
+   */
+  compact?: boolean;
 }) {
   return (
-    <section className="pageintro paper-grid">
+    <section className={"pageintro paper-grid" + (compact ? " pageintro--compact" : "")}>
       <div className="container">
         <Reveal>
           <span className="eyebrow">{eyebrow}</span>

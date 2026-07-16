@@ -469,6 +469,14 @@
 .pageintro__lede { max-width: 62ch; }
 .pageintro .hero__meta { margin-top: 22px; }
 
+/* Compact inner-page variant: same voice, less ceremony — the route's first
+   useful control/card/form should land inside the first laptop viewport. */
+.pageintro--compact { padding-block: clamp(20px, 3.2vw, 38px); }
+.pageintro--compact .eyebrow { margin-bottom: 8px; }
+.pageintro--compact .pageintro__title { font-size: clamp(1.9rem, 4.2vw, 3.1rem); margin-bottom: 10px; }
+.pageintro--compact .pageintro__lede { font-size: clamp(0.92rem, 1.1vw, 1.02rem); max-width: 58ch; }
+.pageintro--compact .specline { margin-top: 12px; }
+
 .studio-route {
   margin-top: clamp(28px, 4vw, 48px);
   padding: clamp(18px, 2.5vw, 26px);

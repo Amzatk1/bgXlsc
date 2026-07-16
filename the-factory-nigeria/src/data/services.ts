@@ -12,6 +12,8 @@ export type IconKey =
 
 export type Service = {
   id: string;
+  /** Choose-step grouping: made from scratch vs branding/outfitting an order. */
+  group: "make" | "brand";
   code: string;
   title: string;
   what: string;
@@ -23,6 +25,7 @@ export type Service = {
 export const SERVICES: Service[] = [
   {
     id: "garment-production",
+    group: "make",
     code: "SVC-01",
     title: "Garment production",
     what: "We cut and sew clothing from scratch — tees, polos, shirts, shorts, sets and more, made to your design.",
@@ -32,6 +35,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "printing",
+    group: "brand",
     code: "SVC-02",
     title: "Printing services",
     // Method examples, not an equipment list — the team confirms the method
@@ -43,6 +47,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "corporate-uniforms",
+    group: "brand",
     code: "SVC-03",
     title: "Corporate uniforms",
     what: "Branded uniforms and workwear for companies and teams — the same look and quality across every size.",
@@ -52,6 +57,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "custom-apparel",
+    group: "make",
     code: "SVC-04",
     title: "Custom apparel",
     what: "Made-to-order pieces for brand drops and signature items — like our Afri-jorts and culture-led designs.",
@@ -61,6 +67,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "merch-souvenirs",
+    group: "brand",
     code: "SVC-05",
     title: "Merch & souvenirs",
     what: "Event and brand merch — tees, totes, caps and souvenirs for pop-ups, launches, conferences and campaigns.",
@@ -70,6 +77,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "caps-jackets",
+    group: "make",
     code: "SVC-06",
     title: "Caps & jackets",
     what: "Custom caps, branded jackets and statement pieces, made from your concept.",
@@ -79,6 +87,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: "custom-aso-ebi",
+    group: "make",
     code: "SVC-07",
     title: "Custom aso-ebi",
     what: "Aso-ebi for weddings, families and events — we work with your chosen fabric and sew consistent styles across your whole group.",

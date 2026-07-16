@@ -11,6 +11,7 @@ export function Visit() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="Contact & visit"
         title="Come see the factory"
         intro="We’re at 46 Industrial Avenue, Ilupeju, Lagos. Factory visits are by appointment — message us on WhatsApp to book a time."

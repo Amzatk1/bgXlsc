@@ -38,6 +38,7 @@ export function Brands() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="For brands & companies"
         title="Your production partner in Lagos"
         intro="We produce for the people building things — brands, companies, teams, creators and events. Tell us what you need and we’ll confirm the right production path with you."

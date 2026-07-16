@@ -15,6 +15,7 @@ export function Work() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="Selected work"
         title="Off the floor, into the world"
         intro="Real production and finished pieces from The Factory, shot on-site. This is selected work to show capability — not a shop. To produce something similar, request a quote."

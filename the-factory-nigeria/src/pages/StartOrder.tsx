@@ -21,6 +21,7 @@ export function StartOrder() {
   return (
     <>
       <PageIntro
+        compact
         eyebrow="Start an order"
         title="Start an order enquiry"
         intro="Answer a few short questions and we’ll open WhatsApp with your details ready to send. This is an enquiry — not a confirmed order or price. The team replies to confirm what’s possible."
