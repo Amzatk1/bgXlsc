@@ -621,8 +621,24 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 /* --- Design step: three-zone workspace (Mobbin-informed) ------------ */
 .ed { display: flex; flex-direction: column; gap: 16px; }
 .ed__stagecol { min-width: 0; }
-.ed__rail { display: none; gap: 18px; align-content: start; }
+.ed__rail { display: none; gap: 18px; align-content: start; min-width: 0; }
 .ed__rail.is-mtab { display: grid; }
+/* Grid items default to min-width:auto, so ONE child with a wide min-content
+   (e.g. three native colour inputs side by side) silently stretches every
+   sibling past the fixed 280px track and under the stage. Rail content must
+   always be allowed to shrink to its track. */
+.ed__rail > *,
+.ed__rail .field,
+.ed__rail .edsec {
+  min-width: 0;
+}
+.patterncolors label { min-width: 0; }
+.patterncolors input,
+.field .colorin {
+  min-width: 0;
+}
+.field-grid2 > .field { min-width: 0; }
+.numgrid input { min-width: 0; }
 
 /* Mobile: ONE coordinated bottom dock — Back · Add/Edit/Garment · Continue.
    Replaces the old two stacked sticky bars (~132px) so the garment stage keeps
@@ -1124,6 +1140,10 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   display: flex;
   align-items: center;
   gap: 6px;
+  /* A grid item's min-width:auto default would hold this row at its
+     min-content width (label + five op buttons ≈ 332px) and push it past the
+     280px rail — min-width:0 lets the row shrink so the label ellipsis works. */
+  min-width: 0;
   border: 1.5px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--white);
