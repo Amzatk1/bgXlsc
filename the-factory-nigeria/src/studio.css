@@ -960,6 +960,11 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .preset--wide { flex-basis: 100%; }
 .stage__note--guides { color: var(--text-soft); }
 
+/* View row: Front/Back tabs left, undo/redo right — always visible chrome */
+.viewrow { display: flex; align-items: center; gap: 10px; }
+.viewrow .viewtabs { flex: 1 1 auto; min-width: 0; }
+.histbtns { display: flex; gap: 6px; flex: none; }
+
 /* "to confirm" tag on colour swatches whose availability WE downgraded */
 .swatch__tag {
   font-size: 0.58rem;

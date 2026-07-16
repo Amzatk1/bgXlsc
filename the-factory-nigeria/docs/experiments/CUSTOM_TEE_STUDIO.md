@@ -623,3 +623,24 @@ Test on a phone via your LAN IP (`npm run dev -- --host`), or run `npm run build
 - [ ] Who receives enquiries internally, and where should packages be stored?
 - [ ] Approve **storage/privacy policy** for uploaded artwork
 - [ ] Decide whether **online payment** is ever added after quoting
+
+## UI patterns referenced (Mobbin) — 2026-07-16 flow pass
+
+**Used:**
+- **Undo/redo in always-visible editor chrome** — Squarespace's editor keeps ↶/↷ in the persistent top bar
+  regardless of which panel is open ([screen](https://mobbin.com/screens/ca832eda-696a-4289-b14b-e322dde4174b),
+  [screen](https://mobbin.com/screens/0fac83fc-7ee6-45aa-b0f0-402b365df6cd)). Studio's undo/redo previously
+  lived inside the "Add" tab (invisible while editing on mobile); they now sit beside the Front/Back tabs,
+  visible in every editor state.
+- **Completed steps stay revisitable** — Booking.com's cover steps
+  ([screen](https://mobbin.com/screens/863aee66-2ec7-45fc-8c0d-72f66afa243a)), Walgreens checkout
+  ([screen](https://mobbin.com/screens/effc370c-8692-4927-bff1-2b1365cef292)) and Shopee's seller flow
+  ([screen](https://mobbin.com/screens/daeff72c-80f6-4bf2-991f-ec38916197d6)) all keep visited steps tappable.
+  Studio previously locked forward pills after going back (returning from Review to tweak a design forced
+  re-Continuing through every step); pills now jump to any visited step, with Send re-validating on entry.
+
+**Rejected:**
+- **Left-rail settings editor** (Etsy/Shopify customisers) — Studio's three-zone editor already separates
+  Add/Edit/Garment; converting to a single settings rail would bury the layer stack that jerseys depend on.
+- **Wizard-in-modal** — Studio is a full page; a modal wizard would fight the sticky mobile tab bar and the
+  large stage.

@@ -671,7 +671,6 @@ export const FABRICS: Fabric[] = [
     availability: "confirm",
     sublimation: "confirm",
     img: `${ASSET_BASE}/fabric-cotton-poly.webp`,
-    refNote: "Reference photo shows a similar smooth jersey knit.",
   },
   {
     id: "performance",
@@ -682,7 +681,6 @@ export const FABRICS: Fabric[] = [
     availability: "confirm",
     sublimation: "yes",
     img: `${ASSET_BASE}/fabric-performance.webp`,
-    refNote: "Reference photo shows a similar knit; polyester is smoother with a slight sheen.",
   },
   {
     id: "sports-mesh",
@@ -736,7 +734,7 @@ export const FABRICS: Fabric[] = [
     availability: "special",
     sublimation: "no",
     img: `${ASSET_BASE}/fabric-terry.webp`,
-    refNote: "Reference photo shows the fleece family; french terry has visible loops inside.",
+    refNote: "Loopback inside face shown — the exact loop size varies with the sourced roll.",
   },
   {
     id: "fleece",

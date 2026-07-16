@@ -13,6 +13,8 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (layer: Layer) => void;
+  /** Delete/Backspace on a focused layer removes it (undo can bring it back). */
+  onRemove?: (id: string) => void;
   compact?: boolean; // hides toolbar + interaction (colour step preview)
 };
 
@@ -25,7 +27,7 @@ type Gesture =
 const ZOOMS = [1, 1.4, 1.8];
 const SNAP = 0.014; // stage-normalised snap threshold (~8px)
 
-export function TeeStage({ productId, view, colorHex, layers, selectedId, onSelect, onChange, compact = false }: Props) {
+export function TeeStage({ productId, view, colorHex, layers, selectedId, onSelect, onChange, onRemove, compact = false }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const elRefs = useRef(new Map<string, HTMLDivElement>());
@@ -203,6 +205,11 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
 
   function onKeyDown(e: React.KeyboardEvent, layer: Layer) {
     if (layer.locked) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      onRemove?.(layer.id);
+      return;
+    }
     const step = e.shiftKey ? 0.03 : 0.008;
     const map: Record<string, () => Layer> = {
       ArrowLeft: () => ({ ...layer, cx: layer.cx - step }),
@@ -241,8 +248,8 @@ export function TeeStage({ productId, view, colorHex, layers, selectedId, onSele
         role={compact ? undefined : "button"}
         aria-label={
           l.kind === "image"
-            ? `Design ${l.fileName}. Arrow keys move, plus and minus resize, square brackets rotate.`
-            : `Text ${l.text.replace(/\n/g, " ")}. Arrow keys move, plus and minus resize, square brackets rotate.`
+            ? `Design ${l.fileName}. Arrow keys move, plus and minus resize, square brackets rotate, Delete removes.`
+            : `Text ${l.text.replace(/\n/g, " ")}. Arrow keys move, plus and minus resize, square brackets rotate, Delete removes.`
         }
         tabIndex={compact ? -1 : 0}
         onKeyDown={compact ? undefined : (e) => onKeyDown(e, l)}

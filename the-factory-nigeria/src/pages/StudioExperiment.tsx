@@ -20,6 +20,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  RotateCw,
   Save,
   Share2,
   Trash2,
@@ -349,14 +350,28 @@ export function StudioExperiment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // The furthest step the customer has reached. Visited steps stay tappable —
+  // going back to tweak a design must never cost the forward progress (the
+  // standard step-flow pattern; see docs/experiments/CUSTOM_TEE_STUDIO.md).
+  const [maxStep, setMaxStep] = useState(0);
+
   function go(n: number) {
     setErrors({});
-    setStep(Math.max(0, Math.min(STEPS.length - 1, n)));
+    const clamped = Math.max(0, Math.min(STEPS.length - 1, n));
+    setStep(clamped);
+    setMaxStep((m) => Math.max(m, clamped));
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.setTimeout(
       () => topRef.current?.scrollIntoView({ block: "start", behavior: reducedMotion ? "auto" : "smooth" }),
       10,
     );
+  }
+
+  /** Jump to a previously visited step. The Send step re-validates on entry. */
+  function jumpTo(i: number) {
+    if (i === step || i > maxStep) return;
+    if (i === STEPS.length - 1) trySend();
+    else go(i);
   }
 
   // ---- on-device auto-save (this browser only; never uploaded) ----
@@ -517,8 +532,11 @@ export function StudioExperiment() {
     if (issues.length) {
       const map: Record<string, string> = {};
       issues.forEach((i) => (map[i.field] = i.message));
-      setErrors(map);
+      // Navigate FIRST: go() clears the error map, and both state updates are
+      // batched into one render — setting the errors after go() is what makes
+      // them survive. The old order silently swallowed every validation message.
       go(4);
+      setErrors(map);
       return;
     }
     setErrors({});
@@ -718,17 +736,6 @@ export function StudioExperiment() {
           )}
         </div>
       </div>
-
-      {(history.current.past.length > 0 || history.current.future.length > 0) && (
-        <div className="editactions" aria-label="History">
-          <button type="button" className="btn btn--outline" onClick={undo} disabled={!history.current.past.length} aria-label="Undo (Ctrl+Z)">
-            <RotateCcw size={15} aria-hidden="true" /> Undo
-          </button>
-          <button type="button" className="btn btn--outline" onClick={redo} disabled={!history.current.future.length} aria-label="Redo (Ctrl+Shift+Z)">
-            Redo
-          </button>
-        </div>
-      )}
 
       {viewLayers.length === 0 && (
         <ol className="emptysteps" aria-label="How it works">
@@ -1066,8 +1073,8 @@ export function StudioExperiment() {
         </button>
       </div>
       <p className="field__note">
-        Tip: drag to move · pinch or use the corner handle to resize · arrows, + − and [ ] work too. Snapping is only
-        an aid — switch <strong>Snap</strong> off (or hold Alt) to place a design completely freely.
+        Tip: drag to move · pinch or the corner handle to resize · arrows, + −, [ ] and Delete work too. Snapping is
+        only an aid — switch <strong>Snap</strong> off (or hold Alt) to place a design completely freely.
       </p>
     </>
   );
@@ -1230,8 +1237,8 @@ export function StudioExperiment() {
               key={s}
               type="button"
               className={"studio__step" + (i === step ? " is-active" : "") + (i < step ? " is-done" : "")}
-              onClick={() => i < step && go(i)}
-              disabled={i > step}
+              onClick={() => jumpTo(i)}
+              disabled={i > maxStep}
             >
               <span className="studio__stepn mono">{i + 1}</span>
               <span className="studio__stepl">{s}</span>
@@ -1503,19 +1510,45 @@ export function StudioExperiment() {
         {step === 2 && (
           <section className="studio__panel ed" aria-label="Add and position your design">
             <div className="ed__stagecol">
-              <div className="viewtabs" role="tablist" aria-label="Garment view">
-                {(["front", "back"] as ViewId[]).map((v) => (
+              <div className="viewrow">
+                <div className="viewtabs" role="tablist" aria-label="Garment view">
+                  {(["front", "back"] as ViewId[]).map((v) => (
+                    <button
+                      key={v}
+                      role="tab"
+                      aria-selected={state.view === v}
+                      className={"viewtab" + (state.view === v ? " is-active" : "")}
+                      onClick={() => setView(v)}
+                    >
+                      {v === "front" ? "Front" : "Back"}
+                      {layersForView(state, v).length ? <Check size={13} aria-hidden="true" /> : null}
+                    </button>
+                  ))}
+                </div>
+                {/* Undo/redo live in the always-visible chrome, never inside a
+                    tab — going back a step must not require finding a panel. */}
+                <div className="histbtns" role="group" aria-label="History">
                   <button
-                    key={v}
-                    role="tab"
-                    aria-selected={state.view === v}
-                    className={"viewtab" + (state.view === v ? " is-active" : "")}
-                    onClick={() => setView(v)}
+                    type="button"
+                    className="gtool"
+                    aria-label="Undo (Ctrl+Z)"
+                    title="Undo (Ctrl+Z)"
+                    disabled={!history.current.past.length}
+                    onClick={undo}
                   >
-                    {v === "front" ? "Front" : "Back"}
-                    {layersForView(state, v).length ? <Check size={13} aria-hidden="true" /> : null}
+                    <RotateCcw size={15} aria-hidden="true" />
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className="gtool"
+                    aria-label="Redo (Ctrl+Shift+Z)"
+                    title="Redo (Ctrl+Shift+Z)"
+                    disabled={!history.current.future.length}
+                    onClick={redo}
+                  >
+                    <RotateCw size={15} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <TeeStage
                 productId={product.id}
@@ -1525,6 +1558,7 @@ export function StudioExperiment() {
                 selectedId={state.selectedId}
                 onSelect={selectLayer}
                 onChange={replaceLayer}
+                onRemove={removeLayer}
               />
             </div>
 
