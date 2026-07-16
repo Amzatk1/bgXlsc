@@ -48,7 +48,7 @@ export const STEPS: Step[] = [
     n: "06",
     title: "Production",
     detail:
-      "Your order goes into production on our floor — cut, sewn, printed and assembled to the agreed specification.",
+      "Your order goes into production — cut, sewn, printed and assembled to the agreed specification. The team confirms how each stage is handled.",
     status: "Make",
   },
   {

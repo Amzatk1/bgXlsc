@@ -34,7 +34,9 @@ export const SERVICES: Service[] = [
     id: "printing",
     code: "SVC-02",
     title: "Printing services",
-    what: "We print and embroider on garments and merch. We’ll suggest the best method: screen print for bold, simple designs; transfer print (DTF) for detailed, full-colour artwork; or embroidery for a premium finish.",
+    // Method examples, not an equipment list — the team confirms the method
+    // per order (see src/data/siteFacts.ts and FACTORY_QUESTIONS.md).
+    what: "We print and embroider on garments and merch. The team recommends the best method for your artwork, fabric and quantity — for example screen print for bold, simple designs, transfer print (DTF) for detailed full-colour artwork, or embroidery for a premium finish — and confirms it with you before production.",
     send: ["Your artwork or logo (or we can help)", "Where it goes and how big", "Colours, if you know them", "The garment, if you’re supplying it"],
     icon: "printer",
     imgKey: "printing",

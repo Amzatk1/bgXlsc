@@ -19,10 +19,10 @@ const AUDIENCES: { t: string; d: string }[] = [
 ];
 
 const WHY = [
-  { icon: Factory, t: "A real factory", d: "Production happens on our floor in Ilupeju. The work you see is ours — visits by appointment." },
+  { icon: Factory, t: "A real factory", d: "A working factory at 46 Industrial Avenue, Ilupeju. The work you see is ours — visits by appointment." },
   { icon: MessageSquare, t: "Quote-first, no surprises", d: "Scope and price are confirmed on WhatsApp before anything goes into production." },
   { icon: PackageCheck, t: "Built for bulk", d: `Set up for brand and company runs, with a minimum order of ${BRAND.bioMoq}.` },
-  { icon: ShieldCheck, t: "Quality-checked", d: "Every order is checked for stitch, print and finishing before it’s packed." },
+  { icon: ShieldCheck, t: "Checked before handover", d: "The team reviews stitch, print and finishing before anything is packed." },
 ];
 
 const CHECKLIST = [
@@ -63,7 +63,7 @@ export function Brands() {
               <h2 className="h2">Uniforms your team will actually wear</h2>
               <p className="lede">
                 Workwear, staff kits, branded jackets and event merch — produced consistently across
-                every size, on your logo and colours, and quality-checked before handover.
+                every size, on your logo and colours, and reviewed before handover.
               </p>
               <div className="unifeature__grid">
                 <Photo name="WWW02024" alt="Fitting a workwear jacket on the form." ratio="1 / 1" position="center 26%" sizes="(max-width: 900px) 50vw, 22vw" />
@@ -142,7 +142,7 @@ export function Brands() {
           <SectionHeader
             eyebrow="Proof"
             title="Corporate-ready production"
-            intro="Branded uniforms, bulk runs and finished orders — produced on our floor in Ilupeju."
+            intro="Branded uniforms, bulk runs and finished orders — made by The Factory in Ilupeju."
           />
           <ProofWall showFilter={false} only={["Uniforms", "Production"]} limit={4} />
         </div>

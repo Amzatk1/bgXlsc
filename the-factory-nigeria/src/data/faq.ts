@@ -1,5 +1,8 @@
 // Plain-language FAQ. Anything not confirmed by the business is routed to
-// WhatsApp rather than stated as a guarantee.
+// WhatsApp rather than stated as a guarantee. Repeated claims come from
+// src/data/siteFacts.ts so the whole site says the same thing.
+
+import { METHOD_FAQ_ANSWER } from "./siteFacts";
 
 export type Faq = { q: string; a: string };
 
@@ -22,7 +25,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "What print methods do you offer?",
-    a: "Screen printing for bold, simple designs; transfer printing (also called DTF) for detailed, full-colour artwork; and embroidery for a premium finish. We’ll recommend the best one for your artwork, fabric and quantity.",
+    a: METHOD_FAQ_ANSWER,
   },
   {
     q: "What artwork should I send?",

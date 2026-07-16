@@ -14,7 +14,7 @@ import { Reveal } from "./Reveal";
 const MSTEPS = [
   { n: "01", t: "Send brief", d: "Service, quantity, garment, deadline." },
   { n: "02", t: "Confirm quote", d: "Scope and price, on WhatsApp." },
-  { n: "03", t: "Produce", d: "Made to spec on our floor." },
+  { n: "03", t: "Produce", d: "Made to the agreed spec." },
   { n: "04", t: "Check & collect", d: "Checked, packed, ready to collect." },
 ];
 

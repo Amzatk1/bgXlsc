@@ -11,8 +11,8 @@ const AFTER = [
   "We ask any follow-up questions we need.",
   "We confirm the specification, price and production timing.",
   "You approve the details and the agreed payment terms.",
-  "Production begins on our floor in Ilupeju.",
-  "The finished order is quality-checked and prepared for pickup or agreed delivery.",
+  "Production begins to the confirmed specification.",
+  "The finished order is reviewed and prepared for pickup or agreed delivery.",
 ];
 
 export function StartOrder() {

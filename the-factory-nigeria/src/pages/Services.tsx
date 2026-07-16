@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { SERVICES } from "../data/services";
+import { METHOD_EXAMPLES, METHOD_WORDING, ARTWORK_WORDING } from "../data/siteFacts";
 import { FILE_PREP } from "../data/media";
 import { PageIntro } from "../components/PageIntro";
 import { ServiceCard } from "../components/ServiceCard";
@@ -18,11 +19,8 @@ const CHECKLIST = [
   "Pickup or delivery preference",
 ];
 
-const METHODS = [
-  { t: "Screen printing", d: "Bold, durable prints — great for larger runs and solid colours." },
-  { t: "Transfer print (DTF)", d: "Detailed, full-colour artwork on a range of fabrics." },
-  { t: "Embroidery", d: "Premium, raised branding for caps, polos, jackets and uniforms." },
-];
+// Method EXAMPLES from the shared facts layer — the team confirms the method
+// per order; this is never presented as a settled equipment list.
 
 export function Services() {
   return (
@@ -52,10 +50,10 @@ export function Services() {
             <SectionHeader
               eyebrow="Print methods"
               title="The right print for the job"
-              intro="We’ll recommend a method based on your artwork, fabric and order size. Not sure? Send what you have and we’ll advise."
+              intro={`${METHOD_WORDING} These are the common recommendations — not sure? Send what you have and we’ll advise.`}
             />
             <div className="grid cols-3 methods">
-              {METHODS.map((m, i) => (
+              {METHOD_EXAMPLES.map((m, i) => (
                 <Reveal delay={i * 70} key={m.t}>
                   <div className="method">
                     <h3 className="method__t">{m.t}</h3>
@@ -94,7 +92,7 @@ export function Services() {
           <SectionHeader
             eyebrow="Artwork & files"
             title="Send your artwork like this"
-            intro="A clean file makes a clean print. These are the same guides we share with clients — match them and we can move faster."
+            intro={`These are the same guides we share with clients — match them where you can. ${ARTWORK_WORDING}`}
           />
           <Reveal>
             <div className="fileprep">

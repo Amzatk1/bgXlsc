@@ -118,7 +118,7 @@ export function Home() {
               <SectionHeader
                 eyebrow="Inside the factory"
                 title="From artwork to finished garment"
-                intro="Every stage happens on our floor in Ilupeju — designed, cut, sewn, printed, embroidered and finished."
+                intro="From design and cutting to sewing, printing and finishing — the team confirms how each stage of your order is handled at 46 Industrial Avenue, Ilupeju."
                 action={
                   <a className="btn btn--ghost" href="#/process">
                     <span className="btn-underline">See the full process</span>
