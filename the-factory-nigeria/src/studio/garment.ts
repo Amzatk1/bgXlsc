@@ -264,7 +264,82 @@ export function loadGarmentImage(src: string): Promise<HTMLImageElement> {
 
 // ---------------------------------------------------------------------
 // Canvas compositing (used by exports; mirrors the CSS layers exactly)
+//
+// Safari/WebKit ACCEPTS `ctx.filter = "grayscale(1) …"` but silently ignores
+// it (verified against WebKit: a red fill through grayscale(1) stays red).
+// Without a fallback, every export on Safari would composite the full-colour
+// photo as the multiply layer — double-tinting the garment dark and muddy.
+// So the filter is feature-detected FUNCTIONALLY, and where it doesn't apply
+// we do the same math per pixel.
 // ---------------------------------------------------------------------
+
+let filterWorks: boolean | null = null;
+
+/** Does this engine actually APPLY canvas 2D filters (not just accept them)? */
+export function canvasFiltersWork(): boolean {
+  if (filterWorks !== null) return filterWorks;
+  if (typeof document === "undefined") return (filterWorks = true);
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 3;
+    const x = c.getContext("2d");
+    if (!x) return (filterWorks = true);
+    x.filter = "grayscale(1)";
+    x.fillStyle = "#ff0000";
+    x.fillRect(0, 0, 3, 3);
+    const d = x.getImageData(1, 1, 1, 1).data;
+    filterWorks = Math.abs(d[0] - d[1]) < 12; // red became grey ⇒ filters apply
+  } catch {
+    filterWorks = true;
+  }
+  return filterWorks;
+}
+
+/**
+ * The same math as `grayscale(1) brightness(b) contrast(c)`, per pixel.
+ * Grayscale uses the CSS luminance coefficients; contrast pivots on mid-grey.
+ * Alpha is untouched. Pure, so the unit tests can pin it exactly.
+ */
+export function grayscaleAdjust(data: Uint8ClampedArray, brightness = 1, contrast = 1): void {
+  for (let i = 0; i < data.length; i += 4) {
+    let v = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) * brightness;
+    if (contrast !== 1) v = (v - 127.5) * contrast + 127.5;
+    data[i] = data[i + 1] = data[i + 2] = v < 0 ? 0 : v > 255 ? 255 : v;
+  }
+}
+
+/** Filtered copies are cached — one reference sheet composes each view twice. */
+const filteredCache = new Map<string, HTMLCanvasElement>();
+
+/** The garment photo as a grey fold/highlight map, at the requested size. */
+function filteredPhoto(
+  photo: HTMLImageElement,
+  w: number,
+  h: number,
+  brightness: number,
+  contrast: number,
+): HTMLCanvasElement {
+  const key = `${photo.src}|${w}|${h}|${brightness}|${contrast}`;
+  const hit = filteredCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d")!;
+  if (canvasFiltersWork()) {
+    x.filter = `grayscale(1) brightness(${brightness})` + (contrast !== 1 ? ` contrast(${contrast})` : "");
+    x.drawImage(photo, 0, 0, w, h);
+    x.filter = "none";
+  } else {
+    x.drawImage(photo, 0, 0, w, h);
+    const img = x.getImageData(0, 0, w, h);
+    grayscaleAdjust(img.data, brightness, contrast);
+    x.putImageData(img, 0, 0);
+  }
+  if (filteredCache.size > 24) filteredCache.clear(); // tiny, bounded
+  filteredCache.set(key, c);
+  return c;
+}
 export async function drawGarment(
   ctx: CanvasRenderingContext2D,
   productId: string,
@@ -298,19 +373,16 @@ export async function drawGarment(
     drawArtwork(lc);
   }
 
-  // 3) folds & shadows (multiply, luma-normalised)
+  // 3) folds & shadows (multiply, luma-normalised) — pre-filtered so the
+  //    same pixels are drawn whether or not the engine applies ctx.filter
   lc.globalCompositeOperation = "multiply";
-  lc.filter = `grayscale(1) brightness(${shadeBrightness})`;
-  lc.drawImage(photo, 0, 0, layer.width, layer.height);
-  lc.filter = "none";
+  lc.drawImage(filteredPhoto(photo, layer.width, layer.height, shadeBrightness, 1), 0, 0);
 
   // 4) highlights for dark fabrics (screen)
   if (lightOpacity > 0) {
     lc.globalCompositeOperation = "screen";
     lc.globalAlpha = lightOpacity;
-    lc.filter = "grayscale(1) contrast(1.15)";
-    lc.drawImage(photo, 0, 0, layer.width, layer.height);
-    lc.filter = "none";
+    lc.drawImage(filteredPhoto(photo, layer.width, layer.height, 1, 1.15), 0, 0);
     lc.globalAlpha = 1;
   }
 

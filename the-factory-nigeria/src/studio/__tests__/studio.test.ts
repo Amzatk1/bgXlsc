@@ -462,6 +462,41 @@ describe("photoreal colour pipeline", () => {
     // jsdom has no real text metrics → falls back to a length heuristic
     expect(measureTextAspect("10", "Archivo", 800)).toBeGreaterThan(0);
   });
+
+  it("greys and normalises pixels exactly like the CSS filter it replaces", async () => {
+    // Safari/WebKit accepts ctx.filter but silently ignores it, so exports
+    // fall back to this pixel math — it must match grayscale/brightness/
+    // contrast to the letter or Safari exports drift from Chrome's.
+    const { grayscaleAdjust } = await import("../garment");
+
+    // pure red → CSS luminance grey (0.2126 × 255 ≈ 54), alpha untouched
+    const red = new Uint8ClampedArray([255, 0, 0, 200]);
+    grayscaleAdjust(red);
+    expect(red[0]).toBe(red[1]);
+    expect(red[1]).toBe(red[2]);
+    expect(Math.abs(red[0] - 54)).toBeLessThanOrEqual(1);
+    expect(red[3]).toBe(200);
+
+    // brightness(2) doubles the grey; clamped at 255
+    const mid = new Uint8ClampedArray([100, 100, 100, 255]);
+    grayscaleAdjust(mid, 2);
+    expect(Math.abs(mid[0] - 200)).toBeLessThanOrEqual(1);
+    const hot = new Uint8ClampedArray([220, 220, 220, 255]);
+    grayscaleAdjust(hot, 2);
+    expect(hot[0]).toBe(255);
+
+    // contrast(1.15) pushes values away from mid-grey in both directions
+    const dark = new Uint8ClampedArray([60, 60, 60, 255]);
+    const light = new Uint8ClampedArray([200, 200, 200, 255]);
+    grayscaleAdjust(dark, 1, 1.15);
+    grayscaleAdjust(light, 1, 1.15);
+    expect(dark[0]).toBeLessThan(60);
+    expect(light[0]).toBeGreaterThan(200);
+    // and mid-grey is the fixed point
+    const pivot = new Uint8ClampedArray([127, 128, 128, 255]);
+    grayscaleAdjust(pivot, 1, 1.15);
+    expect(Math.abs(pivot[0] - 127.5)).toBeLessThanOrEqual(1);
+  });
 });
 
 describe("design persistence (save on device / .json file)", () => {
