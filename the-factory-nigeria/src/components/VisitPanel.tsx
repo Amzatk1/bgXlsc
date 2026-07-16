@@ -52,7 +52,16 @@ export function VisitPanel() {
           </a>
         </div>
 
-        <a href={`tel:+${BRAND.whatsapp.e164}`} className="visit__phone mono mono--ink">
+        {/* The icon, the accessible name and the destination must agree: this
+            is a WhatsApp chat action, not a phone dialler wearing a WhatsApp
+            icon. The number itself stays visible for people who want to dial. */}
+        <a
+          href={BRAND.whatsapp.base}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="visit__phone mono mono--ink"
+          aria-label={`Chat on WhatsApp: ${BRAND.whatsapp.display}`}
+        >
           <WhatsAppIcon size={16} /> {BRAND.whatsapp.display}
         </a>
       </div>
