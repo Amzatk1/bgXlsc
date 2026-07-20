@@ -491,12 +491,90 @@ export const PRODUCTS: Product[] = [
     },
   },
   {
+    // The classic short-sleeve football jersey with a POLO collar — the
+    // retro team look. Sublimated like every jersey: printed as flat panels
+    // before sewing, so full-surface designs are native to it.
+    id: "jersey-polo",
+    name: "Polo-collar football jersey",
+    note: "Classic ribbed collar, buttoned placket",
+    fit: "Athletic fit",
+    description:
+      "A sublimated classic football jersey with a ribbed polo collar and buttoned placket — the retro team look, with colour and patterns printed into the fabric edge to edge.",
+    use: "Football teams, retro kits, supporters' shirts, club merch",
+    material: "Breathable polyester performance knit (reference)",
+    availability: "confirm",
+    production: "sublimation",
+    thumb: `${ASSET_BASE}/jersey-polo-thumb.webp`,
+    cut: "regular",
+    zones: {
+      // Front print starts below the buttoned placket (measured: collar+placket
+      // run to ~stage y300 on this asset; body hem at ~635).
+      front: { x: 185, y: 310, w: 230, h: 270, widthIn: 12, heightIn: 14 },
+      back: { x: 185, y: 195, w: 230, h: 315, widthIn: 12, heightIn: 16.5 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 48, y: 170, w: 80, h: 95, widthIn: 4.2, heightIn: 5 },
+        { id: "right-sleeve", name: "Right sleeve", x: 472, y: 170, w: 80, h: 95, widthIn: 4.2, heightIn: 5 },
+      ],
+    },
+    avoidAreas: {
+      front: [
+        { id: "collar", name: "collar / placket", x: 245, y: 64, w: 110, h: 180, widthIn: 5.5, heightIn: 9 },
+        { id: "left-seam", name: "left side seam", x: 36, y: 330, w: 24, h: 270, widthIn: 1.2, heightIn: 14, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 540, y: 330, w: 24, h: 270, widthIn: 1.2, heightIn: 14, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 60, y: 608, w: 480, h: 28, widthIn: 25, heightIn: 1.5, seamRelated: true },
+      ],
+      back: [
+        { id: "collar", name: "collar", x: 245, y: 64, w: 110, h: 70, widthIn: 5.5, heightIn: 3.5 },
+        { id: "hem", name: "bottom hem", x: 60, y: 608, w: 480, h: 28, widthIn: 25, heightIn: 1.5, seamRelated: true },
+      ],
+    },
+  },
+  {
+    // The modern V-neck cut of the football jersey.
+    id: "jersey-vneck",
+    name: "V-neck football jersey",
+    note: "Modern ribbed V-neck, athletic cut",
+    fit: "Athletic fit",
+    description:
+      "A sublimated modern V-neck football jersey — full-surface colour, patterns, team names and numbers printed into the fabric, not onto it.",
+    use: "Football/soccer teams, five-a-side, leagues, fan kits",
+    material: "Breathable polyester performance knit (reference)",
+    availability: "confirm",
+    production: "sublimation",
+    thumb: `${ASSET_BASE}/jersey-vneck-thumb.webp`,
+    cut: "regular",
+    zones: {
+      front: { x: 185, y: 230, w: 230, h: 285, widthIn: 12, heightIn: 15 },
+      back: { x: 185, y: 185, w: 230, h: 315, widthIn: 12, heightIn: 16.5 },
+    },
+    extraAreas: {
+      front: [
+        { id: "left-sleeve", name: "Left sleeve", x: 44, y: 185, w: 82, h: 95, widthIn: 4.3, heightIn: 5 },
+        { id: "right-sleeve", name: "Right sleeve", x: 474, y: 185, w: 82, h: 95, widthIn: 4.3, heightIn: 5 },
+      ],
+    },
+    avoidAreas: {
+      front: [
+        { id: "collar", name: "V-neck collar", x: 250, y: 79, w: 100, h: 95, widthIn: 5, heightIn: 5 },
+        { id: "left-seam", name: "left side seam", x: 36, y: 320, w: 24, h: 270, widthIn: 1.2, heightIn: 14, seamRelated: true },
+        { id: "right-seam", name: "right side seam", x: 540, y: 320, w: 24, h: 270, widthIn: 1.2, heightIn: 14, seamRelated: true },
+        { id: "hem", name: "bottom hem", x: 60, y: 592, w: 480, h: 28, widthIn: 25, heightIn: 1.5, seamRelated: true },
+      ],
+      back: [
+        { id: "collar", name: "neckline", x: 250, y: 79, w: 100, h: 45, widthIn: 5, heightIn: 2.3 },
+        { id: "hem", name: "bottom hem", x: 60, y: 592, w: 480, h: 28, widthIn: 25, heightIn: 1.5, seamRelated: true },
+      ],
+    },
+  },
+  {
     id: "basketball",
     name: "Basketball jersey",
-    note: "Sleeveless tank, V-neck, mesh",
+    note: "Sleeveless tank, V-neck, mesh — the classic pro cut",
     fit: "Loose athletic fit",
     description:
-      "A sublimated sleeveless basketball tank with a ribbed V-neck. Full-surface colour, patterns, big numbers, team name and sponsors — printed into the fabric.",
+      "A sublimated sleeveless basketball tank with a ribbed V-neck — the classic pro basketball cut. Full-surface colour, patterns, big numbers, team name and sponsors, printed into the fabric.",
     use: "Basketball teams, 3×3, leagues, training squads, fan jerseys",
     material: "Breathable polyester basketball mesh (reference)",
     availability: "confirm",

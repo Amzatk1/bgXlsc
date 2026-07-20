@@ -711,8 +711,8 @@ describe("two T-shirt options — never merged into one vague 'T-shirt'", () => 
 });
 
 describe("jerseys are sublimated, not printed", () => {
-  it("both jerseys declare sublimation; ready-made garments do not", () => {
-    for (const id of ["jersey", "basketball"]) {
+  it("all four jersey types declare sublimation; ready-made garments do not", () => {
+    for (const id of ["jersey", "jersey-polo", "jersey-vneck", "basketball"]) {
       const p = PRODUCTS.find((x) => x.id === id)!;
       expect(p.production).toBe("sublimation");
       expect(isSublimated(p)).toBe(true);
@@ -1235,7 +1235,10 @@ describe("workbench redesign: contextual questions, honest files, grouped catalo
     expect(ids).toHaveLength(PRODUCTS.length);
     expect(new Set(ids).size).toBe(PRODUCTS.length);
     expect(groups.find((g) => g.id === "tees")!.products).toHaveLength(3);
-    expect(groups.find((g) => g.id === "sports")!.products.every((p) => p.production === "sublimation")).toBe(true);
+    // the sports family now carries four distinct jersey types
+    const sports = groups.find((g) => g.id === "sports")!.products;
+    expect(sports.map((p) => p.id).sort()).toEqual(["basketball", "jersey", "jersey-polo", "jersey-vneck"]);
+    expect(sports.every((p) => p.production === "sublimation")).toBe(true);
     // the two-kinds-of-T-shirt truth lives on the group, said once
     expect(groups.find((g) => g.id === "tees")!.note).toMatch(/towel-back/);
   });
