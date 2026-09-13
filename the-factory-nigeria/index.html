@@ -36,15 +36,24 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Preload the LCP hero image (responsive) -->
-    <link
-      rel="preload"
-      as="image"
-      type="image/webp"
-      href="/assets/the-factory-nigeria/manager-supplied/WWW01937-1280.webp"
-      imagesrcset="/assets/the-factory-nigeria/manager-supplied/WWW01937-768.webp 768w, /assets/the-factory-nigeria/manager-supplied/WWW01937-1280.webp 1280w, /assets/the-factory-nigeria/manager-supplied/WWW01937-1920.webp 1920w"
-      imagesizes="(max-width: 760px) 100vw, 42vw"
-    />
+    <!-- Preload the Home LCP hero image (responsive) — only when Home is the
+         route being opened; on any other route the browser would fetch it for
+         nothing and warn that the preload went unused. -->
+    <script>
+      (function () {
+        var h = location.hash;
+        if (h && h !== "#" && h !== "#/") return;
+        var base = "/assets/the-factory-nigeria/manager-supplied/WWW01937-";
+        var l = document.createElement("link");
+        l.rel = "preload";
+        l.as = "image";
+        l.type = "image/webp";
+        l.href = base + "1280.webp";
+        l.setAttribute("imagesrcset", base + "768.webp 768w, " + base + "1280.webp 1280w, " + base + "1920.webp 1920w");
+        l.setAttribute("imagesizes", "(max-width: 760px) 100vw, 42vw");
+        document.head.appendChild(l);
+      })();
+    </script>
     <!-- One central family: Archivo (industrial grotesque) -->
     <link
       href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap"

@@ -134,6 +134,18 @@ function AvailabilityBadge({ status }: { status: AvailabilityStatus }) {
   return <span className={"avail avail--" + status}>{AVAILABILITY_LABEL[status]}</span>;
 }
 
+/** Renders WhatsApp's *bold* markup as bold for the preview — display only. */
+function WaFormatted({ text }: { text: string }) {
+  const parts = text.split(/(\*[^*\n]+\*)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.length > 2 && p.startsWith("*") && p.endsWith("*") ? <strong key={i}>{p.slice(1, -1)}</strong> : p,
+      )}
+    </>
+  );
+}
+
 /** One read-only layer (image or text), positioned by % of the stage. */
 function PreviewLayer({ layer }: { layer: Layer }) {
   const b = layerBox(layer);
@@ -486,7 +498,10 @@ export function StudioExperiment() {
   }
 
   function addText(role: TextRole) {
-    addLayer(newTextLayer(role, product, state.view));
+    // Read against what the text actually sits on: a full-surface base if the
+    // view has one, otherwise the blank.
+    const ground = backgroundLayer(state, state.view)?.pattern?.base ?? state.color.hex;
+    addLayer(newTextLayer(role, product, state.view, ground));
     setMtab("adjust");
   }
 
@@ -651,6 +666,19 @@ export function StudioExperiment() {
     replaceLayer(clampLayer({ ...selected, size: (inches * ppi) / (STAGE_H * scale) }));
   }
 
+  const navSummary =
+    step === 0
+      ? `${product.name} · ${getProductionMethod(product).badge}`
+      : step === 1
+        ? `${state.color.name} · ${fabric ? fabric.name : "fabric: team advises"}`
+        : step === 2
+          ? `Front — ${viewSummary(state, "front")} · Back — ${viewSummary(state, "back")}`
+          : step === 3
+            ? `Reference ${state.reference}`
+            : qtyNum
+              ? `${qtyNum} item${qtyNum === 1 ? "" : "s"} · ${assigned} sized`
+              : "Quantity not added yet";
+
   const layerIcon = (l: Layer) =>
     l.kind === "image" ? <ImageIcon size={15} aria-hidden="true" /> : l.role === "number" ? <Hash size={15} aria-hidden="true" /> : l.role === "name" ? <User size={15} aria-hidden="true" /> : <TypeIcon size={15} aria-hidden="true" />;
 
@@ -674,11 +702,11 @@ export function StudioExperiment() {
           </button>
         </div>
         <div className="addtext">
-          <button type="button" className="btn btn--outline" onClick={() => addText("name")}>
-            <User size={16} aria-hidden="true" /> Player name
+          <button type="button" className="addtext__btn" onClick={() => addText("name")}>
+            <User size={15} aria-hidden="true" /> Player name
           </button>
-          <button type="button" className="btn btn--outline" onClick={() => addText("number")}>
-            <Hash size={16} aria-hidden="true" /> Player number
+          <button type="button" className="addtext__btn" onClick={() => addText("number")}>
+            <Hash size={15} aria-hidden="true" /> Player number
           </button>
         </div>
       </div>
@@ -745,7 +773,8 @@ export function StudioExperiment() {
       )}
 
       <div className="field">
-        <span className="field__legend mono">Upload artwork</span>
+        {/* The native file control stays in the DOM (keyboard, screen readers,
+            drag-and-drop) — only its unstyled browser chrome is hidden. */}
         <div
           className="dropzone"
           onDragOver={(e) => {
@@ -759,9 +788,16 @@ export function StudioExperiment() {
             onFile(e.dataTransfer.files);
           }}
         >
-          <label htmlFor="art-upload">Upload a logo or design</label>
-          <input ref={fileRef} id="art-upload" className="upload" type="file" accept="image/png,image/jpeg" onChange={(e) => onFile(e.target.files)} />
-          <p className="field__note">Drag &amp; drop or browse — PNG or JPEG, up to 10 MB. Add as many as you like. Transparent PNGs keep their transparency.</p>
+          <input ref={fileRef} id="art-upload" className="sr-only" type="file" accept="image/png,image/jpeg" onChange={(e) => onFile(e.target.files)} />
+          <label htmlFor="art-upload" className="dropzone__target">
+            <Upload size={18} aria-hidden="true" />
+            <span className="dropzone__text">
+              <span>
+                <strong>Drop a logo here</strong> or browse
+              </span>
+              <span className="dropzone__hint">PNG or JPEG · up to 10 MB · add as many as you like</span>
+            </span>
+          </label>
           {uploadError && (
             <p className="field__error" role="alert">
               {uploadError}
@@ -1275,16 +1311,26 @@ export function StudioExperiment() {
     <div className="studio" ref={topRef}>
       <div className="studio__proto" role="note">
         <Info size={14} aria-hidden="true" />
-        Studio preview — nothing is sent automatically. Pricing and market availability are confirmed
-        by The Factory team before production.
+        <span className="studio__protolong">
+          Studio preview — nothing is sent automatically. Pricing and market availability are confirmed
+          by The Factory team before production.
+        </span>
+        <span className="studio__protoshort">
+          Preview only — nothing is sent automatically. The team confirms pricing &amp; availability.
+        </span>
       </div>
 
-      <header className="studio__head container">
-        <span className="eyebrow">Studio</span>
-        <h1 className="h2">Design your garment</h1>
-        <p className="studio__stepmeta mono" aria-live="polite">
-          Step {step + 1} of {STEPS.length} · {STEPS[step]}
-        </p>
+      {/* Past the first step the title steps back so the work gets the viewport. */}
+      <header className={"studio__head container" + (step > 0 ? " is-compact" : "")}>
+        <div className="studio__titlerow">
+          <div className="studio__title">
+            <span className="eyebrow">Studio</span>
+            <h1 className="h2">Design your garment</h1>
+          </div>
+          <p className="studio__stepmeta mono" aria-live="polite">
+            Step {step + 1} of {STEPS.length} · {STEPS[step]}
+          </p>
+        </div>
         <div className="studio__progress" role="group" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
           {STEPS.map((s, i) => (
             <button
@@ -1293,8 +1339,12 @@ export function StudioExperiment() {
               className={"studio__step" + (i === step ? " is-active" : "") + (i < step ? " is-done" : "")}
               onClick={() => jumpTo(i)}
               disabled={i > maxStep}
+              aria-current={i === step ? "step" : undefined}
+              aria-label={`${s}${i < step ? " (done)" : ""}`}
             >
-              <span className="studio__stepn mono">{i + 1}</span>
+              <span className="studio__stepn mono" aria-hidden="true">
+                {i < step ? <Check size={11} strokeWidth={3} /> : i + 1}
+              </span>
               <span className="studio__stepl">{s}</span>
             </button>
           ))}
@@ -1712,8 +1762,13 @@ export function StudioExperiment() {
                   </button>
                 ))}
               </div>
-              <button type="button" className="btn btn--primary ed__dockcont" onClick={advanceFromDesign}>
-                Continue <ArrowRight size={15} aria-hidden="true" />
+              <button
+                type="button"
+                className="btn btn--primary ed__dockcont"
+                aria-label="Continue to review"
+                onClick={advanceFromDesign}
+              >
+                Next <ArrowRight size={15} aria-hidden="true" />
               </button>
             </div>
 
@@ -1733,11 +1788,12 @@ export function StudioExperiment() {
 
         {/* STEP 4 — REVIEW DESIGN */}
         {step === 3 && (
-          <section className="studio__panel" aria-label="Review your design">
-            <div className="tprev__row">
+          <section className="studio__panel studio__review" aria-label="Review your design">
+            <div className="tprev__row studio__reviewprev">
               <TeePreview state={state} view="front" />
               <TeePreview state={state} view="back" />
             </div>
+            <div className="studio__reviewside">
             {/* Non-blocking readiness — every "check" line says what the team
                 confirms; none of them stops the enquiry. */}
             <ul className="readiness" aria-label="Readiness check">
@@ -1748,12 +1804,6 @@ export function StudioExperiment() {
                 </li>
               ))}
             </ul>
-            <p className="enquiry__hint">
-              <Info size={15} aria-hidden="true" />
-              Please review your design carefully. The preview will be used by The Factory Nigeria as a
-              production reference, although final fabric colour, placement, print method and sizing will be
-              confirmed before production.
-            </p>
             <dl className="review__list studio__reviewlist">
               {summaryRows(state)
                 .filter((r) => r.step !== 4)
@@ -1769,15 +1819,24 @@ export function StudioExperiment() {
                   </div>
                 ))}
             </dl>
-            <p className="enquiry__hint">
+            {/* One note, both statements — review guidance + market sourcing. */}
+            <div className="enquiry__hint">
               <Info size={15} aria-hidden="true" />
-              {MARKET_SOURCING_NOTICE}
-            </p>
+              <div className="studio__hintstack">
+                <p>
+                  Please review your design carefully. The preview will be used by The Factory Nigeria as a
+                  production reference, although final fabric colour, placement, print method and sizing will be
+                  confirmed before production.
+                </p>
+                <p>{MARKET_SOURCING_NOTICE}</p>
+              </div>
+            </div>
             {errors.artwork && (
               <p className="field__error" role="alert">
                 {errors.artwork}
               </p>
             )}
+            </div>
           </section>
         )}
 
@@ -1866,7 +1925,11 @@ export function StudioExperiment() {
                     : `All ${qtyNum} items have been assigned.`
                   : qtyNum > assigned && assigned > 0
                     ? `${assigned} of ${qtyNum} items assigned. Choose sizes for the remaining ${qtyNum - assigned}.`
-                    : `${assigned} of ${qtyNum || "—"} assigned`}
+                    : qtyNum
+                      ? `0 of ${qtyNum} assigned — choose sizes, or use Split evenly.`
+                      : assigned
+                        ? `${assigned} sized — add the total quantity above.`
+                        : "Enter a quantity above, then choose sizes."}
               </p>
               {sizesStatus && (
                 <p className={sizesStatus.level === "error" ? "field__error" : "field__note"} role="status">
@@ -2108,7 +2171,11 @@ export function StudioExperiment() {
               </div>
               <div>
                 <span className="field__legend mono">WhatsApp message</span>
-                <pre className="msgpreview">{buildStudioMessage(state)}</pre>
+                {/* Shown the way WhatsApp renders it (*bold*); the text that is
+                    copied or shared is the unchanged message. */}
+                <pre className="msgpreview">
+                  <WaFormatted text={buildStudioMessage(state)} />
+                </pre>
               </div>
             </div>
             {/* One consolidated note — privacy + sourcing, stated once. */}
@@ -2254,7 +2321,11 @@ export function StudioExperiment() {
 
         {/* NAV — on the Design step under 861px the dock replaces this bar */}
         {!submitted && (
-          <div className={"enquiry__nav studio__nav" + (step === 2 ? " studio__nav--ed" : "")}>
+          <div
+            className={
+              "enquiry__nav studio__nav" + (step === 2 ? " studio__nav--ed" : "") + (step === 5 ? " studio__nav--static" : "")
+            }
+          >
             {step > 0 ? (
               <button type="button" className="btn btn--outline" onClick={() => go(step - 1)}>
                 <ArrowLeft size={17} aria-hidden="true" /> Back
@@ -2262,6 +2333,9 @@ export function StudioExperiment() {
             ) : (
               <span />
             )}
+            {/* What the customer has chosen so far on this step — the forward
+                action always carries its context. Decorative on phones. */}
+            <p className="studio__navsum">{navSummary}</p>
             {step < 3 && (
               <button
                 type="button"
@@ -2272,8 +2346,11 @@ export function StudioExperiment() {
               </button>
             )}
             {step === 3 && (
-              <button type="button" className="btn btn--primary btn--lg" onClick={() => go(4)}>
-                Continue to order details <ArrowRight size={17} aria-hidden="true" />
+              <button type="button" className="btn btn--primary" onClick={() => go(4)}>
+                <span>
+                  Continue<span className="studio__navlong"> to order details</span>
+                </span>
+                <ArrowRight size={17} aria-hidden="true" />
               </button>
             )}
             {step === 4 && (

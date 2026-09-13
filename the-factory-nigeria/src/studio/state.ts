@@ -555,9 +555,17 @@ const TEXT_DEFAULT: Record<TextRole, { text: string; outlineWidth: number }> = {
   number: { text: "10", outlineWidth: 0.08 },
 };
 
-export function newTextLayer(role: TextRole, product: Product, view: ViewId): TextLayer {
+/**
+ * `garmentHex` is the colour the text will sit on (the blank, or a full-surface
+ * base). New text starts in whichever ink reads against it — white text on the
+ * default white garment used to be invisible. The customer can change it freely.
+ */
+export function newTextLayer(role: TextRole, product: Product, view: ViewId, garmentHex?: string): TextLayer {
   const zone = product.zones[view];
   const def = TEXT_DEFAULT[role];
+  const lightGround = garmentHex !== undefined && hexLuma(garmentHex) > 0.55;
+  const ink = lightGround ? "#14110f" : "#ffffff";
+  const numberOutline = lightGround ? "#ffffff" : "#211f1e";
   // sensible spots: name high, number centred, text upper-third
   const ry = role === "name" ? 0.16 : role === "number" ? 0.5 : 0.28;
   const cx = (zone.x + zone.w / 2) / STAGE_W;
@@ -573,8 +581,8 @@ export function newTextLayer(role: TextRole, product: Product, view: ViewId): Te
     role,
     text: def.text,
     fontId: role === "number" ? "teko" : role === "name" ? "oswald" : "archivo",
-    color: "#ffffff",
-    outline: role === "number" ? "#211f1e" : "",
+    color: ink,
+    outline: role === "number" ? numberOutline : "",
     outlineWidth: def.outlineWidth,
     letterSpacing: role === "name" ? 0.04 : 0,
     lineHeight: 1.1,

@@ -66,6 +66,7 @@ import {
   type ImageLayer,
   type TextLayer,
 } from "../state";
+import { hexLuma } from "../garment";
 import { DEFAULT_PATTERN, JERSEY_PATTERNS, patternSummary, renderPatternSvg } from "../patterns";
 import { buildDesignSpec, buildStudioMessage, designSidesLine, fabricLine, layerLine, readinessChecklist, sizesLine, summaryRows } from "../messages";
 import { artworkFileLabel, artworkFileName } from "../exporter";
@@ -305,6 +306,20 @@ describe("layer factories", () => {
     expect((newTextLayer("number", tee, "back") as TextLayer).outline).not.toBe("");
     expect((newTextLayer("name", tee, "back") as TextLayer).role).toBe("name");
     expect(layerLabel(newTextLayer("name", tee, "back"))).toContain("Name");
+  });
+  // Regression: every new text layer used to be white, so the very first text
+  // on the default WHITE garment was invisible in the editor, review and sheet.
+  it("new text starts in a colour that reads against the garment", () => {
+    for (const role of ["text", "name", "number"] as const) {
+      const onWhite = newTextLayer(role, tee, "front", "#f4f2ee") as TextLayer;
+      const onNavy = newTextLayer(role, tee, "front", "#1f2a44") as TextLayer;
+      expect(Math.abs(hexLuma(onWhite.color) - hexLuma("#f4f2ee"))).toBeGreaterThan(0.5);
+      expect(Math.abs(hexLuma(onNavy.color) - hexLuma("#1f2a44"))).toBeGreaterThan(0.5);
+    }
+    // numbers keep a contrasting outline either way
+    expect((newTextLayer("number", tee, "front", "#f4f2ee") as TextLayer).outline).not.toBe("");
+    // no garment colour given → the previous default is unchanged
+    expect((newTextLayer("text", tee, "front") as TextLayer).color).toBe("#ffffff");
   });
 });
 

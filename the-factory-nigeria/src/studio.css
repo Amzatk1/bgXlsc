@@ -58,7 +58,8 @@
   .studio__step.is-active .studio__stepl { display: inline; }
 }
 
-.studio__body { padding-top: clamp(20px, 3vw, 34px); max-width: 1080px; }
+/* Same container as the header, so every step shares one left edge. */
+.studio__body { padding-top: clamp(20px, 3vw, 34px); }
 .studio__panel { display: grid; gap: 20px; }
 .studio__panel--split { grid-template-columns: 1.1fr 0.9fr; align-items: start; }
 .studio__panel--editor { grid-template-columns: 1fr 340px; gap: clamp(18px, 3vw, 34px); align-items: start; }
@@ -195,7 +196,6 @@
 
 /* Controls column */
 .studio__controls { display: grid; gap: 18px; align-content: start; }
-.upload { min-height: 48px; padding: 11px 12px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-sm); background: var(--white); width: 100%; }
 .field__legend {
   display: block;
   font-size: 0.66rem;
@@ -330,8 +330,6 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
 .nextlist { border-top: 1.5px dashed var(--line-strong); padding-top: 16px; margin-top: 8px; }
 .nextlist ol { padding-left: 20px; display: grid; gap: 6px; font-size: 0.92rem; }
 
-.studio__nav { max-width: 1080px; }
-
 /* =====================================================================
    PHOTOREAL GARMENT STAGE (v2)
    ===================================================================== */
@@ -419,7 +417,6 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   color: var(--purple);
 }
 .dropzone { border-radius: var(--radius); transition: background var(--dur-fast) var(--ease-out); }
-.dropzone.is-over .upload { border-color: var(--purple); background: var(--lilac-tint); }
 
 /* Read-only preview artwork */
 .tprev__art { position: absolute; }
@@ -560,7 +557,6 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .prodcard:active { transform: scale(0.99); }
-.prodcard:active { transform: scale(0.99); }
 .prodcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .prodcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .prodcard:focus-within { outline: 2px solid var(--purple); outline-offset: 2px; }
@@ -588,7 +584,6 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.fabcard:active { transform: scale(0.99); }
 .fabcard:active { transform: scale(0.99); }
 .fabcard.is-active { border-color: var(--purple); box-shadow: inset 0 0 0 1.5px var(--purple); }
 .fabcard input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -804,12 +799,11 @@ input[type="range"] { width: 100%; accent-color: var(--purple); min-height: 32px
    left rail = garment/colour/fabric + upload · centre = stage ·
    right rail = placement, quality checks, live request summary */
 @media (min-width: 1100px) {
-  .studio__body:has(.ed) { max-width: 1360px; }
   .ed {
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    grid-template-columns: 260px minmax(0, 1fr) 300px;
     grid-auto-rows: min-content;
-    gap: 18px 26px;
+    gap: 18px 24px;
     align-items: start;
   }
   .ed__dock { display: none; }
@@ -1240,3 +1234,515 @@ select#t-font {
 .numgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .numgrid label { display: grid; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.04em; }
 .numgrid input { min-height: 42px; text-align: center; font-weight: 700; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); }
+
+/* =====================================================================
+   V5 — SLEEK PASS
+   One surface language for every step: white cards on paper with a hairline
+   border, a tinted lift only when something is chosen or hovered, purple kept
+   for selection and progress, muted ink for helper copy. Layout and behaviour
+   are unchanged — this layer only restyles what the steps already render.
+   ===================================================================== */
+.studio {
+  --st-radius: 12px;
+  --st-radius-in: 8px;
+  --st-lift: 0 1px 2px rgba(20, 17, 15, 0.05), 0 12px 28px -18px rgba(70, 30, 70, 0.4);
+  --st-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+/* Helper copy is guidance, not a warning — amber stays for real cautions
+   (.quality--soft). ui.css keeps its colour for the rest of the site. */
+.studio .field__note { color: var(--text-soft); line-height: 1.5; }
+
+/* A visually hidden native input must stay hidden inside .field, whose input
+   rule (0,1,1) would otherwise give it full width and height again. */
+.field input.sr-only { width: 1px; height: 1px; min-height: 0; padding: 0; border: 0; }
+
+/* --- Honesty banner: same words, quieter voice ----------------------- */
+.studio__proto {
+  padding: 8px 16px;
+  background: var(--lilac-tint);
+  color: var(--purple-700);
+  border-bottom: 1px solid color-mix(in srgb, var(--purple) 20%, transparent);
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+.studio__proto svg { flex: none; }
+.studio__protoshort { display: none; }
+@media (max-width: 640px) {
+  .studio__proto { justify-content: flex-start; text-align: left; letter-spacing: 0.05em; }
+  .studio__protolong { display: none; }
+  .studio__protoshort { display: inline; }
+}
+
+/* --- Header: title row + segmented progress ------------------------- */
+.studio__head { padding-top: clamp(20px, 3.4vw, 38px); gap: 18px; }
+.studio__titlerow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+.studio__title { display: grid; gap: 10px; }
+.studio__head .h2 { margin: 0; }
+.studio__stepmeta { margin: 0; color: var(--text-soft); }
+/* Past step 1 the title steps back so the work owns the first viewport. */
+.studio__head.is-compact { padding-top: clamp(14px, 2.2vw, 24px); gap: 14px; }
+.studio__head.is-compact .studio__title { gap: 6px; }
+.studio__head.is-compact .h2 { font-size: clamp(1.3rem, 2.1vw, 1.7rem); line-height: 1; }
+
+.studio__progress { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.studio__step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 3px auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 9px;
+  min-height: 44px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+}
+.studio__step::before {
+  content: "";
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line-strong);
+  transition: background var(--dur-ui) var(--ease-out);
+}
+.studio__stepn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  font-size: 0.6rem;
+  letter-spacing: 0;
+  line-height: 1;
+  color: inherit;
+  transition: background var(--dur-ui) var(--ease-out), border-color var(--dur-ui) var(--ease-out);
+}
+.studio__stepl { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio__step:disabled { opacity: 1; color: var(--text-faint); }
+.studio__step:disabled::before { background: var(--line); }
+.studio__step:disabled .studio__stepn { border-color: var(--line); }
+.studio__step.is-done { color: var(--text-soft); border-color: transparent; }
+.studio__step.is-done::before { background: var(--purple); }
+.studio__step.is-done .studio__stepn { background: var(--purple); border-color: var(--purple); color: var(--white); }
+.studio__step.is-active { background: none; color: var(--ink); }
+.studio__step.is-active::before { background: var(--ink); }
+.studio__step.is-active .studio__stepn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.studio__step:focus-visible { outline: 2px solid var(--purple); outline-offset: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .studio__step:not(:disabled):not(.is-active):hover { color: var(--ink); }
+  .studio__step:not(:disabled):not(.is-active):not(.is-done):hover::before { background: var(--text-faint); }
+}
+@media (max-width: 640px) {
+  /* The step name is already announced in the meta line above. */
+  .studio__step { grid-template-columns: auto; }
+  .studio__step .studio__stepl,
+  .studio__step.is-active .studio__stepl { display: none; }
+}
+
+/* --- Floating action bar -------------------------------------------- */
+.studio__nav {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 30;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--white) 86%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px -20px rgba(20, 17, 15, 0.5);
+}
+.studio__nav .btn { min-height: 44px; }
+.studio__navsum {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding-inline: 6px;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The confirmation screen's closing links, and the Send step (whose real
+   action is "Prepare my design" in the panel), are not a sticky toolbar. */
+.studio__nav--static,
+.studio__done ~ .studio__nav {
+  position: static;
+  padding: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 0;
+  box-shadow: none;
+}
+@media (max-width: 720px) {
+  .studio__nav { bottom: calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  /* The bar is sticky (in flow), so it never covers the last content. */
+  .studio__panel:not(.ed) { padding-bottom: 0; }
+}
+@media (max-width: 560px) {
+  .studio__navsum,
+  .studio__navlong { display: none; }
+  .studio__nav .btn { flex: 1 1 auto; padding-inline: 14px; }
+}
+
+/* Panels are grids: one child with a wide unbreakable line (the no-wrap
+   "Design ready to send — TFN-…" chip is ~322px) would stretch the whole
+   column past a 320px phone. Let children shrink, and let the chip wrap. */
+.studio__panel > * { min-width: 0; }
+.studio__done .chip { max-width: 100%; white-space: normal; line-height: 1.4; }
+
+/* --- Shared surfaces ---------------------------------------------------- */
+.prodcard,
+.fabcard,
+.swatch,
+.minigarment,
+.minifabric,
+.edsec,
+.layeritem,
+.readiness,
+.sizes__cell,
+.ed__summary,
+.fabhelp,
+.sharefallback,
+.studio .choice {
+  border-width: 1px;
+  border-color: var(--line);
+}
+.prodcard,
+.fabcard,
+.readiness,
+.fabhelp,
+.sharefallback { border-radius: var(--st-radius); }
+.prodcard.is-active,
+.fabcard.is-active,
+.swatch.is-active,
+.minigarment.is-active,
+.minifabric.is-active,
+.layeritem.is-sel,
+.studio .choice.is-active {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 1px var(--purple), var(--st-lift);
+}
+@media (hover: hover) and (pointer: fine) {
+  .prodcard:not(.is-active):hover,
+  .fabcard:not(.is-active):hover,
+  .swatch:not(.is-active):hover,
+  .minigarment:not(.is-active):hover,
+  .minifabric:not(.is-active):hover,
+  .studio .choice:not(.is-active):hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--st-lift);
+  }
+}
+.prodcard,
+.fabcard,
+.swatch,
+.minigarment,
+.minifabric {
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+/* Chosen card: a check in the corner, not just a coloured border. */
+.prodcard.is-active::after,
+.fabcard.is-active::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--purple) var(--st-check) center / 12px no-repeat;
+  box-shadow: 0 2px 6px rgba(126, 22, 128, 0.35);
+  animation: st-check-in 180ms var(--ease-out) both;
+}
+@keyframes st-check-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* --- Step 1: product families ------------------------------------------ */
+.prodgroup { margin-bottom: clamp(26px, 3.4vw, 38px); }
+.prodgroup__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.prodgroup__name { margin: 0; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.prodgroup__note { font-size: 0.8rem; }
+.prodgrid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.prodcard { padding: 8px 8px 10px; gap: 5px; }
+.prodcard > :not(.prodcard__thumb):not(input) { margin-inline: 6px; }
+.prodcard__thumb {
+  max-width: none;
+  /* height:auto lets aspect-ratio win over the img's height attribute */
+  height: auto;
+  aspect-ratio: 5 / 4;
+  padding: 10px;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, #f5f2ec, #ede7dc);
+  border-radius: var(--st-radius-in);
+}
+.prodcard__name { font-size: 0.95rem; line-height: 1.25; }
+.prodcard__fit { font-size: 0.6rem; }
+.prodcard__badges { margin-top: 2px; }
+
+/* --- Step 2: colour & fabric ------------------------------------------- */
+.studio__panel--split {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: clamp(24px, 4vw, 56px);
+}
+@media (max-width: 860px) { .studio__panel--split { grid-template-columns: 1fr; } }
+.swatches { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.swatch { padding: 12px 6px 10px; border-radius: 10px; }
+.swatch__chip { width: 38px; height: 38px; border: 0; box-shadow: inset 0 0 0 1px rgba(20, 17, 15, 0.14), 0 1px 2px rgba(20, 17, 15, 0.12); }
+.swatch.is-active .swatch__chip { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--purple); }
+.swatch__name { font-family: var(--font-body); font-size: 0.74rem; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.swatch__tag { white-space: nowrap; font-size: 0.54rem; letter-spacing: 0.04em; padding: 1px 6px; }
+
+/* Fabric cards read as a compact list: swatch left, words right. They are
+   labels inside a fieldset, so undo the uppercase .field label voice. */
+.fabcard,
+.fabcard * { font-family: var(--font-body); text-transform: none; letter-spacing: normal; }
+.fabgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.fabcard {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  align-content: start;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 10px 36px 10px 10px;
+}
+.fabcard > * { grid-column: 2; }
+.fabcard > .fabcard__img {
+  grid-column: 1;
+  grid-row: 1 / span 6;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--st-radius-in);
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(20, 17, 15, 0.08);
+}
+.fabcard__name { font-size: 0.88rem; color: var(--ink); }
+.fabcard__weight { font-size: 0.56rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.fabcard__desc { font-size: 0.78rem; line-height: 1.4; }
+.fabcard__use,
+.fabcard__refnote { font-size: 0.7rem; line-height: 1.35; }
+.fabcard .avail { margin-top: 6px; font-family: var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; }
+.fabcard--advise { grid-template-columns: minmax(0, 1fr); border-style: dashed; }
+.fabcard--advise > * { grid-column: 1; }
+.fabhelp summary { min-height: 46px; }
+
+.studio__side { top: calc(var(--header-h) + 24px); }
+.studio__side .gframe,
+.gframe { border-width: 1px; border-color: var(--line); border-radius: 14px; box-shadow: var(--st-lift); }
+.studio__colorstate { color: var(--text-soft); }
+
+/* --- Step 3: the editor ------------------------------------------------ */
+.viewrow { margin-bottom: 10px; }
+.viewrow .viewtabs {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 3px;
+  gap: 2px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.viewrow { justify-content: space-between; }
+.viewtab { min-height: 36px; padding: 0 18px; border: 0; background: transparent; font-size: 0.76rem; color: var(--text-soft); }
+.viewtab.is-active {
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(20, 17, 15, 0.14), 0 0 0 1px var(--line);
+}
+.viewtab.is-active svg { color: var(--green); }
+@media (pointer: coarse) { .viewtab { min-height: 40px; } }
+
+.gtools { gap: 6px; }
+.gtool { min-height: 36px; border-width: 1px; border-color: var(--line); border-radius: 9px; }
+.gtool.is-on { border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
+.gtool__sep { width: 1px; background: var(--line); }
+
+.addbig__btn {
+  min-height: 84px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-ui) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.addbig__btn svg { color: var(--purple-700); margin-bottom: 4px; }
+.addbig__btn--text { border-color: color-mix(in srgb, var(--purple) 45%, transparent); background: var(--lilac-tint); }
+@media (hover: hover) and (pointer: fine) {
+  .addbig__btn:hover { border-color: var(--purple); background: var(--white); box-shadow: var(--st-lift); }
+  .addbig__btn--text:hover { background: var(--lilac-tint); }
+}
+.addtext__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.addtext__btn:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .addtext__btn:hover { border-style: solid; border-color: var(--ink); color: var(--ink); }
+}
+@media (pointer: coarse) { .addtext__btn { min-height: 44px; } }
+
+.dropzone { position: relative; }
+.field .dropzone__target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--text-soft);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.dropzone__target svg { flex: none; color: var(--purple-700); }
+.dropzone__text { display: grid; gap: 2px; line-height: 1.35; }
+.dropzone__text strong { color: var(--ink); font-weight: 700; }
+.dropzone__hint { font-size: 0.7rem; color: var(--text-faint); }
+.dropzone.is-over .dropzone__target { border-color: var(--purple); background: var(--lilac-tint); }
+.dropzone:focus-within .dropzone__target { outline: 2px solid var(--purple); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .field .dropzone__target:hover { border-color: var(--purple); }
+}
+
+.emptysteps { border-width: 1px; border-color: var(--line); background: color-mix(in srgb, var(--white) 60%, transparent); }
+.edsec { border-radius: 10px; }
+.layeritem { border-radius: 9px; }
+
+/* Inspector: hairline dividers give the long right rail a rhythm. */
+.ed__rail--adjust > .field + .field,
+.ed__rail--adjust > .field-grid2 + .field,
+.ed__rail--adjust > .field + .field-grid2 {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.preset { min-height: 34px; padding: 0 12px; border-width: 1px; border-color: var(--line); font-size: 0.76rem; }
+@media (pointer: coarse) { .preset { min-height: 40px; } }
+.editactions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.editactions .btn { min-height: 40px; padding: 0 10px; font-size: 0.7rem; }
+.ed__summary { border: 0; background: var(--paper-2); border-radius: var(--st-radius); }
+
+/* Mobile dock floats like the step bar (tablet keeps its own rules). */
+@media (max-width: 860px) {
+  .ed__dock {
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    margin: 10px 0 0;
+    padding: 6px;
+    gap: 6px;
+    background: color-mix(in srgb, var(--white) 88%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    backdrop-filter: saturate(1.4) blur(14px);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 14px 34px -18px rgba(20, 17, 15, 0.55);
+  }
+  .ed__dockbtn { border-width: 1px; border-color: var(--line); }
+  .ed__docktabs { gap: 2px; padding: 3px; background: var(--paper-2); border-radius: 11px; }
+  .ed__sheettab { min-height: 38px; font-size: 0.76rem; }
+}
+
+/* --- Step 4: review ---------------------------------------------------- */
+.tprev__row { flex-wrap: nowrap; gap: 12px; }
+.tprev { flex: 1 1 0; min-width: 0; }
+.tprev__stage { border-width: 1px; border-color: var(--line); border-radius: var(--st-radius); }
+.studio__reviewside { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.studio__reviewside .readiness { margin: 0; }
+.studio__reviewlist { border-width: 1px; border-color: var(--line); border-radius: var(--st-radius); padding: 4px 16px 8px; }
+.studio__hintstack { display: grid; gap: 6px; }
+.studio__hintstack p { margin: 0; }
+@media (min-width: 960px) {
+  .studio__review {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: clamp(24px, 3.4vw, 48px);
+    align-items: start;
+  }
+  .studio__reviewprev { position: sticky; top: calc(var(--header-h) + 24px); }
+}
+
+/* --- Step 5: order details ------------------------------------------- */
+.studio__panel--form { max-width: 760px; }
+.sizes { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.sizes__cell { border-radius: 10px; }
+.sizes__cell--total { grid-column: span 2; border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
+.sizes__stepper button,
+.sizes__stepper input { border-width: 1px; border-color: var(--line-strong); }
+@media (max-width: 560px) {
+  .sizes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sizes__cell--total {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+  }
+}
+
+/* --- Step 6: send ------------------------------------------------------ */
+.sendgrid__sheet { border-width: 1px; border-color: var(--line); border-radius: 10px; box-shadow: var(--st-lift); }
+/* The message preview reads like the chat bubble it will become. */
+.msgpreview {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  background: #eef6e8;
+  border: 1px solid #d5e6ca;
+  border-radius: 14px 14px 14px 4px;
+  box-shadow: var(--st-lift);
+}
+.msgpreview strong { font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .prodcard.is-active::after,
+  .fabcard.is-active::after { animation: none; }
+  .studio__step::before,
+  .studio__stepn,
+  .addbig__btn,
+  .addtext__btn,
+  .field .dropzone__target { transition: none; }
+}
